@@ -101,50 +101,23 @@ request_url(Version, Module, Function, Arity, ClientConfig) ->
 encode_http_request_with_auth(Url, Method, Headers, Body, #{ authentication := none }) ->
     {Url, Method, Headers, Body};
 encode_http_request_with_auth(Url, Method, Headers, Body, ClientConfig) ->
-    #{ authentication := {KeyId, #{ signing := SigningParams }} } = ClientConfig,
-    #lhttpc_url{ path = HostlessURI } = lhttpc_lib:parse_url(Url),
-
-    AuthorizedRequest = rpcaller_http_signatures:create_authorized_request(
-                          KeyId, SigningParams, Method, HostlessURI, Headers, Body),
-    UpdatedHeaders =
-        rpcaller_http_signatures:encode_authorized_request_headers(AuthorizedRequest),
+    #{ authentication := {basic, {Username, Password}} } = ClientConfig,
+    AuthHeader = {"authorization", http_basic_auth_header_value(Username, Password)},
+    UpdatedHeaders = [AuthHeader | Headers],
     {Url, Method, UpdatedHeaders, Body}.
 
 decode_response_body(ResponseHeaders, ResponseBody, ClientConfig) ->
-    case validate_response_signature(ResponseHeaders, ResponseBody, ClientConfig) of
-        {error, _} = Error ->
-            Error;
-        false ->
-            {error, invalid_response_signature};
-        true ->
-            case find_content_type(ResponseHeaders) of
-                {ok, {"application/x-erlang-etf", _Attributes}} ->
-                    #{ decode_unsafe_terms := DecodeUnsafeTerms } = ClientConfig,
-                    case rpcaller_codec_etf:decode(ResponseBody, DecodeUnsafeTerms) of
-                        {ok, Decoded} -> {ok, Decoded};
-                        error -> {error, {rpcaller, undecodable_response_body}}
-                    end;
-                {error, invalid_content_type} ->
-                    {error, {rpcaller, invalid_response_content_type}};
-                {error, content_type_missing} ->
-                    {error, {rpcaller, response_content_type_missing}}
-            end
-    end.
-
-validate_response_signature(_ResponseHeaders, _ResponseBody, #{ authentication := none }) ->
-    true;
-validate_response_signature(ResponseHeaders, ResponseBody, ClientConfig) ->
-    #{ authentication := {KeyId, #{ signing := SigningParams }} } = ClientConfig,
-    case rpcaller_http_signatures:decode_authorized_response(ResponseHeaders) of
-        {ok, AuthorizedResponse} ->
-            case rpcaller_http_signatures:verify_authorized_response(AuthorizedResponse, KeyId, SigningParams)
-            of
-                false -> false;
-                {true, BodyDigest} ->
-                    rpcaller_digest:verify(ResponseBody, BodyDigest)
+    case find_content_type(ResponseHeaders) of
+        {ok, {"application/x-erlang-etf", _Attributes}} ->
+            #{ decode_unsafe_terms := DecodeUnsafeTerms } = ClientConfig,
+            case rpcaller_codec_etf:decode(ResponseBody, DecodeUnsafeTerms) of
+                {ok, Decoded} -> {ok, Decoded};
+                error -> {error, {rpcaller, undecodable_response_body}}
             end;
-        {error, DecodeError} ->
-            {error, {response_signature_validation, DecodeError}}
+        {error, invalid_content_type} ->
+            {error, {rpcaller, invalid_response_content_type}};
+        {error, content_type_missing} ->
+            {error, {rpcaller, response_content_type_missing}}
     end.
 
 find_content_type(Headers) ->
@@ -178,3 +151,6 @@ lists_keyfind_predicate(Predicate, N, [H|T]) ->
     end;
 lists_keyfind_predicate(_Predicate, _N, []) ->
     false.
+
+http_basic_auth_header_value(Username, Password) ->
+    "basic " ++ base64:encode_to_string( iolist_to_binary([Username, ":", Password]) ).

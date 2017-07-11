@@ -83,7 +83,7 @@ forbidden(Req, State) ->
         false ->
             {false, Req, State};
         true ->
-            Req2 = set_resp_body({error, module_not_exposed}, Req, State),
+            Req2 = set_resp_body({error, module_not_exposed}, Req),
             {true, Req2, State}
     end.
 
@@ -113,7 +113,7 @@ resource_exists(Req, State) ->
 
     case find_and_parse_relevant_module_info(Module) of
         {ok, #{ rpcaller_version := RPCallerVersion }} when RPCallerVersion =/= Version ->
-            Req2 = set_resp_body({error, module_version_not_found}, Req, State),
+            Req2 = set_resp_body({error, module_version_not_found}, Req),
             {false, Req2, State};
         {ok, #{ rpcaller_exports := RPCallerExports, exports := Exports }} ->
             case (maps:is_key({Function, Arity}, RPCallerExports) andalso
@@ -121,11 +121,11 @@ resource_exists(Req, State) ->
                 true ->
                     {true, Req, State};
                 false ->
-                    Req2 = set_resp_body({error, function_not_exported}, Req, State),
+                    Req2 = set_resp_body({error, function_not_exported}, Req),
                     {false, Req2, State}
             end;
         error ->
-            Req2 = set_resp_body({error, module_not_found}, Req, State),
+            Req2 = set_resp_body({error, module_not_found}, Req),
             {false, Req2, State}
     end.
 
@@ -137,19 +137,19 @@ handle_etf_body(Req, State) ->
     {ok, Body, Req2} = cowboy_req:body(Req),
     case verify_body_digest(Body, State) of
         false ->
-            Req3 = set_resp_body({error, invalid_body_digest}, Req2, State),
+            Req3 = set_resp_body({error, invalid_body_digest}, Req2),
             {false, Req3, State};
         true ->
             case rpcaller_codec_etf:decode(Body, DecodeUnsafeTerms) of
                 error ->
-                    Req3 = set_resp_body({error, undecodable_payload}, Req2, State),
+                    Req3 = set_resp_body({error, undecodable_payload}, Req2),
                     {false, Req3, State};
                 {ok, UnvalidatedFunctionArgs} ->
                     if not is_list(UnvalidatedFunctionArgs) ->
-                           Req3 = set_resp_body({error, payload_not_a_list}, Req2, State),
+                           Req3 = set_resp_body({error, payload_not_a_list}, Req2),
                            {false, Req3, State};
                        length(UnvalidatedFunctionArgs) =/= Arity ->
-                           Req3 = set_resp_body({error, payload_arity_inconsistent}, Req2, State),
+                           Req3 = set_resp_body({error, payload_arity_inconsistent}, Req2),
                            {false, Req3, State};
                        true ->
                            NewState = State#{ function_args => UnvalidatedFunctionArgs },
@@ -235,21 +235,50 @@ clean_exception_stacktrace(Stacktrace, UntilMFA) ->
       fun ({M,F,A,_Extra}) -> {M,F,A} =/= UntilMFA end,
       Stacktrace).
 
-is_authorized_(Req, #{ rpcaller_opts := RPCallerOpts } = State) ->
-    case rpcaller_cowboy_authorization:verify_req(RPCallerOpts, Req) of
-        {{true, AccessConf}, Req2} ->
-            NewState = State#{ access_conf => AccessConf },
-            {true, Req2, NewState};
-        {{true, AccessConf, RequestAuthorization, BodyDigest}, Req2} ->
-            NewState =
-                State#{ access_conf => AccessConf,
-                        request_authorization => RequestAuthorization,
-                        expected_body_digest => BodyDigest },
-            {true, Req2, NewState};
-        {{false, RejectionHeaderValue}, Req2} ->
-            % TODO params? maybe not, keep auth failures opaque
-            {{false, RejectionHeaderValue}, Req2, State}
-    end.
+is_authorized_(Req, State) ->
+    ParseResult = cowboy_req:parse_header(<<"authorization">>, Req, none),
+    handle_req_auth_parse(ParseResult, Req, State).
+
+handle_req_auth_parse({ok, {<<"basic">>, {Username, Password}}, Req}, _PrevReq, State) ->
+    #{ rpcaller_opts := RPCallerOpts } = State,
+    AuthenticatedAccessConfs = maps:get(authenticated_access, RPCallerOpts, #{}),
+    authenticate_req_auth(maps:find(Username, AuthenticatedAccessConfs), Password, Req, State);
+handle_req_auth_parse({ok, none, Req}, _PrevReq, State) ->
+    #{ rpcaller_opts := RPCallerOpts } = State,
+    ExplicitAccessConf = maps:get(unauthenticated_access, RPCallerOpts, #{}),
+    DefaultAccessConf = default_access_conf(unauthenticated_access),
+    AccessConf = maps:merge(DefaultAccessConf, ExplicitAccessConf),
+    NewState = State#{ access_conf => AccessConf },
+    {true, Req, NewState};
+handle_req_auth_parse({undefined, _Value, Req}, _PrevReq, State) ->
+    {{false, failed_authorization_prompt()}, Req, State};
+handle_req_auth_parse({error, badarg}, PrevReq, State) ->
+    {{false, failed_authorization_prompt()}, PrevReq, State}.
+
+authenticate_req_auth({ok, #{ authentication := {basic, Password} } = ExplicitAccessConf},
+                      GivenPassword, Req, State) 
+  when Password =:= GivenPassword ->
+    DefaultAccessConf = default_access_conf(authenticated_access),
+    AccessConf = maps:merge(DefaultAccessConf, ExplicitAccessConf),
+    NewState = State#{ access_conf => AccessConf },
+    {true, Req, NewState};
+authenticate_req_auth({ok, #{ authentication := {basic, _Password} }},
+                      _GivenPassword, Req, State) ->
+    {false, Req, State};
+authenticate_req_auth(error, _GivenPassword, Req, State) ->
+    {false, Req, State}.
+
+default_access_conf(unauthenticated_access) ->
+    #{ decode_unsafe_terms => false,
+       exposed_modules => [],
+       return_exception_stacktraces => false };
+default_access_conf(authenticated_access) ->
+    #{ decode_unsafe_terms => true,
+       exposed_modules => [],
+       return_exception_stacktraces => true }.
+
+failed_authorization_prompt() ->
+    <<"Basic realm=\"rpcaller\"">>.
 
 malformed_request_(Req, State) ->
     #{ access_conf := AccessConf,
@@ -264,16 +293,16 @@ malformed_request_(Req, State) ->
     Arity = (catch binary_to_integer(BinArity)),
 
     if not is_list(Version) ->
-           Req2 = set_resp_body({error, invalid_api_version}, Req, State),
+           Req2 = set_resp_body({error, invalid_api_version}, Req),
            {true, Req2, State};
        not is_atom(Module) ->
-           Req2 = set_resp_body({error, invalid_module_name}, Req, State),
+           Req2 = set_resp_body({error, invalid_module_name}, Req),
            {true, Req2, State};
        not is_atom(Function) ->
-           Req2 = set_resp_body({error, invalid_function_name}, Req, State),
+           Req2 = set_resp_body({error, invalid_function_name}, Req),
            {true, Req2, State};
        not is_integer(Arity) orelse Arity < 0 orelse Arity > 255 ->
-           Req2 = set_resp_body({error, invalid_function_arity}, Req, State),
+           Req2 = set_resp_body({error, invalid_function_arity}, Req),
            {true, Req2, State};
        true ->
            NewState =
@@ -296,13 +325,12 @@ handle_call(Req, State) ->
        function_args := Args } = State,
 
     Result = call_function(Module, Function, Args, AccessConf),
-    Req2 = set_resp_body(Result, Req, State),
+    Req2 = set_resp_body(Result, Req),
     {true, Req2, State}.
 
-set_resp_body(Term, Req, State) ->
+set_resp_body(Term, Req) ->
     {Body, Req2} = encode_resp_body(Term, Req),
-    Req3 = maybe_sign_resp(Body, Req2, State),
-    cowboy_req:set_resp_body(Body, Req3).
+    cowboy_req:set_resp_body(Body, Req2).
 
 encode_resp_body(Term, Req) ->
     {ResponseMediaType, Req2} = cowboy_req:meta(media_type, Req),
@@ -312,24 +340,3 @@ encode_resp_body(Term, Req) ->
         undefined ->
             {io_lib:format("~p", [Term]), Req2}
     end.
-
-maybe_sign_resp(Body, Req, #{ request_authorization := RequestAuthorization } = State) ->
-    #{ rpcaller_opts := RPCallerOpts } = State,
-    rpcaller_cowboy_authorization:sign_resp(RPCallerOpts, RequestAuthorization, Body, Req);
-maybe_sign_resp(_Body, Req, _State) ->
-    Req.
-
-%sign_encoded_resp_body(Body, Req, #{ access_conf := #{ algorithm := {Algorithm, Secret} } }) ->
-%    ResponsePayloadSignature = rpcaller_signing:sign_response_payload(Algorithm, Secret, Body),
-%    cowboy_req:set_resp_header(<<"x-rpcaller-payload-signature">>, ResponsePayloadSignature, Req);
-%sign_encoded_resp_body(_Body, Req, _State) ->
-%    Req.
-%
-%verify_request_payload_signature(_Body, #{ request_payload_signature := ignored }) ->
-%    % unauthenticated access
-%    true;
-%verify_request_payload_signature(Body, State) ->
-%    #{ access_conf := #{ hmac := {Algorithm, Secret} },
-%       request_payload_signature := RequestPayloadSignature } = State,
-%    io:format("comparing ~p / ~p~n", [RequestPayloadSignature, rpcaller_signing:sign_request_payload(Algorithm, Secret, Body)]),
-%    RequestPayloadSignature =:= rpcaller_signing:sign_request_payload(Algorithm, Secret, Body).

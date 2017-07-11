@@ -95,7 +95,7 @@ default_timeout() -> 5000.
 
 default_unsafe_term_decode(none) ->
     false;
-default_unsafe_term_decode({_Username, _Params}) ->
+default_unsafe_term_decode({basic, {_Username, _Params}}) ->
     true.
 
 default_remote_exceptions_rethrow() ->
