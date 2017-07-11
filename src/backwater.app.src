@@ -9,8 +9,7 @@
     edoc,
     cowboy,
     lhttpc,
-    jsx,
-    %unistring,
+    %jsx,
     recon % TODO actually optional
    ]},
   {env,[]},
