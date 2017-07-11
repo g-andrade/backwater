@@ -1,0 +1,22 @@
+{application, rpcaller,
+ [{description, "An OTP library"},
+  {vsn, git},
+  {registered, []},
+  {mod, {rpcaller_app, []}},
+  {applications,
+   [kernel,
+    stdlib,
+    edoc,
+    cowboy,
+    lhttpc,
+    jsx,
+    %unistring,
+    recon % TODO actually optional
+   ]},
+  {env,[]},
+  {modules, []},
+
+  {maintainers, []},
+  {licenses, []},
+  {links, []}
+ ]}.
