@@ -1,4 +1,4 @@
--module(rpcaller_server).
+-module(backwater_server).
 
 %% ------------------------------------------------------------------
 %% API Function Exports
@@ -15,16 +15,16 @@
 %% ------------------------------------------------------------------
 
 childspec(Id, Ref, ServerConfig) ->
-    rpcaller_server_sup:childspec(Id, Ref, ServerConfig).
+    backwater_server_sup:childspec(Id, Ref, ServerConfig).
 
 start(Ref, ServerConfig) ->
-    rpcaller_sup:start_server(Ref, ServerConfig).
+    backwater_sup:start_server(Ref, ServerConfig).
 
 stop(Ref) ->
-    rpcaller_sup:stop_server(Ref).
+    backwater_sup:stop_server(Ref).
 
-cowboy_route_rule(RPCallerOpts) ->
-    rpcaller_cowboy_instance:cowboy_route_rule(RPCallerOpts).
+cowboy_route_rule(BackwaterOpts) ->
+    backwater_cowboy_instance:cowboy_route_rule(BackwaterOpts).
 
-cowboy_route_path(RPCallerOpts) ->
-    rpcaller_cowboy_instance:cowboy_route_path(RPCallerOpts).
+cowboy_route_path(BackwaterOpts) ->
+    backwater_cowboy_instance:cowboy_route_path(BackwaterOpts).

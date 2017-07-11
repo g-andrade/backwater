@@ -1,4 +1,4 @@
--module(rpcaller_client_config).
+-module(backwater_client_config).
 -behaviour(gen_server).
 
 %% ------------------------------------------------------------------
@@ -84,7 +84,7 @@ code_change(_OldVsn, State, _Extra) ->
 %% ------------------------------------------------------------------
 
 server_name(Ref) ->
-    list_to_atom("rpcaller_" ++ rpcaller_util:parse_unicode_string(Ref) ++ "_client_config").
+    list_to_atom("backwater_" ++ backwater_util:parse_unicode_string(Ref) ++ "_client_config").
 
 config_table_name(Ref) ->
     server_name(Ref).

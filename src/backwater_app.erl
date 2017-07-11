@@ -1,4 +1,4 @@
--module(rpcaller_app).
+-module(backwater_app).
 -behaviour(application).
 
 %% ------------------------------------------------------------------
@@ -14,14 +14,14 @@
 %% ------------------------------------------------------------------
 
 start(_StartType, _StartArgs) ->
-    Clients = application:get_env(rpcaller, clients, #{}),
-    Servers = application:get_env(rpcaller, servers, #{}),
-    rpcaller_sup:start_link(Clients, Servers).
+    Clients = application:get_env(backwater, clients, #{}),
+    Servers = application:get_env(backwater, servers, #{}),
+    backwater_sup:start_link(Clients, Servers).
 
 stop(_State) ->
     ok.
 
 config_change(_Changed, _New, _Removed) ->
-    Clients = application:get_env(rpcaller, clients, #{}),
-    Servers = application:get_env(rpcaller, servers, #{}),
-    rpcaller_sup:app_config_changed(Clients, Servers).
+    Clients = application:get_env(backwater, clients, #{}),
+    Servers = application:get_env(backwater, servers, #{}),
+    backwater_sup:app_config_changed(Clients, Servers).

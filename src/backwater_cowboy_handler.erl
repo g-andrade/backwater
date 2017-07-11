@@ -1,4 +1,4 @@
--module(rpcaller_cowboy_handler).
+-module(backwater_cowboy_handler).
 
 %% ------------------------------------------------------------------
 %% cowboy_http_handler Function Exports
@@ -36,12 +36,12 @@
 init(_Transport, _Req, _Opts) ->
     {upgrade, protocol, cowboy_rest}.
 
-rest_init(Req, [RPCallerOpts]) ->
+rest_init(Req, [BackwaterOpts]) ->
     {BinVersion, Req2} = cowboy_req:binding(version, Req),
     {BinModule, Req3} = cowboy_req:binding(module, Req2),
     {BinFunction, Req4} = cowboy_req:binding(function, Req3),
     {BinArity, Req5} = cowboy_req:binding(arity, Req4),
-    {ok, Req5, #{ rpcaller_opts => RPCallerOpts,
+    {ok, Req5, #{ backwater_opts => BackwaterOpts,
                   unvalidated_version => BinVersion,
                   unvalidated_module => BinModule,
                   unvalidated_function => BinFunction,
@@ -112,11 +112,11 @@ resource_exists(Req, State) ->
        arity := Arity } = State,
 
     case find_and_parse_relevant_module_info(Module) of
-        {ok, #{ rpcaller_version := RPCallerVersion }} when RPCallerVersion =/= Version ->
+        {ok, #{ backwater_version := BackwaterVersion }} when BackwaterVersion =/= Version ->
             Req2 = set_resp_body({error, module_version_not_found}, Req),
             {false, Req2, State};
-        {ok, #{ rpcaller_exports := RPCallerExports, exports := Exports }} ->
-            case (maps:is_key({Function, Arity}, RPCallerExports) andalso
+        {ok, #{ backwater_exports := BackwaterExports, exports := Exports }} ->
+            case (maps:is_key({Function, Arity}, BackwaterExports) andalso
                   lists:member({Function, Arity}, Exports)) of
                 true ->
                     {true, Req, State};
@@ -140,7 +140,7 @@ handle_etf_body(Req, State) ->
             Req3 = set_resp_body({error, invalid_body_digest}, Req2),
             {false, Req3, State};
         true ->
-            case rpcaller_codec_etf:decode(Body, DecodeUnsafeTerms) of
+            case backwater_codec_etf:decode(Body, DecodeUnsafeTerms) of
                 error ->
                     Req3 = set_resp_body({error, undecodable_payload}, Req2),
                     {false, Req3, State};
@@ -172,12 +172,12 @@ find_and_parse_relevant_module_info(Module) ->
         {ok, ModuleInfo} ->
             {attributes, ModuleAttributes} = lists:keyfind(attributes, 1, ModuleInfo),
             {exports, Exports} = lists:keyfind(exports, 1, ModuleInfo),
-            case module_attributes_find_rpcaller_version(ModuleAttributes) of
-                {ok, RPCallerVersion} ->
-                    RPCallerExports = module_attributes_get_rpcaller_exports(ModuleAttributes),
+            case module_attributes_find_backwater_version(ModuleAttributes) of
+                {ok, BackwaterVersion} ->
+                    BackwaterExports = module_attributes_get_backwater_exports(ModuleAttributes),
                     {ok, #{ exports => Exports,
-                            rpcaller_version => RPCallerVersion,
-                            rpcaller_exports => RPCallerExports }};
+                            backwater_version => BackwaterVersion,
+                            backwater_exports => BackwaterExports }};
                 error ->
                     error
             end;
@@ -192,21 +192,21 @@ find_module_info(Module) ->
         error:undef -> error
     end.
 
-module_attributes_find_rpcaller_version(ModuleAttributes) ->
-    case lists:keyfind(rpcaller_version, 1, ModuleAttributes) of
-        {rpcaller_version, Version} ->
+module_attributes_find_backwater_version(ModuleAttributes) ->
+    case lists:keyfind(backwater_version, 1, ModuleAttributes) of
+        {backwater_version, Version} ->
             {ok, Version};
         false ->
             error
     end.
 
-module_attributes_get_rpcaller_exports(ModuleAttributes) ->
+module_attributes_get_backwater_exports(ModuleAttributes) ->
     lists:foldl(
-      fun ({rpcaller_export, Tuple}, Acc) when is_tuple(Tuple) ->
-              {FA, Properties} = rpcaller_export_entry_pair(Tuple),
+      fun ({backwater_export, Tuple}, Acc) when is_tuple(Tuple) ->
+              {FA, Properties} = backwater_export_entry_pair(Tuple),
               maps:put(FA, Properties, Acc);
-          ({rpcaller_export, List}, Acc) when is_list(List) ->
-              EntryPairs = lists:map(fun rpcaller_export_entry_pair/1, List),
+          ({backwater_export, List}, Acc) when is_list(List) ->
+              EntryPairs = lists:map(fun backwater_export_entry_pair/1, List),
               maps:merge(Acc, maps:from_list(EntryPairs));
           (_Other, Acc) ->
               Acc
@@ -214,7 +214,7 @@ module_attributes_get_rpcaller_exports(ModuleAttributes) ->
       #{},
       ModuleAttributes).
 
-rpcaller_export_entry_pair({F,A}) ->
+backwater_export_entry_pair({F,A}) ->
     Properties = #{}, % none yet
     {{F,A}, Properties}.
 
@@ -240,12 +240,12 @@ is_authorized_(Req, State) ->
     handle_req_auth_parse(ParseResult, Req, State).
 
 handle_req_auth_parse({ok, {<<"basic">>, {Username, Password}}, Req}, _PrevReq, State) ->
-    #{ rpcaller_opts := RPCallerOpts } = State,
-    AuthenticatedAccessConfs = maps:get(authenticated_access, RPCallerOpts, #{}),
+    #{ backwater_opts := BackwaterOpts } = State,
+    AuthenticatedAccessConfs = maps:get(authenticated_access, BackwaterOpts, #{}),
     authenticate_req_auth(maps:find(Username, AuthenticatedAccessConfs), Password, Req, State);
 handle_req_auth_parse({ok, none, Req}, _PrevReq, State) ->
-    #{ rpcaller_opts := RPCallerOpts } = State,
-    ExplicitAccessConf = maps:get(unauthenticated_access, RPCallerOpts, #{}),
+    #{ backwater_opts := BackwaterOpts } = State,
+    ExplicitAccessConf = maps:get(unauthenticated_access, BackwaterOpts, #{}),
     DefaultAccessConf = default_access_conf(unauthenticated_access),
     AccessConf = maps:merge(DefaultAccessConf, ExplicitAccessConf),
     NewState = State#{ access_conf => AccessConf },
@@ -278,7 +278,7 @@ default_access_conf(authenticated_access) ->
        return_exception_stacktraces => true }.
 
 failed_authorization_prompt() ->
-    <<"Basic realm=\"rpcaller\"">>.
+    <<"Basic realm=\"backwater\"">>.
 
 malformed_request_(Req, State) ->
     #{ access_conf := AccessConf,
@@ -314,7 +314,7 @@ malformed_request_(Req, State) ->
     end.
 
 verify_body_digest(Body, #{ expected_body_digest := BodyDigest }) ->
-    rpcaller_digest:verify(Body, BodyDigest);
+    backwater_digest:verify(Body, BodyDigest);
 verify_body_digest(_Body, _State) ->
     true.
 
@@ -336,7 +336,7 @@ encode_resp_body(Term, Req) ->
     {ResponseMediaType, Req2} = cowboy_req:meta(media_type, Req),
     case ResponseMediaType of
         {<<"application">>, <<"x-erlang-etf">>, _} ->
-            {rpcaller_codec_etf:encode(Term), Req2};
+            {backwater_codec_etf:encode(Term), Req2};
         undefined ->
             {io_lib:format("~p", [Term]), Req2}
     end.

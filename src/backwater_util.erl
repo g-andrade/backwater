@@ -1,4 +1,4 @@
--module(rpcaller_util).
+-module(backwater_util).
 
 -export([parse_unicode_string/1]).
 -export([string_tokens_n/3]).

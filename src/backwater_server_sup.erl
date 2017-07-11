@@ -1,4 +1,4 @@
--module(rpcaller_server_sup).
+-module(backwater_server_sup).
 -behaviour(supervisor).
 
 %% ------------------------------------------------------------------
@@ -39,7 +39,7 @@ childspec(Id, Ref, ServerConfig) ->
 %% ------------------------------------------------------------------
 
 init([Ref, ServerConfig]) ->
-    Children = [rpcaller_cowboy_instance:childspec(cowboy_instance, Ref, ServerConfig)],
+    Children = [backwater_cowboy_instance:childspec(cowboy_instance, Ref, ServerConfig)],
     {ok, {#{}, Children}}.
 
 %% ------------------------------------------------------------------
@@ -47,4 +47,4 @@ init([Ref, ServerConfig]) ->
 %% ------------------------------------------------------------------
 
 server_name(Ref) ->
-    list_to_atom("rpcaller_" ++ rpcaller_util:parse_unicode_string(Ref) ++ "_server_sup").
+    list_to_atom("backwater_" ++ backwater_util:parse_unicode_string(Ref) ++ "_server_sup").

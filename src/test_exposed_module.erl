@@ -4,11 +4,11 @@
 -export([function3/0]).
 -export([function5/1]).
 
--rpcaller_version("1").
--rpcaller_export([{function2,0}]).
--rpcaller_export({function3,0}).
--rpcaller_export({function4,0}).
--rpcaller_export({function5,1}).
+-backwater_version("1").
+-backwater_export([{function2,0}]).
+-backwater_export({function3,0}).
+-backwater_export({function4,0}).
+-backwater_export({function5,1}).
 
 function1() ->
     wow.

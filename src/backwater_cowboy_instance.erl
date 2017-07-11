@@ -1,4 +1,4 @@
--module(rpcaller_cowboy_instance).
+-module(backwater_cowboy_instance).
 -behaviour(gen_server).
 
 %% ------------------------------------------------------------------
@@ -56,14 +56,14 @@ childspec(Id, Ref, ServerConfig) ->
        type => worker,
        modules => [?MODULE] }.
 
-cowboy_route_rule(RPCallerOpts) ->
-    Host = maps:get(host, RPCallerOpts, '_'),
-    {Host, [cowboy_route_path(RPCallerOpts)]}.
+cowboy_route_rule(BackwaterOpts) ->
+    Host = maps:get(host, BackwaterOpts, '_'),
+    {Host, [cowboy_route_path(BackwaterOpts)]}.
 
-cowboy_route_path(RPCallerOpts) ->
-    BasePath = maps:get(base_path, RPCallerOpts, "/rpcall/"),
+cowboy_route_path(BackwaterOpts) ->
+    BasePath = maps:get(base_path, BackwaterOpts, "/rpcall/"),
     {BasePath ++ ":version/:module/:function/:arity",
-     rpcaller_cowboy_handler, [RPCallerOpts]}.
+     backwater_cowboy_handler, [BackwaterOpts]}.
 
 %% ------------------------------------------------------------------
 %% gen_server Function Definitions
@@ -98,13 +98,13 @@ code_change(_OldVsn, State, _Extra) ->
 %% ------------------------------------------------------------------
 
 server_name(Ref) ->
-    list_to_atom("rpcaller_" ++ rpcaller_util:parse_unicode_string(Ref) ++ "_cowboy_instance").
+    list_to_atom("backwater_" ++ backwater_util:parse_unicode_string(Ref) ++ "_cowboy_instance").
 
 start_cowboy(Ref, ServerConfig) ->
     {StartFunction, NbAcceptors, TransOpts, BaseProtoOpts,
-     RPCallerOpts} = parse_config(ServerConfig),
+     BackwaterOpts} = parse_config(ServerConfig),
 
-    Dispatch = cowboy_router:compile([cowboy_route_rule(RPCallerOpts)]),
+    Dispatch = cowboy_router:compile([cowboy_route_rule(BackwaterOpts)]),
     ProtoOpts =
         lists_keyupdate(
           env, 1, BaseProtoOpts,
@@ -138,5 +138,5 @@ parse_config(ServerConfig) ->
     NbAcceptors = maps:get(number_of_acceptors, CowboyOptions, 100),
     TransOpts = maps:get(transport_options, CowboyOptions, []),
     ProtoOpts = maps:get(protocol_options, CowboyOptions, []),
-    RPCallerOpts = maps:with([unauthenticated_access, authenticated_access], ServerConfig),
-    {StartFunction, NbAcceptors, TransOpts, ProtoOpts, RPCallerOpts}.
+    BackwaterOpts = maps:with([unauthenticated_access, authenticated_access], ServerConfig),
+    {StartFunction, NbAcceptors, TransOpts, ProtoOpts, BackwaterOpts}.

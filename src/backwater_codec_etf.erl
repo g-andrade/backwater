@@ -1,4 +1,4 @@
--module(rpcaller_codec_etf).
+-module(backwater_codec_etf).
 -compile(export_all).
 
 decode(Binary, DecodeUnsafeTerms) when DecodeUnsafeTerms ->

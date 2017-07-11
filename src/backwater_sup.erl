@@ -1,4 +1,4 @@
--module(rpcaller_sup).
+-module(backwater_sup).
 -behaviour(supervisor).
 
 %% ------------------------------------------------------------------
@@ -95,10 +95,10 @@ init([Clients, Servers]) ->
 %% ------------------------------------------------------------------
 
 client_childspec(Ref, Config) ->
-    rpcaller_client_sup:childspec({client, Ref}, Ref, Config).
+    backwater_client_sup:childspec({client, Ref}, Ref, Config).
 
 server_childspec(Ref, Config) ->
-    rpcaller_server_sup:childspec({server, Ref}, Ref, Config).
+    backwater_server_sup:childspec({server, Ref}, Ref, Config).
 
 start_child(Child) ->
     supervisor:start_child(?SERVER, Child).

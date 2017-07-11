@@ -1,4 +1,4 @@
--module(rpcaller_client_sup).
+-module(backwater_client_sup).
 -behaviour(supervisor).
 
 %% ------------------------------------------------------------------
@@ -39,7 +39,7 @@ childspec(Id, Ref, ClientConfig) ->
 %% ------------------------------------------------------------------
 
 init([Ref, ClientConfig]) ->
-    Children = [rpcaller_client_config:childspec(config, Ref, ClientConfig)],
+    Children = [backwater_client_config:childspec(config, Ref, ClientConfig)],
     {ok, {#{}, Children}}.
 
 %% ------------------------------------------------------------------
@@ -47,4 +47,4 @@ init([Ref, ClientConfig]) ->
 %% ------------------------------------------------------------------
 
 server_name(Ref) ->
-    list_to_atom("rpcaller_" ++ rpcaller_util:parse_unicode_string(Ref) ++ "_client_sup").
+    list_to_atom("backwater_" ++ backwater_util:parse_unicode_string(Ref) ++ "_client_sup").

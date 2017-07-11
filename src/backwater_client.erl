@@ -1,4 +1,4 @@
--module(rpcaller_client).
+-module(backwater_client).
 
 -include_lib("lhttpc/include/lhttpc.hrl").
 
@@ -19,19 +19,19 @@
 %% ------------------------------------------------------------------
 
 childspec(Id, Ref, ClientConfig) ->
-    rpcaller_client_sup:childspec(Id, Ref, ClientConfig).
+    backwater_client_sup:childspec(Id, Ref, ClientConfig).
 
 start(Ref, ClientConfig) ->
-    rpcaller_sup:start_client(Ref, ClientConfig).
+    backwater_sup:start_client(Ref, ClientConfig).
 
 stop(Ref) ->
-    rpcaller_sup:stop_client(Ref).
+    backwater_sup:stop_client(Ref).
 
 call(Ref, Version, Module, Function, Args) ->
     call(Ref, Version, Module, Function, Args, #{}).
 
 call(Ref, Version, Module, Function, Args, ConfigOverride) ->
-    ClientConfig = rpcaller_client_config:get_config(Ref, ConfigOverride),
+    ClientConfig = backwater_client_config:get_config(Ref, ConfigOverride),
     #{ timeout := RequestTimeout } = ClientConfig,
     {RequestUrl, RequestMethod, RequestHeaders, RequestBody} =
         encode_http_request(Version, Module, Function, Args, ClientConfig),
@@ -47,7 +47,7 @@ call(Ref, Version, Module, Function, Args, ConfigOverride) ->
     end.
 
 encode_http_request(Version, Module, Function, Args, ClientConfig) ->
-    Body = rpcaller_codec_etf:encode(Args),
+    Body = backwater_codec_etf:encode(Args),
     Arity = length(Args),
     Url = request_url(Version, Module, Function, Arity, ClientConfig),
     Method = "POST",
@@ -73,7 +73,7 @@ decode_http_response(Status, _StatusMessage, ResponseHeaders, ResponseBody, Clie
 decode_http_response(Status, _StatusMessage, _ResponseHeaders, _ResponseBody, _ClientConfig)
   when Status =:= 401 ->
     % TODO maybe look at headers
-    {error, {rpcaller, unauthorized}};
+    {error, {backwater, unauthorized}};
 decode_http_response(Status, StatusMessage, ResponseHeaders, ResponseBody, ClientConfig) ->
     case decode_response_body(ResponseHeaders, ResponseBody, ClientConfig) of
         {ok, {error, ReturnValue}} ->
@@ -110,14 +110,14 @@ decode_response_body(ResponseHeaders, ResponseBody, ClientConfig) ->
     case find_content_type(ResponseHeaders) of
         {ok, {"application/x-erlang-etf", _Attributes}} ->
             #{ decode_unsafe_terms := DecodeUnsafeTerms } = ClientConfig,
-            case rpcaller_codec_etf:decode(ResponseBody, DecodeUnsafeTerms) of
+            case backwater_codec_etf:decode(ResponseBody, DecodeUnsafeTerms) of
                 {ok, Decoded} -> {ok, Decoded};
-                error -> {error, {rpcaller, undecodable_response_body}}
+                error -> {error, {backwater, undecodable_response_body}}
             end;
         {error, invalid_content_type} ->
-            {error, {rpcaller, invalid_response_content_type}};
+            {error, {backwater, invalid_response_content_type}};
         {error, content_type_missing} ->
-            {error, {rpcaller, response_content_type_missing}}
+            {error, {backwater, response_content_type_missing}}
     end.
 
 find_content_type(Headers) ->
