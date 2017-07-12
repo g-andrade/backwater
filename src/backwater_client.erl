@@ -1,7 +1,5 @@
 -module(backwater_client).
 
--include_lib("lhttpc/include/lhttpc.hrl").
-
 %% ------------------------------------------------------------------
 %% API Function Exports
 %% ------------------------------------------------------------------
@@ -12,7 +10,7 @@
 -export([call/5]).
 -export([call/6]).
 -export([encode_http_request/5]).
--export([decode_http_response/5]).
+-export([decode_http_response/4]).
 
 %% ------------------------------------------------------------------
 %% API Function Definitions
@@ -32,16 +30,27 @@ call(Ref, Version, Module, Function, Args) ->
 
 call(Ref, Version, Module, Function, Args, ConfigOverride) ->
     ClientConfig = backwater_client_config:get_config(Ref, ConfigOverride),
-    #{ timeout := RequestTimeout } = ClientConfig,
-    {RequestUrl, RequestMethod, RequestHeaders, RequestBody} =
+    #{ connect_timeout := ConnectTimeout,
+       receive_timeout := ReceiveTimeout } = ClientConfig,
+    {RequestMethod, RequestUrl, RequestHeaders, RequestBody} =
         encode_http_request(Version, Module, Function, Args, ClientConfig),
 
-    case lhttpc:request(RequestUrl, RequestMethod, RequestHeaders,
-                        RequestBody, RequestTimeout)
+    Options =
+        [{pool, default}, % TODO
+         {connect_timeout, ConnectTimeout},
+         {recv_timeout, ReceiveTimeout}],
+
+    case hackney:request(RequestMethod, RequestUrl, RequestHeaders,
+                         RequestBody, Options)
     of
-        {ok, {{Status, StatusMessage}, ResponseHeaders, ResponseBody}} ->
-            decode_http_response(
-              Status, StatusMessage, ResponseHeaders, ResponseBody, ClientConfig);
+        {ok, StatusCode, ResponseHeaders, ClientRef} ->
+            case hackney:body(ClientRef) of
+                {ok, ResponseBody} ->
+                    decode_http_response(
+                      StatusCode, ResponseHeaders, ResponseBody, ClientConfig);
+                {error, BodyError} ->
+                    {error, {body, BodyError}}
+            end;
         {error, SocketError} ->
             {error, {socket, SocketError}}
     end.
@@ -49,39 +58,48 @@ call(Ref, Version, Module, Function, Args, ConfigOverride) ->
 encode_http_request(Version, Module, Function, Args, ClientConfig) ->
     Body = backwater_codec_etf:encode(Args),
     Arity = length(Args),
-    Url = request_url(Version, Module, Function, Arity, ClientConfig),
     Method = "POST",
-    MediaType = "application/x-erlang-etf",
+    Url = request_url(Version, Module, Function, Arity, ClientConfig),
+    MediaType = <<"application/x-erlang-etf">>,
     Headers =
-        [{"accept", MediaType},
-         {"content-length", integer_to_list(byte_size(Body))},
-         {"content-type", MediaType}],
-    encode_http_request_with_auth(Url, Method, Headers, Body, ClientConfig).
+        [{<<"accept">>, MediaType},
+         {<<"content-type">>, MediaType}],
+    encode_http_request_with_auth(Method, Url, Headers, Body, ClientConfig).
 
-decode_http_response(Status, _StatusMessage, ResponseHeaders, ResponseBody, ClientConfig) when Status =:= 200 ->
+decode_http_response(StatusCode, ResponseHeaders, ResponseBody, ClientConfig) when StatusCode =:= 200 ->
     #{ rethrow_remote_exceptions := RethrowRemoteExceptions } = ClientConfig,
     case decode_response_body(ResponseHeaders, ResponseBody, ClientConfig) of
-        {ok, {success, ReturnValue}} ->
+        {term, {success, ReturnValue}} ->
             {ok, ReturnValue};
-        {ok, {exception, Class, Exception, Stacktrace}} when RethrowRemoteExceptions ->
+        {term, {exception, Class, Exception, Stacktrace}} when RethrowRemoteExceptions ->
             erlang:raise(Class, Exception, Stacktrace);
-        {ok, {exception, Class, Exception, Stacktrace}} ->
+        {term, {exception, Class, Exception, Stacktrace}} ->
             {error, {remote_exception, Class, Exception, Stacktrace}};
-        {error, _} = DecodeError ->
-            DecodeError
+        {raw, Binary} ->
+            {error, {raw, StatusCode, Binary}};
+        {error, {undecodable_response_body, Binary}} ->
+            {error, {undecodable_response_body, StatusCode, Binary}};
+        {error, {invalid_content_type, RawContentType}} ->
+            {error, {invalid_content_type, StatusCode, RawContentType}}
     end;
-decode_http_response(Status, _StatusMessage, _ResponseHeaders, _ResponseBody, _ClientConfig)
-  when Status =:= 401 ->
+decode_http_response(StatusCode, _ResponseHeaders, _ResponseBody, _ClientConfig)
+  when StatusCode =:= 401 ->
     % TODO maybe look at headers
     {error, {backwater, unauthorized}};
-decode_http_response(Status, StatusMessage, ResponseHeaders, ResponseBody, ClientConfig) ->
+decode_http_response(StatusCode, ResponseHeaders, ResponseBody, ClientConfig) ->
     case decode_response_body(ResponseHeaders, ResponseBody, ClientConfig) of
-        {ok, {error, ReturnValue}} ->
+        {term, {error, ReturnValue}} ->
             {error, ReturnValue};
+        {term, <<Raw/binary>>} ->
+            {error, Raw};
+        {raw, Binary} ->
+            {error, {raw, StatusCode, Binary}};
         {error, response_content_type_missing} ->
-            {error, {http, Status, StatusMessage, ResponseBody}};
-        {error, _} = DecodeError ->
-            DecodeError
+            {error, {http, StatusCode, ResponseBody}};
+        {error, {undecodable_response_body, Binary}} ->
+            {error, {undecodable_response_body, StatusCode, Binary}};
+        {error, {invalid_content_type, RawContentType}} ->
+            {error, {invalid_content_type, StatusCode, RawContentType}}
     end.
 
 %% ------------------------------------------------------------------
@@ -90,54 +108,54 @@ decode_http_response(Status, StatusMessage, ResponseHeaders, ResponseBody, Clien
 
 request_url(Version, Module, Function, Arity, ClientConfig) ->
     #{ endpoint := Endpoint } = ClientConfig,
-    string:join(
-      [Endpoint,
-       edoc_lib:escape_uri(Version),
-       edoc_lib:escape_uri(atom_to_list(Module)),
-       edoc_lib:escape_uri(atom_to_list(Function)),
-       integer_to_list(Arity)],
-      "/").
+    iolist_to_binary(
+      lists:join(
+        "/",
+        [Endpoint,
+         edoc_lib:escape_uri(Version),
+         edoc_lib:escape_uri(atom_to_list(Module)),
+         edoc_lib:escape_uri(atom_to_list(Function)),
+         integer_to_list(Arity)])).
 
-encode_http_request_with_auth(Url, Method, Headers, Body, #{ authentication := none }) ->
-    {Url, Method, Headers, Body};
-encode_http_request_with_auth(Url, Method, Headers, Body, ClientConfig) ->
+encode_http_request_with_auth(Method, Url, Headers, Body, #{ authentication := none }) ->
+    {Method, Url, Headers, Body};
+encode_http_request_with_auth(Method, Url, Headers, Body, ClientConfig) ->
     #{ authentication := {basic, {Username, Password}} } = ClientConfig,
     AuthHeader = {"authorization", http_basic_auth_header_value(Username, Password)},
     UpdatedHeaders = [AuthHeader | Headers],
-    {Url, Method, UpdatedHeaders, Body}.
+    {Method, Url, UpdatedHeaders, Body}.
 
 decode_response_body(ResponseHeaders, ResponseBody, ClientConfig) ->
     case find_content_type(ResponseHeaders) of
-        {ok, {"application/x-erlang-etf", _Attributes}} ->
+        {ok, {<<"application/x-erlang-etf">>, _Attributes}} ->
             #{ decode_unsafe_terms := DecodeUnsafeTerms } = ClientConfig,
             case backwater_codec_etf:decode(ResponseBody, DecodeUnsafeTerms) of
-                {ok, Decoded} -> {ok, Decoded};
-                error -> {error, {backwater, undecodable_response_body}}
+                {ok, Decoded} -> {term, Decoded};
+                error -> {error, {undecodable_response_body, ResponseBody}}
             end;
-        {error, invalid_content_type} ->
-            {error, {backwater, invalid_response_content_type}};
+        {error, {invalid_content_type, RawContentType}} ->
+            {error, {invalid_response_content_type, RawContentType}};
         {error, content_type_missing} ->
-            {error, {backwater, response_content_type_missing}}
+            {raw, ResponseBody}
     end.
 
 find_content_type(Headers) ->
-    case find_header_value("content-type", Headers) of
+    case find_header_value(<<"content-type">>, Headers) of
         {ok, ContentTypeStr} ->
             ContentTypeBin = unicode:characters_to_binary(ContentTypeStr),
             case binary:split(ContentTypeBin, [<<";">>, <<" ">>, <<$\n>>, <<$\r>>], [global, trim_all]) of
                 [ActualBinContentType | BinAttributes] ->
-                    {ok, {unicode:characters_to_list(ActualBinContentType),
-                          [unicode:characters_to_list(V) || V <- BinAttributes]}};
+                    {ok, {ActualBinContentType, [V || V <- BinAttributes]}};
                 [] ->
-                    {error, invalid_content_type}
+                    {error, {invalid_content_type, ContentTypeBin}}
             end;
         error ->
             {error, content_type_missing}
     end.
 
 find_header_value(Key, Headers) ->
-    LowerKey = string:to_lower(Key),
-    Predicate = fun (HeaderName) -> string:to_lower(HeaderName) =:= LowerKey end,
+    LowerKey = backwater_util:latin1_binary_to_lower(Key),
+    Predicate = fun (HeaderName) -> backwater_util:latin1_binary_to_lower(HeaderName) =:= LowerKey end,
     case lists_keyfind_predicate(Predicate, 1, Headers) of
         {_HeaderName, HeaderValue} -> {ok, HeaderValue};
         false -> error
@@ -153,4 +171,4 @@ lists_keyfind_predicate(_Predicate, _N, []) ->
     false.
 
 http_basic_auth_header_value(Username, Password) ->
-    "basic " ++ base64:encode_to_string( iolist_to_binary([Username, ":", Password]) ).
+    <<"basic ", (base64:encode( iolist_to_binary([Username, ":", Password]) ))/binary>>.

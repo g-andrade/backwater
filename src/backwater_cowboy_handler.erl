@@ -99,10 +99,10 @@ known_methods(Req, State) ->
 
 malformed_request(Req, State) ->
     case is_authorized_(Req, State) of
-        {{false, _} = Value, Req2, NewState} ->
-            {false, Req2, NewState#{ is_authorized_value => Value }};
-        {true = Value, Req2, NewState} ->
-            malformed_request_(Req2, NewState#{ is_authorized_value => Value })
+        {false, Req2, NewState} ->
+            {false, Req2, NewState#{ is_authorized_value => {false, failed_authorization_prompt()} }};
+        {true, Req2, NewState} ->
+            malformed_request_(Req2, NewState#{ is_authorized_value => true })
     end.
 
 resource_exists(Req, State) ->
@@ -251,9 +251,9 @@ handle_req_auth_parse({ok, none, Req}, _PrevReq, State) ->
     NewState = State#{ access_conf => AccessConf },
     {true, Req, NewState};
 handle_req_auth_parse({undefined, _Value, Req}, _PrevReq, State) ->
-    {{false, failed_authorization_prompt()}, Req, State};
+    {false, Req, State};
 handle_req_auth_parse({error, badarg}, PrevReq, State) ->
-    {{false, failed_authorization_prompt()}, PrevReq, State}.
+    {false, PrevReq, State}.
 
 authenticate_req_auth({ok, #{ authentication := {basic, Password} } = ExplicitAccessConf},
                       GivenPassword, Req, State) 

@@ -4,6 +4,7 @@
 -export([string_tokens_n/3]).
 -export([iolist_to_list/1]).
 -export([kvlists_merge/2]).
+-export([latin1_binary_to_lower/1]).
 
 parse_unicode_string(Atom) when is_atom(Atom) ->
     atom_to_list(Atom);
@@ -42,3 +43,6 @@ kvlists_merge(KVList, [{K,V} | T]) ->
 kvlists_merge(KVList, []) ->
     KVList.
 
+latin1_binary_to_lower(Bin) ->
+    % TODO optimize
+    list_to_binary( string:to_lower( binary_to_list(Bin) ) ).

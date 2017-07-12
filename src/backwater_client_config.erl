@@ -91,7 +91,9 @@ config_table_name(Ref) ->
 
 default_authentication() -> none.
 
-default_timeout() -> 5000.
+default_connect_timeout() -> 5000.
+
+default_receive_timeout() -> 5000.
 
 default_unsafe_term_decode(none) ->
     false;
@@ -104,11 +106,13 @@ default_remote_exceptions_rethrow() ->
 parse_config(ClientConfig) ->
     Endpoint = maps:get(endpoint, ClientConfig),
     Authentication = maps:get(authentication, ClientConfig, default_authentication()),
-    Timeout = maps:get(timeout, ClientConfig, default_timeout()),
+    ConnectTimeout = maps:get(connect_timeout, ClientConfig, default_connect_timeout()),
+    ReceiveTimeout = maps:get(receive_timeout, ClientConfig, default_receive_timeout()),
     DecodeUnsafeTerms = maps:get(decode_unsafe_terms, ClientConfig, default_unsafe_term_decode(Authentication)),
     RethrowRemoteExceptions = maps:get(rethrow_remote_exceptions, ClientConfig, default_remote_exceptions_rethrow()),
     [{endpoint, Endpoint},
      {authentication, Authentication},
-     {timeout, Timeout},
+     {connect_timeout, ConnectTimeout},
+     {receive_timeout, ReceiveTimeout},
      {decode_unsafe_terms, DecodeUnsafeTerms},
      {rethrow_remote_exceptions, RethrowRemoteExceptions}].

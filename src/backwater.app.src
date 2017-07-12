@@ -8,7 +8,7 @@
     stdlib,
     edoc,
     cowboy,
-    lhttpc,
+    hackney,
     %jsx,
     recon % TODO actually optional
    ]},
