@@ -62,8 +62,8 @@ encode_http_request(Version, Module, Function, Args, ClientConfig) ->
     Url = request_url(Version, Module, Function, Arity, ClientConfig),
     MediaType = <<"application/x-erlang-etf">>,
     Headers =
-        [{<<"accept">>, MediaType},
-         {<<"content-type">>, MediaType}],
+        [{<<"accept">>, <<MediaType/binary, "">>},
+         {<<"content-type">>, <<MediaType/binary, "">>}],
     encode_http_request_with_auth(Method, Url, Headers, Body, ClientConfig).
 
 decode_http_response(StatusCode, ResponseHeaders, ResponseBody, ClientConfig) when StatusCode =:= 200 ->
@@ -74,32 +74,28 @@ decode_http_response(StatusCode, ResponseHeaders, ResponseBody, ClientConfig) wh
         {term, {exception, Class, Exception, Stacktrace}} when RethrowRemoteExceptions ->
             erlang:raise(Class, Exception, Stacktrace);
         {term, {exception, Class, Exception, Stacktrace}} ->
-            {error, {remote_exception, Class, Exception, Stacktrace}};
+            backwater_error({remote_exception, Class, Exception, Stacktrace});
         {raw, Binary} ->
-            {error, {raw, StatusCode, Binary}};
+            backwater_error({raw, StatusCode, Binary});
         {error, {undecodable_response_body, Binary}} ->
-            {error, {undecodable_response_body, StatusCode, Binary}};
+            backwater_error({undecodable_response_body, StatusCode, Binary});
         {error, {invalid_content_type, RawContentType}} ->
-            {error, {invalid_content_type, StatusCode, RawContentType}}
+            backwater_error({invalid_content_type, StatusCode, RawContentType})
     end;
 decode_http_response(StatusCode, _ResponseHeaders, _ResponseBody, _ClientConfig)
   when StatusCode =:= 401 ->
     % TODO maybe look at headers
-    {error, {backwater, unauthorized}};
+    {error, unauthorized};
 decode_http_response(StatusCode, ResponseHeaders, ResponseBody, ClientConfig) ->
     case decode_response_body(ResponseHeaders, ResponseBody, ClientConfig) of
-        {term, {error, ReturnValue}} ->
-            {error, ReturnValue};
-        {term, <<Raw/binary>>} ->
-            {error, Raw};
+        {term, Error} ->
+            backwater_error(Error);
         {raw, Binary} ->
-            {error, {raw, StatusCode, Binary}};
-        {error, response_content_type_missing} ->
-            {error, {http, StatusCode, ResponseBody}};
+            backwater_error({raw, StatusCode, Binary});
         {error, {undecodable_response_body, Binary}} ->
-            {error, {undecodable_response_body, StatusCode, Binary}};
+            backwater_error({undecodable_response_body, StatusCode, Binary});
         {error, {invalid_content_type, RawContentType}} ->
-            {error, {invalid_content_type, StatusCode, RawContentType}}
+            backwater_error({invalid_content_type, StatusCode, RawContentType})
     end.
 
 %% ------------------------------------------------------------------
@@ -127,7 +123,7 @@ encode_http_request_with_auth(Method, Url, Headers, Body, ClientConfig) ->
 
 decode_response_body(ResponseHeaders, ResponseBody, ClientConfig) ->
     case find_content_type(ResponseHeaders) of
-        {ok, {<<"application/x-erlang-etf">>, _Attributes}} ->
+        {ok, {<<"application/x-erlang-etf">>, _Params}} ->
             #{ decode_unsafe_terms := DecodeUnsafeTerms } = ClientConfig,
             case backwater_codec_etf:decode(ResponseBody, DecodeUnsafeTerms) of
                 {ok, Decoded} -> {term, Decoded};
@@ -172,3 +168,6 @@ lists_keyfind_predicate(_Predicate, _N, []) ->
 
 http_basic_auth_header_value(Username, Password) ->
     <<"basic ", (base64:encode( iolist_to_binary([Username, ":", Password]) ))/binary>>.
+
+backwater_error(Error) ->
+    {error, {backwater, Error}}.
