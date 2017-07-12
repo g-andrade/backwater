@@ -282,9 +282,8 @@ negotiate_result_content_type(Req, State) ->
 
     SearchResult =
         lists_anymap(
-          fun ({{Type, SubType, _Params}, _Quality, _AcceptExt} = ContentType) ->
-                  (lists:member({Type, SubType}, KnownContentTypes)
-                   andalso {true, ContentType})
+          fun ({{Type, SubType, _Params}, _Quality, _AcceptExt}) ->
+                  lists:member({Type, SubType}, KnownContentTypes)
           end,
           AcceptedContentTypes),
 
