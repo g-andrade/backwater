@@ -20,12 +20,13 @@
 %% cowboy_http_handler Function Definitions
 %% ------------------------------------------------------------------
 
-init(_Transport, Req, [BackwaterOpts]) ->
+init(_Transport, Req, [Ref, BackwaterOpts]) ->
     {BinVersion, Req2} = cowboy_req:binding(version, Req),
     {BinModule, Req3} = cowboy_req:binding(module, Req2),
     {BinFunction, Req4} = cowboy_req:binding(function, Req3),
     {BinArity, Req5} = cowboy_req:binding(arity, Req4),
-    {ok, Req5, #{ backwater_opts => BackwaterOpts,
+    {ok, Req5, #{ ref => Ref,
+                  backwater_opts => BackwaterOpts,
                   unvalidated_version => BinVersion,
                   unvalidated_module => BinModule,
                   unvalidated_function => BinFunction,
@@ -189,12 +190,13 @@ check_existence(Req, State) ->
     end.
 
 find_resource(Req, State) ->
-    #{ version := RequiredVersion,
+    #{ ref := Ref,
+       version := RequiredVersion,
        module := RequiredModule,
        function := RequiredFunction,
        arity := RequiredArity } = State,
 
-    case find_and_parse_module_info(RequiredModule) of
+    case backwater_module_info:find(Ref, RequiredModule) of
         {ok, #{ version := Version }} when Version =/= RequiredVersion ->
             {module_version_not_found, Req, State};
         {ok, #{ exports := Exports } = ModuleInfo} ->
@@ -208,58 +210,6 @@ find_resource(Req, State) ->
         error ->
             {module_not_found, Req, State}
     end.
-
-find_and_parse_module_info(Module) ->
-    case find_module_info(Module) of
-        {ok, RawModuleInfo} ->
-            {attributes, ModuleAttributes} = lists:keyfind(attributes, 1, RawModuleInfo),
-            {exports, Exports} = lists:keyfind(exports, 1, RawModuleInfo),
-            case module_attributes_find_backwater_version(ModuleAttributes) of
-                {ok, BackwaterVersion} ->
-                    BackwaterExports = module_attributes_get_backwater_exports(ModuleAttributes),
-                    FilteredBackwaterExports = maps:with(Exports, BackwaterExports),
-                    {ok, #{ version => BackwaterVersion,
-                            exports => FilteredBackwaterExports }};
-                error ->
-                    error
-            end;
-        error ->
-            error
-    end.
-
-find_module_info(Module) ->
-    try
-        {ok, Module:module_info()}
-    catch
-        error:undef -> error
-    end.
-
-module_attributes_find_backwater_version(ModuleAttributes) ->
-    case lists:keyfind(backwater_version, 1, ModuleAttributes) of
-        {backwater_version, Version} ->
-            <<BinVersion/binary>> = unicode:characters_to_binary(Version),
-            {ok, BinVersion};
-        false ->
-            error
-    end.
-
-module_attributes_get_backwater_exports(ModuleAttributes) ->
-    lists:foldl(
-      fun ({backwater_export, Tuple}, Acc) when is_tuple(Tuple) ->
-              {FA, Properties} = backwater_export_entry_pair(Tuple),
-              maps:put(FA, Properties, Acc);
-          ({backwater_export, List}, Acc) when is_list(List) ->
-              EntryPairs = lists:map(fun backwater_export_entry_pair/1, List),
-              maps:merge(Acc, maps:from_list(EntryPairs));
-          (_Other, Acc) ->
-              Acc
-      end,
-      #{},
-      ModuleAttributes).
-
-backwater_export_entry_pair({F,A}) ->
-    Properties = #{ known_content_types => [{<<"application">>, <<"x-erlang-etf">>}] },
-    {{F,A}, Properties}.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % form of arguments content type
