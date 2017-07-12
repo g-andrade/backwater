@@ -194,8 +194,6 @@ find_resource(Req, State) ->
        function := RequiredFunction,
        arity := RequiredArity } = State,
 
-    Dictionary = erlang:process_info(self(), dictionary),
-    io:format("dictionary for ~p: ~p~n", [self(), Dictionary]),
     case backwater_cached_module_info:find(RequiredModule) of
         {ok, #{ version := Version }} when Version =/= RequiredVersion ->
             {module_version_not_found, Req, State};
