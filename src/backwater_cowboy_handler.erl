@@ -5,21 +5,8 @@
 %% ------------------------------------------------------------------
 
 -export([init/3]).
--export([rest_init/2]).
--export([rest_terminate/2]).
-
--export([allowed_methods/2]).
--export([allow_missing_post/2]).
--export([content_types_accepted/2]).
--export([content_types_provided/2]).
--export([expires/2]).
--export([forbidden/2]).
--export([is_authorized/2]).
--export([known_methods/2]).
--export([malformed_request/2]).
--export([resource_exists/2]).
-
--export([handle_etf_body/2]).
+-export([handle/2]).
+-export([terminate/3]).
 
 %% ------------------------------------------------------------------
 %% Macro Definitions
@@ -33,10 +20,7 @@
 %% cowboy_http_handler Function Definitions
 %% ------------------------------------------------------------------
 
-init(_Transport, _Req, _Opts) ->
-    {upgrade, protocol, cowboy_rest}.
-
-rest_init(Req, [BackwaterOpts]) ->
+init(_Transport, Req, [BackwaterOpts]) ->
     {BinVersion, Req2} = cowboy_req:binding(version, Req),
     {BinModule, Req3} = cowboy_req:binding(module, Req2),
     {BinFunction, Req4} = cowboy_req:binding(function, Req3),
@@ -48,130 +32,194 @@ rest_init(Req, [BackwaterOpts]) ->
                   unvalidated_arity => BinArity
                 }}.
 
-rest_terminate(_Req, _State) ->
+handle(Req, State) ->
+    {Response, Req2, State2} = handle_method(Req, State),
+    StatusCode = maps:get(status_code, Response),
+    ResponseHeaders = maps:get(headers, Response, []),
+    ResponseBody = maps:get(body, Response, []),
+    {ok, Req3} = cowboy_req:reply(StatusCode, ResponseHeaders, ResponseBody, Req2),
+    {ok, Req3, State2}.
+
+terminate(_Reason, _Req, _State) ->
     ok.
 
-allowed_methods(Req, State) ->
-    {[<<"POST">>], Req, State}.
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% utilities
 
-allow_missing_post(Req, State) ->
-    {false, Req, State}.
+response(StatusCode) ->
+    #{ status_code => StatusCode }.
 
-content_types_accepted(Req, State) ->
-    {[
-      {{<<"application">>, <<"x-erlang-etf">>, []},
-       handle_etf_body}
-     ],
-     Req, State}.
+response(StatusCode, Headers) ->
+    (response(StatusCode))#{ headers => Headers }.
 
-content_types_provided(Req, State) ->
-    {[
-      {{<<"application">>, <<"x-erlang-etf">>, []},
-       non_existent_function} % we only handle POSTs; this will never be called
-     ],
-     Req, State}.
+response(StatusCode, Headers, Body) ->
+    (response(StatusCode, Headers))#{ body => Body }.
 
-expires(Req, State) ->
-    {[{1970,1,1}, {0,0,0}], Req, State}.
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% method
 
-forbidden(Req, State) ->
+handle_method(Req, State) ->
+    case cowboy_req:method(Req) of
+        {<<"POST">>, Req2} ->
+            check_authentication(Req2, State);
+        {_, Req2} ->
+            {response(405), Req2, State}
+    end.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% authentication
+
+check_authentication(Req, State) ->
+    ParseResult = cowboy_req:parse_header(<<"authorization">>, Req, none),
+    case handle_parsed_authentication(ParseResult, Req, State) of
+        {valid, Req2, State2} ->
+            check_form(Req2, State2);
+        {invalid, Req2, State2} ->
+            {response(401, [failed_auth_prompt_header()]), Req2, State2};
+        {bad_header, Req2, State2} ->
+            set_result(400, {bad_header, authorization}, Req2, State2)
+    end.
+
+handle_parsed_authentication({ok, {<<"basic">>, {Username, Password}}, Req}, _PrevReq, State) ->
+    #{ backwater_opts := BackwaterOpts } = State,
+    AuthenticatedAccessConfs = maps:get(authenticated_access, BackwaterOpts, #{}),
+    validate_authentication(maps:find(Username, AuthenticatedAccessConfs), Password, Req, State);
+handle_parsed_authentication({ok, none, Req}, _PrevReq, State) ->
+    #{ backwater_opts := BackwaterOpts } = State,
+    ExplicitAccessConf = maps:get(unauthenticated_access, BackwaterOpts, #{}),
+    DefaultAccessConf = default_access_conf(unauthenticated_access),
+    AccessConf = maps:merge(DefaultAccessConf, ExplicitAccessConf),
+    State2 = State#{ access_conf => AccessConf },
+    {valid, Req, State2};
+handle_parsed_authentication({undefined, _Unparsable, Req}, _PrevReq, State) ->
+    {bad_header, Req, State};
+handle_parsed_authentication({error, badarg}, PrevReq, State) ->
+    {bad_header, PrevReq, State}.
+
+validate_authentication({ok, #{ authentication := {basic, Password} } = ExplicitAccessConf},
+                      GivenPassword, Req, State)
+  when Password =:= GivenPassword ->
+    DefaultAccessConf = default_access_conf(authenticated_access),
+    AccessConf = maps:merge(DefaultAccessConf, ExplicitAccessConf),
+    State2 = State#{ access_conf => AccessConf },
+    {valid, Req, State2};
+validate_authentication({ok, #{ authentication := {basic, _Password} }},
+                      _GivenPassword, Req, State) ->
+    {invalid, Req, State};
+validate_authentication(error, _GivenPassword, Req, State) ->
+    {invalid, Req, State}.
+
+default_access_conf(unauthenticated_access) ->
+    #{ decode_unsafe_terms => false,
+       exposed_modules => [],
+       return_exception_stacktraces => false };
+default_access_conf(authenticated_access) ->
+    #{ decode_unsafe_terms => true,
+       exposed_modules => [],
+       return_exception_stacktraces => true }.
+
+failed_auth_prompt_header() ->
+    {<<"www-authenticate">>, <<"Basic realm=\"backwater\"">>}.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% form
+
+check_form(Req, State) ->
+    case validate_form(Req, State) of
+        {valid, Req2, State2} ->
+            check_authorization(Req2, State2);
+        {InvalidReason, Req2, State2} ->
+            set_result(400, InvalidReason, Req2, State2)
+    end.
+
+validate_form(Req, State) ->
+    #{ access_conf := AccessConf,
+       unvalidated_version := BinVersion,
+       unvalidated_module := BinModule,
+       unvalidated_function := BinFunction,
+       unvalidated_arity := BinArity } = State,
+
+    Version = (catch unicode:characters_to_binary(BinVersion)),
+    Module = (catch utf8bin_to_atom(BinModule, AccessConf)),
+    Function = (catch utf8bin_to_atom(BinFunction, AccessConf)),
+    Arity = (catch binary_to_integer(BinArity)),
+
+    if not is_binary(Version) ->
+           {invalid_api_version, Req, State};
+       not is_atom(Module) ->
+           {invalid_module_name, Req, State};
+       not is_atom(Function) ->
+           {invalid_function_name, Req, State};
+       not is_integer(Arity) orelse Arity < 0 orelse Arity > 255 ->
+           {invalid_function_arity, Req, State};
+       true ->
+           NewState =
+                State#{ version => Version,
+                        module => Module,
+                        function => Function,
+                        arity => Arity },
+           {valid, Req, NewState}
+    end.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% authorization
+
+check_authorization(Req, State) ->
     #{ module := Module,
        access_conf := AccessConf } = State,
     #{ exposed_modules := ExposedModules } = AccessConf,
 
-    case not lists:member(Module, ExposedModules) of
-        false ->
-            {false, Req, State};
+    case lists:member(Module, ExposedModules) of
         true ->
-            Req2 = set_resp_body({error, module_not_exposed}, Req),
-            {true, Req2, State}
+            check_existence(Req, State);
+        false ->
+            %Req2 = set_resp_body({error, module_not_exposed}, Req),
+            {response(403), Req, State}
     end.
 
-is_authorized(Req, #{ is_authorized_value := IsAuthenticatedValue } = State) ->
-    % XXX: Long story short, we need to authorize the user before verifying
-    % whether the request is well formed (due to 'decode_unsafe_terms');
-    % therefore we do it on malformed_request/2 and cache the result,
-    % which we can now return.
-    {IsAuthenticatedValue, Req, State}.
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% existence
 
-known_methods(Req, State) ->
-    {[<<"POST">>], Req, State}.
-
-malformed_request(Req, State) ->
-    case is_authorized_(Req, State) of
-        {false, Req2, NewState} ->
-            {false, Req2, NewState#{ is_authorized_value => {false, failed_authorization_prompt()} }};
-        {true, Req2, NewState} ->
-            malformed_request_(Req2, NewState#{ is_authorized_value => true })
+check_existence(Req, State) ->
+    case find_resource(Req, State) of
+        {found, Req2, State2} ->
+            check_args_content_type(Req2, State2);
+        {NotFound, Req2, State2} ->
+            set_result(404, NotFound, Req2, State2)
     end.
 
-resource_exists(Req, State) ->
-    #{ version := Version,
-       module := Module,
-       function := Function,
-       arity := Arity } = State,
+find_resource(Req, State) ->
+    #{ version := RequiredVersion,
+       module := RequiredModule,
+       function := RequiredFunction,
+       arity := RequiredArity } = State,
 
-    case find_and_parse_relevant_module_info(Module) of
-        {ok, #{ backwater_version := BackwaterVersion }} when BackwaterVersion =/= Version ->
-            Req2 = set_resp_body({error, module_version_not_found}, Req),
-            {false, Req2, State};
-        {ok, #{ backwater_exports := BackwaterExports, exports := Exports }} ->
-            case (maps:is_key({Function, Arity}, BackwaterExports) andalso
-                  lists:member({Function, Arity}, Exports)) of
-                true ->
-                    {true, Req, State};
-                false ->
-                    Req2 = set_resp_body({error, function_not_exported}, Req),
-                    {false, Req2, State}
+    case find_and_parse_module_info(RequiredModule) of
+        {ok, #{ version := Version }} when Version =/= RequiredVersion ->
+            {module_version_not_found, Req, State};
+        {ok, #{ exports := Exports } = ModuleInfo} ->
+            case maps:find({RequiredFunction, RequiredArity}, Exports) of
+                {ok, Resource} ->
+                    State2 = State#{ module_info => ModuleInfo, function_properties => Resource },
+                    {found, Req, State2};
+                error ->
+                    {function_not_exported, Req, State}
             end;
         error ->
-            Req2 = set_resp_body({error, module_not_found}, Req),
-            {false, Req2, State}
+            {module_not_found, Req, State}
     end.
 
-handle_etf_body(Req, State) ->
-    #{ arity := Arity,
-       access_conf := AccessConf } = State,
-    #{ decode_unsafe_terms := DecodeUnsafeTerms } = AccessConf,
-
-    {ok, Body, Req2} = cowboy_req:body(Req),
-    case backwater_codec_etf:decode(Body, DecodeUnsafeTerms) of
-        error ->
-            Req3 = set_resp_body({error, undecodable_payload}, Req2),
-            {false, Req3, State};
-        {ok, UnvalidatedFunctionArgs} ->
-            if not is_list(UnvalidatedFunctionArgs) ->
-                   Req3 = set_resp_body({error, payload_not_a_list}, Req2),
-                   {false, Req3, State};
-               length(UnvalidatedFunctionArgs) =/= Arity ->
-                   Req3 = set_resp_body({error, payload_arity_inconsistent}, Req2),
-                   {false, Req3, State};
-               true ->
-                   NewState = State#{ function_args => UnvalidatedFunctionArgs },
-                   handle_call(Req2, NewState)
-            end
-    end.
-
-%% ------------------------------------------------------------------
-%% Internal Function Exports
-%% ------------------------------------------------------------------
-
-utf8bin_to_atom(BinValue, #{ decode_unsafe_terms := true }) ->
-    binary_to_atom(BinValue, utf8);
-utf8bin_to_atom(BinValue, #{ decode_unsafe_terms := false }) ->
-    binary_to_existing_atom(BinValue, utf8).
-
-find_and_parse_relevant_module_info(Module) ->
+find_and_parse_module_info(Module) ->
     case find_module_info(Module) of
-        {ok, ModuleInfo} ->
-            {attributes, ModuleAttributes} = lists:keyfind(attributes, 1, ModuleInfo),
-            {exports, Exports} = lists:keyfind(exports, 1, ModuleInfo),
+        {ok, RawModuleInfo} ->
+            {attributes, ModuleAttributes} = lists:keyfind(attributes, 1, RawModuleInfo),
+            {exports, Exports} = lists:keyfind(exports, 1, RawModuleInfo),
             case module_attributes_find_backwater_version(ModuleAttributes) of
                 {ok, BackwaterVersion} ->
                     BackwaterExports = module_attributes_get_backwater_exports(ModuleAttributes),
-                    {ok, #{ exports => Exports,
-                            backwater_version => BackwaterVersion,
-                            backwater_exports => BackwaterExports }};
+                    FilteredBackwaterExports = maps:with(Exports, BackwaterExports),
+                    {ok, #{ version => BackwaterVersion,
+                            exports => FilteredBackwaterExports }};
                 error ->
                     error
             end;
@@ -189,7 +237,8 @@ find_module_info(Module) ->
 module_attributes_find_backwater_version(ModuleAttributes) ->
     case lists:keyfind(backwater_version, 1, ModuleAttributes) of
         {backwater_version, Version} ->
-            {ok, Version};
+            <<BinVersion/binary>> = unicode:characters_to_binary(Version),
+            {ok, BinVersion};
         false ->
             error
     end.
@@ -209,8 +258,143 @@ module_attributes_get_backwater_exports(ModuleAttributes) ->
       ModuleAttributes).
 
 backwater_export_entry_pair({F,A}) ->
-    Properties = #{}, % none yet
+    Properties = #{ known_content_types => [{<<"application">>, <<"x-erlang-etf">>}] },
     {{F,A}, Properties}.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% form of arguments content type
+
+check_args_content_type(Req, State) ->
+    ParseResult = cowboy_req:parse_header(<<"content-type">>, Req, none),
+    case handle_parsed_content_type(ParseResult, Req) of
+        {{valid, ContentType}, Req2} ->
+            State2 = State#{ args_content_type => ContentType },
+            check_accepted_result_content_types(Req2, State2);
+        {bad_header, Req2} ->
+            set_result(400, {bad_header, 'content-type'}, Req2, State)
+    end.
+
+handle_parsed_content_type({ok, ContentType, Req}, _PrevReq) ->
+    {{valid, ContentType}, Req};
+handle_parsed_content_type({undefined, _Unparsable, Req}, _PrevReq) ->
+    {bad_header, Req};
+handle_parsed_content_type({error, badarg}, Req) ->
+    {bad_header, Req}.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% form of accepted result content types
+
+check_accepted_result_content_types(Req, State) ->
+    ParseResult = cowboy_req:parse_header(<<"accept">>, Req, []),
+    case handle_parsed_accept(ParseResult, Req) of
+        {{valid, AcceptedContentTypes}, Req2} ->
+            State2 = State#{ accepted_result_content_types => AcceptedContentTypes },
+            negotiate_args_content_type(Req2, State2);
+        {bad_header, Req2} ->
+            set_result(400, {bad_header, accept}, Req2, State)
+    end.
+
+handle_parsed_accept({ok, AcceptedContentTypes, Req}, _PrevReq) when is_list(AcceptedContentTypes) > 0 ->
+    SortedAcceptedContentTypes = lists:reverse( lists:keysort(2, AcceptedContentTypes) ),
+    {{valid, SortedAcceptedContentTypes}, Req};
+handle_parsed_accept({undefined, _Unparsable, Req}, _PrevReq) ->
+    {bad_header, Req};
+handle_parsed_accept({error, badarg}, Req) ->
+    {bad_header, Req}.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% negotiation of arguments content type
+
+negotiate_args_content_type(Req, State) ->
+    #{ function_properties := FunctionProperties,
+       args_content_type := ArgsContentType } = State,
+    #{ known_content_types := KnownContentTypes } = FunctionProperties,
+
+    {Type, SubType, _ContentTypeParams} = ArgsContentType,
+    SearchResult =
+        lists:any(
+          fun ({KnownType, KnownSubType}) ->
+                  (KnownType =:= Type andalso KnownSubType =:= SubType)
+          end,
+          KnownContentTypes),
+
+    case SearchResult of
+        true -> negotiate_result_content_type(Req, State);
+        false -> {response(415), Req, State}
+    end.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% negotiation of results content type
+
+negotiate_result_content_type(Req, State) ->
+    #{ function_properties := FunctionProperties,
+       accepted_result_content_types := AcceptedContentTypes } = State,
+    #{ known_content_types := KnownContentTypes } = FunctionProperties,
+
+    SearchResult =
+        lists_anymap(
+          fun ({{Type, SubType, _Params}, _Quality, _AcceptExt} = ContentType) ->
+                  (lists:member({Type, SubType}, KnownContentTypes)
+                   andalso {true, ContentType})
+          end,
+          AcceptedContentTypes),
+
+    case SearchResult of
+        {true, ContentType} ->
+            State2 = State#{ result_content_type => ContentType },
+            read_and_decode_args(Req, State2);
+        false ->
+            {response(406), Req, State}
+    end.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% read and decode arguments
+
+read_and_decode_args(Req, State) ->
+    case cowboy_req:body(Req) of
+        {ok, Data, Req2} ->
+            decode_args(Data, Req2, State);
+        {more, _Data, Req2} ->
+            {response(413), Req2, State};
+        {error, _Error} ->
+            set_result(400, unable_to_read_body, Req, State)
+    end.
+
+decode_args(Data, Req, State) ->
+    #{ args_content_type := ArgsContentType } = State,
+    case ArgsContentType of
+        {<<"application">>, <<"x-erlang-etf">>, Params} ->
+            decode_etf_args(Params, Data, Req, State)
+    end.
+
+decode_etf_args(_Params, Data, Req, State) ->
+    % TODO use Params
+    #{ access_conf := AccessConf } = State,
+    #{ decode_unsafe_terms := DecodeUnsafeTerms } = AccessConf,
+    case backwater_codec_etf:decode(Data, DecodeUnsafeTerms) of
+        error ->
+            %Req3 = set_resp_body({error, undecodable_payload}, Req2),
+            set_result(400, unable_to_decode_arguments, Req, State);
+        {ok, UnvalidatedArgs} ->
+            validate_args(UnvalidatedArgs, Req, State)
+    end.
+
+validate_args(UnvalidatedArgs, Req, State)
+  when not is_list(UnvalidatedArgs) ->
+    set_result(400, arguments_not_a_list, Req, State);
+validate_args(UnvalidatedArgs, Req, #{ arity := Arity } = State)
+  when length(UnvalidatedArgs) =/= Arity ->
+    set_result(400, inconsistent_arguments_arity, Req, State);
+validate_args(Args, Req, State) ->
+    handle_call(Args, Req, State).
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% execute the call
+
+handle_call(Args, Req, State) ->
+    #{ access_conf := AccessConf, module := Module, function := Function } = State,
+    Result = call_function(Module, Function, Args, AccessConf),
+    set_result(200, Result, Req, State).
 
 call_function(Module, Function, Args, #{ return_exception_stacktraces := ReturnExceptionStacktraces }) ->
     try
@@ -229,103 +413,37 @@ clean_exception_stacktrace(Stacktrace, UntilMFA) ->
       fun ({M,F,A,_Extra}) -> {M,F,A} =/= UntilMFA end,
       Stacktrace).
 
-is_authorized_(Req, State) ->
-    ParseResult = cowboy_req:parse_header(<<"authorization">>, Req, none),
-    handle_req_auth_parse(ParseResult, Req, State).
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% encode the result
 
-handle_req_auth_parse({ok, {<<"basic">>, {Username, Password}}, Req}, _PrevReq, State) ->
-    #{ backwater_opts := BackwaterOpts } = State,
-    AuthenticatedAccessConfs = maps:get(authenticated_access, BackwaterOpts, #{}),
-    authenticate_req_auth(maps:find(Username, AuthenticatedAccessConfs), Password, Req, State);
-handle_req_auth_parse({ok, none, Req}, _PrevReq, State) ->
-    #{ backwater_opts := BackwaterOpts } = State,
-    ExplicitAccessConf = maps:get(unauthenticated_access, BackwaterOpts, #{}),
-    DefaultAccessConf = default_access_conf(unauthenticated_access),
-    AccessConf = maps:merge(DefaultAccessConf, ExplicitAccessConf),
-    NewState = State#{ access_conf => AccessConf },
-    {true, Req, NewState};
-handle_req_auth_parse({undefined, _Value, Req}, _PrevReq, State) ->
-    {false, Req, State};
-handle_req_auth_parse({error, badarg}, PrevReq, State) ->
-    {false, PrevReq, State}.
+set_result(StatusCode, Result, Req, #{ result_content_type := ResultContentType } = State) ->
+    {{Type, SubType, _Params}, _Quality, _AcceptExt} = ResultContentType,
+    % TODO use params
+    ContentTypeHeader = {<<"content-type">>, <<Type/binary, "/", SubType/binary>>},
+    Data = encode_result_body(Result, ResultContentType),
+    {response(StatusCode, [ContentTypeHeader], Data), Req, State};
+set_result(StatusCode, Result, Req, State) ->
+    Data = io_lib:format("~p", [Result]),
+    {response(StatusCode, [], Data), Req, State}.
 
-authenticate_req_auth({ok, #{ authentication := {basic, Password} } = ExplicitAccessConf},
-                      GivenPassword, Req, State) 
-  when Password =:= GivenPassword ->
-    DefaultAccessConf = default_access_conf(authenticated_access),
-    AccessConf = maps:merge(DefaultAccessConf, ExplicitAccessConf),
-    NewState = State#{ access_conf => AccessConf },
-    {true, Req, NewState};
-authenticate_req_auth({ok, #{ authentication := {basic, _Password} }},
-                      _GivenPassword, Req, State) ->
-    {false, Req, State};
-authenticate_req_auth(error, _GivenPassword, Req, State) ->
-    {false, Req, State}.
+encode_result_body(Result, {{<<"application">>, <<"x-erlang-etf">>, _Params}, _Quality, _AcceptExt}) ->
+    % TODO use Params
+    backwater_codec_etf:encode(Result).
 
-default_access_conf(unauthenticated_access) ->
-    #{ decode_unsafe_terms => false,
-       exposed_modules => [],
-       return_exception_stacktraces => false };
-default_access_conf(authenticated_access) ->
-    #{ decode_unsafe_terms => true,
-       exposed_modules => [],
-       return_exception_stacktraces => true }.
+%% ------------------------------------------------------------------
+%% Internal Function Definitions
+%% ------------------------------------------------------------------
 
-failed_authorization_prompt() ->
-    <<"Basic realm=\"backwater\"">>.
+utf8bin_to_atom(BinValue, #{ decode_unsafe_terms := true }) ->
+    binary_to_atom(BinValue, utf8);
+utf8bin_to_atom(BinValue, #{ decode_unsafe_terms := false }) ->
+    binary_to_existing_atom(BinValue, utf8).
 
-malformed_request_(Req, State) ->
-    #{ access_conf := AccessConf,
-       unvalidated_version := BinVersion,
-       unvalidated_module := BinModule,
-       unvalidated_function := BinFunction,
-       unvalidated_arity := BinArity } = State,
-
-    Version = (catch unicode:characters_to_list(BinVersion)),
-    Module = (catch utf8bin_to_atom(BinModule, AccessConf)),
-    Function = (catch utf8bin_to_atom(BinFunction, AccessConf)),
-    Arity = (catch binary_to_integer(BinArity)),
-
-    if not is_list(Version) ->
-           Req2 = set_resp_body({error, invalid_api_version}, Req),
-           {true, Req2, State};
-       not is_atom(Module) ->
-           Req2 = set_resp_body({error, invalid_module_name}, Req),
-           {true, Req2, State};
-       not is_atom(Function) ->
-           Req2 = set_resp_body({error, invalid_function_name}, Req),
-           {true, Req2, State};
-       not is_integer(Arity) orelse Arity < 0 orelse Arity > 255 ->
-           Req2 = set_resp_body({error, invalid_function_arity}, Req),
-           {true, Req2, State};
-       true ->
-           NewState =
-                State#{ version => Version,
-                        module => Module,
-                        function => Function,
-                        arity => Arity },
-           {false, Req, NewState}
-    end.
-
-handle_call(Req, State) ->
-    #{ access_conf := AccessConf,
-       module := Module,
-       function := Function,
-       function_args := Args } = State,
-
-    Result = call_function(Module, Function, Args, AccessConf),
-    Req2 = set_resp_body(Result, Req),
-    {true, Req2, State}.
-
-set_resp_body(Term, Req) ->
-    {Body, Req2} = encode_resp_body(Term, Req),
-    cowboy_req:set_resp_body(Body, Req2).
-
-encode_resp_body(Term, Req) ->
-    {ResponseMediaType, Req2} = cowboy_req:meta(media_type, Req),
-    case ResponseMediaType of
-        {<<"application">>, <<"x-erlang-etf">>, _} ->
-            {backwater_codec_etf:encode(Term), Req2};
-        undefined ->
-            {io_lib:format("~p", [Term]), Req2}
+lists_anymap(_Fun, []) ->
+    false;
+lists_anymap(Fun, [H|T]) ->
+    case Fun(H) of
+        {true, MappedH} -> {true, MappedH};
+        true -> {true, H};
+        false -> lists_anymap(Fun, T)
     end.
