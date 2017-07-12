@@ -46,13 +46,12 @@ call(Ref, Version, Module, Function, Args, ConfigOverride) ->
         {ok, StatusCode, ResponseHeaders, ClientRef} ->
             case hackney:body(ClientRef) of
                 {ok, ResponseBody} ->
-                    decode_http_response(
-                      StatusCode, ResponseHeaders, ResponseBody, ClientConfig);
+                    decode_http_response(StatusCode, ResponseHeaders, ResponseBody, ClientConfig);
                 {error, BodyError} ->
-                    {error, {body, BodyError}}
+                    backwater_error({response_body, BodyError})
             end;
         {error, SocketError} ->
-            {error, {socket, SocketError}}
+            backwater_error({socket, SocketError})
     end.
 
 encode_http_request(Version, Module, Function, Args, ClientConfig) ->
@@ -66,7 +65,7 @@ encode_http_request(Version, Module, Function, Args, ClientConfig) ->
          {<<"content-type">>, <<MediaType/binary, "">>}],
     encode_http_request_with_auth(Method, Url, Headers, Body, ClientConfig).
 
-decode_http_response(StatusCode, ResponseHeaders, ResponseBody, ClientConfig) when StatusCode =:= 200 ->
+decode_http_response(200 = StatusCode, ResponseHeaders, ResponseBody, ClientConfig) ->
     #{ rethrow_remote_exceptions := RethrowRemoteExceptions } = ClientConfig,
     case decode_response_body(ResponseHeaders, ResponseBody, ClientConfig) of
         {term, {success, ReturnValue}} ->
@@ -76,22 +75,34 @@ decode_http_response(StatusCode, ResponseHeaders, ResponseBody, ClientConfig) wh
         {term, {exception, Class, Exception, Stacktrace}} ->
             backwater_error({remote_exception, Class, Exception, Stacktrace});
         {raw, Binary} ->
-            backwater_error({raw, StatusCode, Binary});
+            backwater_error({http, StatusCode, Binary});
         {error, {undecodable_response_body, Binary}} ->
             backwater_error({undecodable_response_body, StatusCode, Binary});
         {error, {invalid_content_type, RawContentType}} ->
             backwater_error({invalid_content_type, StatusCode, RawContentType})
     end;
-decode_http_response(StatusCode, _ResponseHeaders, _ResponseBody, _ClientConfig)
-  when StatusCode =:= 401 ->
-    % TODO maybe look at headers
-    {error, unauthorized};
 decode_http_response(StatusCode, ResponseHeaders, ResponseBody, ClientConfig) ->
     case decode_response_body(ResponseHeaders, ResponseBody, ClientConfig) of
         {term, Error} ->
             backwater_error(Error);
+        {raw, Binary} when StatusCode =:= 400 ->
+            backwater_error({bad_request, Binary});
+        {raw, Binary} when StatusCode =:= 401 ->
+            backwater_error({unauthorized, Binary});
+        {raw, Binary} when StatusCode =:= 403 ->
+            backwater_error({forbidden, Binary});
+        {raw, Binary} when StatusCode =:= 404 ->
+            backwater_error({not_found, Binary});
+        {raw, Binary} when StatusCode =:= 406 ->
+            backwater_error({not_acceptable, Binary});
+        {raw, Binary} when StatusCode =:= 413 ->
+            backwater_error({payload_too_large, Binary});
+        {raw, Binary} when StatusCode =:= 415 ->
+            backwater_error({unsupported_media_type, Binary});
+        {raw, Binary} when StatusCode =:= 500 ->
+            backwater_error({internal_error, Binary});
         {raw, Binary} ->
-            backwater_error({raw, StatusCode, Binary});
+            backwater_error({http, StatusCode, Binary});
         {error, {undecodable_response_body, Binary}} ->
             backwater_error({undecodable_response_body, StatusCode, Binary});
         {error, {invalid_content_type, RawContentType}} ->
@@ -170,4 +181,4 @@ http_basic_auth_header_value(Username, Password) ->
     <<"basic ", (base64:encode( iolist_to_binary([Username, ":", Password]) ))/binary>>.
 
 backwater_error(Error) ->
-    {error, {backwater, Error}}.
+    {error, Error}.
