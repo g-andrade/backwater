@@ -36,8 +36,9 @@ handle(Req, State) ->
     {Response, Req2, State2} = handle_method(Req, State),
     StatusCode = maps:get(status_code, Response),
     ResponseHeaders = maps:get(headers, Response, []),
-    ResponseBody = maps:get(body, Response, []),
-    {ok, Req3} = cowboy_req:reply(StatusCode, ResponseHeaders, ResponseBody, Req2),
+    ResponseBody = maps:get(body, Response, <<>>),
+    ResponseHeadersWithNoCache = nocache_headers() ++ ResponseHeaders,
+    {ok, Req3} = cowboy_req:reply(StatusCode, ResponseHeadersWithNoCache, ResponseBody, Req2),
     {ok, Req3, State2}.
 
 terminate(_Reason, _Req, _State) ->
@@ -395,3 +396,8 @@ lists_anymap(Fun, [H|T]) ->
         true -> {true, H};
         false -> lists_anymap(Fun, T)
     end.
+
+nocache_headers() ->
+    [{<<"cache-control">>, <<"private, no-cache, no-store, must-revalidate">>},
+     {<<"pragma">>, <<"no-cache">>},
+     {<<"expires">>, <<"0">>}].
