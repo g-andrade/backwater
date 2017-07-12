@@ -20,13 +20,12 @@
 %% cowboy_http_handler Function Definitions
 %% ------------------------------------------------------------------
 
-init(_Transport, Req, [Ref, BackwaterOpts]) ->
+init(_Transport, Req, [BackwaterOpts]) ->
     {BinVersion, Req2} = cowboy_req:binding(version, Req),
     {BinModule, Req3} = cowboy_req:binding(module, Req2),
     {BinFunction, Req4} = cowboy_req:binding(function, Req3),
     {BinArity, Req5} = cowboy_req:binding(arity, Req4),
-    {ok, Req5, #{ ref => Ref,
-                  backwater_opts => BackwaterOpts,
+    {ok, Req5, #{ backwater_opts => BackwaterOpts,
                   unvalidated_version => BinVersion,
                   unvalidated_module => BinModule,
                   unvalidated_function => BinFunction,
@@ -190,13 +189,14 @@ check_existence(Req, State) ->
     end.
 
 find_resource(Req, State) ->
-    #{ ref := Ref,
-       version := RequiredVersion,
+    #{ version := RequiredVersion,
        module := RequiredModule,
        function := RequiredFunction,
        arity := RequiredArity } = State,
 
-    case backwater_module_info:find(Ref, RequiredModule) of
+    Dictionary = erlang:process_info(self(), dictionary),
+    io:format("dictionary for ~p: ~p~n", [self(), Dictionary]),
+    case backwater_cached_module_info:find(RequiredModule) of
         {ok, #{ version := Version }} when Version =/= RequiredVersion ->
             {module_version_not_found, Req, State};
         {ok, #{ exports := Exports } = ModuleInfo} ->

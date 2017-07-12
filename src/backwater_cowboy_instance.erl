@@ -7,6 +7,8 @@
 
 -export([start_link/2]). -ignore_xref({start_link, 2}).
 -export([childspec/3]).
+-export([cowboy_route_rule/1]).
+-export([cowboy_route_path/1]).
 
 %% ------------------------------------------------------------------
 %% gen_server Function Exports
@@ -54,14 +56,14 @@ childspec(Id, Ref, ServerConfig) ->
        type => worker,
        modules => [?MODULE] }.
 
-cowboy_route_rule(Ref, BackwaterOpts) ->
+cowboy_route_rule(BackwaterOpts) ->
     Host = maps:get(host, BackwaterOpts, '_'),
-    {Host, [cowboy_route_path(Ref, BackwaterOpts)]}.
+    {Host, [cowboy_route_path(BackwaterOpts)]}.
 
-cowboy_route_path(Ref, BackwaterOpts) ->
+cowboy_route_path(BackwaterOpts) ->
     BasePath = maps:get(base_path, BackwaterOpts, "/rpcall/"),
     {BasePath ++ ":version/:module/:function/:arity",
-     backwater_cowboy_handler, [Ref, BackwaterOpts]}.
+     backwater_cowboy_handler, [BackwaterOpts]}.
 
 %% ------------------------------------------------------------------
 %% gen_server Function Definitions
@@ -102,7 +104,7 @@ start_cowboy(Ref, ServerConfig) ->
     {StartFunction, NbAcceptors, TransOpts, BaseProtoOpts,
      BackwaterOpts} = parse_config(ServerConfig),
 
-    Dispatch = cowboy_router:compile([cowboy_route_rule(Ref, BackwaterOpts)]),
+    Dispatch = cowboy_router:compile([cowboy_route_rule(BackwaterOpts)]),
     ProtoOpts =
         lists_keyupdate(
           env, 1, BaseProtoOpts,
