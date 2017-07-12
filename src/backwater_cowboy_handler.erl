@@ -135,26 +135,20 @@ handle_etf_body(Req, State) ->
     #{ decode_unsafe_terms := DecodeUnsafeTerms } = AccessConf,
 
     {ok, Body, Req2} = cowboy_req:body(Req),
-    case verify_body_digest(Body, State) of
-        false ->
-            Req3 = set_resp_body({error, invalid_body_digest}, Req2),
+    case backwater_codec_etf:decode(Body, DecodeUnsafeTerms) of
+        error ->
+            Req3 = set_resp_body({error, undecodable_payload}, Req2),
             {false, Req3, State};
-        true ->
-            case backwater_codec_etf:decode(Body, DecodeUnsafeTerms) of
-                error ->
-                    Req3 = set_resp_body({error, undecodable_payload}, Req2),
-                    {false, Req3, State};
-                {ok, UnvalidatedFunctionArgs} ->
-                    if not is_list(UnvalidatedFunctionArgs) ->
-                           Req3 = set_resp_body({error, payload_not_a_list}, Req2),
-                           {false, Req3, State};
-                       length(UnvalidatedFunctionArgs) =/= Arity ->
-                           Req3 = set_resp_body({error, payload_arity_inconsistent}, Req2),
-                           {false, Req3, State};
-                       true ->
-                           NewState = State#{ function_args => UnvalidatedFunctionArgs },
-                           handle_call(Req2, NewState)
-                    end
+        {ok, UnvalidatedFunctionArgs} ->
+            if not is_list(UnvalidatedFunctionArgs) ->
+                   Req3 = set_resp_body({error, payload_not_a_list}, Req2),
+                   {false, Req3, State};
+               length(UnvalidatedFunctionArgs) =/= Arity ->
+                   Req3 = set_resp_body({error, payload_arity_inconsistent}, Req2),
+                   {false, Req3, State};
+               true ->
+                   NewState = State#{ function_args => UnvalidatedFunctionArgs },
+                   handle_call(Req2, NewState)
             end
     end.
 
@@ -312,11 +306,6 @@ malformed_request_(Req, State) ->
                         arity => Arity },
            {false, Req, NewState}
     end.
-
-verify_body_digest(Body, #{ expected_body_digest := BodyDigest }) ->
-    backwater_digest:verify(Body, BodyDigest);
-verify_body_digest(_Body, _State) ->
-    true.
 
 handle_call(Req, State) ->
     #{ access_conf := AccessConf,
