@@ -8,6 +8,7 @@
 %-export([parse_function7_json_out/1]).
 
 -backwater_version("1").
+-backwater_export({function1,0}).
 -backwater_export([{function2,0}]).
 -backwater_export({function3,0}).
 -backwater_export({function4,0}).
@@ -16,7 +17,7 @@
 %-backwater_export({function7,1, #{ <<"application/json">> => {decode_function7_json_args, encode_function7_json_result} }}).
 
 function1() ->
-    wow.
+    [0 || _ <- lists:seq(1, 1000)].
 
 function2() ->
     wow2.

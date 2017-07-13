@@ -62,6 +62,7 @@ encode_http_request(Version, Module, Function, Args, ClientConfig) ->
     MediaType = <<"application/x-erlang-etf">>,
     Headers =
         [{<<"accept">>, <<MediaType/binary, "">>},
+         {<<"accept-encoding">>, <<"gzip">>},
          {<<"content-type">>, <<MediaType/binary, "">>}],
     encode_http_request_with_auth(Method, Url, Headers, Body, ClientConfig).
 
@@ -76,6 +77,8 @@ decode_http_response(200 = StatusCode, ResponseHeaders, ResponseBody, ClientConf
             backwater_error({remote_exception, Class, Exception, Stacktrace});
         {raw, Binary} ->
             backwater_error({http, StatusCode, Binary});
+        {error, {unknown_content_encoding, ContentEncoding}} ->
+            backwater_error({unknown_content_encoding, ContentEncoding});
         {error, {undecodable_response_body, Binary}} ->
             backwater_error({undecodable_response_body, StatusCode, Binary});
         {error, {invalid_content_type, RawContentType}} ->
@@ -103,6 +106,8 @@ decode_http_response(StatusCode, ResponseHeaders, ResponseBody, ClientConfig) ->
             backwater_error({internal_error, Binary});
         {raw, Binary} ->
             backwater_error({http, StatusCode, Binary});
+        {error, {unknown_content_encoding, ContentEncoding}} ->
+            backwater_error({unknown_content_encoding, ContentEncoding});
         {error, {undecodable_response_body, Binary}} ->
             backwater_error({undecodable_response_body, StatusCode, Binary});
         {error, {invalid_content_type, RawContentType}} ->
@@ -133,23 +138,46 @@ encode_http_request_with_auth(Method, Url, Headers, Body, ClientConfig) ->
     {Method, Url, UpdatedHeaders, Body}.
 
 decode_response_body(ResponseHeaders, ResponseBody, ClientConfig) ->
-    case find_content_type(ResponseHeaders) of
-        {ok, {<<"application/x-erlang-etf">>, _Params}} ->
-            #{ decode_unsafe_terms := DecodeUnsafeTerms } = ClientConfig,
-            case backwater_codec_etf:decode(ResponseBody, DecodeUnsafeTerms) of
-                {ok, Decoded} -> {term, Decoded};
-                error -> {error, {undecodable_response_body, ResponseBody}}
-            end;
-        {error, {invalid_content_type, RawContentType}} ->
-            {error, {invalid_response_content_type, RawContentType}};
-        {error, content_type_missing} ->
-            {raw, ResponseBody}
-    end.
+    ContentEncodingLookup = find_content_encoding(ResponseHeaders),
+    handle_response_body_content_encoding(
+      ContentEncodingLookup, ResponseHeaders, ResponseBody, ClientConfig).
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% body encoding
+
+handle_response_body_content_encoding({ok, <<"gzip">>}, ResponseHeaders, ResponseBody, ClientConfig) ->
+    UncompressedResponseBody = zlib:gunzip(ResponseBody),
+    ContentTypeLookup = find_content_type(ResponseHeaders),
+    handle_response_body_content_type(ContentTypeLookup, UncompressedResponseBody, ClientConfig);
+handle_response_body_content_encoding({ok, OtherEncoding}, _ResponseHeaders, _ResponseBody, _ClientConfig) ->
+    {error, {unknown_content_encoding, OtherEncoding}};
+handle_response_body_content_encoding(error, ResponseHeaders, ResponseBody, ClientConfig) ->
+    ContentTypeLookup = find_content_type(ResponseHeaders),
+    handle_response_body_content_type(ContentTypeLookup, ResponseBody, ClientConfig).
+
+find_content_encoding(Headers) ->
+    find_header_value(<<"content-encoding">>, Headers).
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% body content type
+
+handle_response_body_content_type({ok, {<<"application/x-erlang-etf">>, _Params}},
+                                   ResponseBody, ClientConfig) ->
+    #{ decode_unsafe_terms := DecodeUnsafeTerms } = ClientConfig,
+    case backwater_codec_etf:decode(ResponseBody, DecodeUnsafeTerms) of
+        {ok, Decoded} -> {term, Decoded};
+        error -> {error, {undecodable_response_body, ResponseBody}}
+    end;
+handle_response_body_content_type({error, {invalid_content_type, RawContentType}},
+                                   _ResponseBody, _ClientConfig) ->
+    {error, {invalid_response_content_type, RawContentType}};
+handle_response_body_content_type({error, content_type_missing},
+                                   ResponseBody, _ClientConfig) ->
+    {raw, ResponseBody}.
 
 find_content_type(Headers) ->
     case find_header_value(<<"content-type">>, Headers) of
-        {ok, ContentTypeStr} ->
-            ContentTypeBin = unicode:characters_to_binary(ContentTypeStr),
+        {ok, ContentTypeBin} ->
             case binary:split(ContentTypeBin, [<<";">>, <<" ">>, <<$\n>>, <<$\r>>], [global, trim_all]) of
                 [ActualBinContentType | BinAttributes] ->
                     {ok, {ActualBinContentType, [V || V <- BinAttributes]}};
@@ -159,6 +187,8 @@ find_content_type(Headers) ->
         error ->
             {error, content_type_missing}
     end.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 find_header_value(Key, Headers) ->
     LowerKey = backwater_util:latin1_binary_to_lower(Key),

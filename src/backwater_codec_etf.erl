@@ -7,7 +7,7 @@ decode(Binary, DecodeUnsafeTerms) when not DecodeUnsafeTerms ->
     decode_(Binary, [safe]).
 
 encode(Term) ->
-    erlang:term_to_binary(Term, [compressed]).
+    erlang:term_to_binary(Term).
 
 %%%%
 decode_(Binary, Options) ->

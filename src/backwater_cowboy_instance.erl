@@ -137,6 +137,8 @@ parse_config(ServerConfig) ->
         end,
     NbAcceptors = maps:get(number_of_acceptors, CowboyOptions, 100),
     TransOpts = maps:get(transport_options, CowboyOptions, []),
-    ProtoOpts = maps:get(protocol_options, CowboyOptions, []),
+    DefaultProtoOpts = [{compress, true}],
+    ExtraProtoOpts = lists:keysort(1, maps:get(protocol_options, CowboyOptions, [])),
+    ProtoOpts = lists:keymerge(1, ExtraProtoOpts, DefaultProtoOpts),
     BackwaterOpts = maps:with([unauthenticated_access, authenticated_access], ServerConfig),
     {StartFunction, NbAcceptors, TransOpts, ProtoOpts, BackwaterOpts}.
