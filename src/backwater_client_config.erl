@@ -84,7 +84,7 @@ code_change(_OldVsn, State, _Extra) ->
 %% ------------------------------------------------------------------
 
 server_name(Ref) ->
-    list_to_atom("backwater_" ++ backwater_util:parse_unicode_string(Ref) ++ "_client_config").
+    list_to_atom("backwater_" ++ backwater_util:to_unicode_string(Ref) ++ "_client_config").
 
 config_table_name(Ref) ->
     server_name(Ref).

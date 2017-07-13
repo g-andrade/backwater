@@ -98,7 +98,7 @@ code_change(_OldVsn, State, _Extra) ->
 %% ------------------------------------------------------------------
 
 server_name(Ref) ->
-    list_to_atom("backwater_" ++ backwater_util:parse_unicode_string(Ref) ++ "_cowboy_instance").
+    list_to_atom("backwater_" ++ backwater_util:to_unicode_string(Ref) ++ "_cowboy_instance").
 
 start_cowboy(Ref, ServerConfig) ->
     {StartFunction, NbAcceptors, TransOpts, BaseProtoOpts,
@@ -132,8 +132,8 @@ parse_config(ServerConfig) ->
     StartFunction =
         case maps:get(protocol, CowboyOptions, http) of
             http -> start_http;
-            https -> start_https;
-            spdy -> start_spdy
+            https -> start_https
+            %spdy -> start_spdy % this would make things confusing for now - hackney doesn't support it
         end,
     NbAcceptors = maps:get(number_of_acceptors, CowboyOptions, 100),
     TransOpts = maps:get(transport_options, CowboyOptions, []),

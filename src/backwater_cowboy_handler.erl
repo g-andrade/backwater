@@ -25,12 +25,13 @@ init(_Transport, Req, [BackwaterOpts]) ->
     {BinModule, Req3} = cowboy_req:binding(module, Req2),
     {BinFunction, Req4} = cowboy_req:binding(function, Req3),
     {BinArity, Req5} = cowboy_req:binding(arity, Req4),
-    {ok, Req5, #{ backwater_opts => BackwaterOpts,
-                  unvalidated_version => BinVersion,
-                  unvalidated_module => BinModule,
-                  unvalidated_function => BinFunction,
-                  unvalidated_arity => BinArity
-                }}.
+    State = #{ backwater_opts => BackwaterOpts,
+               unvalidated_version => BinVersion,
+               unvalidated_module => BinModule,
+               unvalidated_function => BinFunction,
+               unvalidated_arity => BinArity
+             },
+    {ok, Req5, State}.
 
 handle(Req, State) ->
     {Response, Req2, State2} = handle_method(Req, State),
@@ -44,20 +45,9 @@ handle(Req, State) ->
 terminate(_Reason, _Req, _State) ->
     ok.
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% utilities
-
-response(StatusCode) ->
-    #{ status_code => StatusCode }.
-
-response(StatusCode, Headers) ->
-    (response(StatusCode))#{ headers => Headers }.
-
-response(StatusCode, Headers, Body) ->
-    (response(StatusCode, Headers))#{ body => Body }.
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% method
+%% ------------------------------------------------------------------
+%% Internal Function Definitions - Check Method
+%% ------------------------------------------------------------------
 
 handle_method(Req, State) ->
     case cowboy_req:method(Req) of
@@ -67,8 +57,9 @@ handle_method(Req, State) ->
             {response(405), Req2, State}
     end.
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% authentication
+%% ------------------------------------------------------------------
+%% Internal Function Definitions - Check Authentication
+%% ------------------------------------------------------------------
 
 check_authentication(Req, State) ->
     ParseResult = cowboy_req:parse_header(<<"authorization">>, Req, none),
@@ -122,8 +113,9 @@ default_access_conf(authenticated_access) ->
 failed_auth_prompt_header() ->
     {<<"www-authenticate">>, <<"Basic realm=\"backwater\"">>}.
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% form
+%% ------------------------------------------------------------------
+%% Internal Function Definitions - Check Request Form
+%% ------------------------------------------------------------------
 
 check_form(Req, State) ->
     case validate_form(Req, State) of
@@ -162,8 +154,9 @@ validate_form(Req, State) ->
            {valid, Req, NewState}
     end.
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% authorization
+%% ------------------------------------------------------------------
+%% Internal Function Definitions - Check Request Authorization
+%% ------------------------------------------------------------------
 
 check_authorization(Req, State) ->
     #{ module := Module,
@@ -178,8 +171,9 @@ check_authorization(Req, State) ->
             {response(403), Req, State}
     end.
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% existence
+%% ------------------------------------------------------------------
+%% Internal Function Definitions - Check Resource Existence
+%% ------------------------------------------------------------------
 
 check_existence(Req, State) ->
     case find_resource(Req, State) of
@@ -195,7 +189,7 @@ find_resource(Req, State) ->
        function := RequiredFunction,
        arity := RequiredArity } = State,
 
-    case backwater_cached_module_info:find(RequiredModule) of
+    case backwater_module_info:find(RequiredModule) of
         {ok, #{ version := Version }} when Version =/= RequiredVersion ->
             {module_version_not_found, Req, State};
         {ok, #{ exports := Exports } = ModuleInfo} ->
@@ -210,8 +204,9 @@ find_resource(Req, State) ->
             {module_not_found, Req, State}
     end.
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% form of arguments content type
+%% ------------------------------------------------------------------
+%% Internal Function Definitions - Validate Arguments Content Type
+%% ------------------------------------------------------------------
 
 check_args_content_type(Req, State) ->
     ParseResult = cowboy_req:parse_header(<<"content-type">>, Req, none),
@@ -230,8 +225,9 @@ handle_parsed_content_type({undefined, _Unparsable, Req}, _PrevReq) ->
 handle_parsed_content_type({error, badarg}, Req) ->
     {bad_header, Req}.
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% form of accepted result content types
+%% ------------------------------------------------------------------
+%% Internal Function Definitions - Validate Accepted Content Types
+%% ------------------------------------------------------------------
 
 check_accepted_result_content_types(Req, State) ->
     ParseResult = cowboy_req:parse_header(<<"accept">>, Req, []),
@@ -251,8 +247,9 @@ handle_parsed_accept({undefined, _Unparsable, Req}, _PrevReq) ->
 handle_parsed_accept({error, badarg}, Req) ->
     {bad_header, Req}.
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% negotiation of arguments content type
+%% ------------------------------------------------------------------
+%% Internal Function Definitions - Negotiate Arguments Content Type
+%% ------------------------------------------------------------------
 
 negotiate_args_content_type(Req, State) ->
     #{ function_properties := FunctionProperties,
@@ -272,8 +269,9 @@ negotiate_args_content_type(Req, State) ->
         false -> {response(415), Req, State}
     end.
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% negotiation of results content type
+%% ------------------------------------------------------------------
+%% Internal Function Definitions - Negotiate Result Content Type
+%% ------------------------------------------------------------------
 
 negotiate_result_content_type(Req, State) ->
     #{ function_properties := FunctionProperties,
@@ -295,8 +293,9 @@ negotiate_result_content_type(Req, State) ->
             {response(406), Req, State}
     end.
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% read and decode arguments
+%% ------------------------------------------------------------------
+%% Internal Function Definitions - Read and Decode Arguments
+%% ------------------------------------------------------------------
 
 read_and_decode_args(Req, State) ->
     case cowboy_req:body(Req) of
@@ -319,7 +318,7 @@ decode_etf_args(_Params, Data, Req, State) ->
     % TODO use Params
     #{ access_conf := AccessConf } = State,
     #{ decode_unsafe_terms := DecodeUnsafeTerms } = AccessConf,
-    case backwater_codec_etf:decode(Data, DecodeUnsafeTerms) of
+    case backwater_media_etf:decode(Data, DecodeUnsafeTerms) of
         error ->
             %Req3 = set_resp_body({error, undecodable_payload}, Req2),
             set_result(400, unable_to_decode_arguments, Req, State);
@@ -336,8 +335,9 @@ validate_args(UnvalidatedArgs, Req, #{ arity := Arity } = State)
 validate_args(Args, Req, State) ->
     handle_call(Args, Req, State).
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% execute the call
+%% ------------------------------------------------------------------
+%% Internal Function Definitions - Execute Call
+%% ------------------------------------------------------------------
 
 handle_call(Args, Req, State) ->
     #{ access_conf := AccessConf, module := Module, function := Function } = State,
@@ -361,12 +361,12 @@ clean_exception_stacktrace(Stacktrace, UntilMFA) ->
       fun ({M,F,A,_Extra}) -> {M,F,A} =/= UntilMFA end,
       Stacktrace).
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% encode the result
+%% ------------------------------------------------------------------
+%% Internal Function Definitions - Encode Result
+%% ------------------------------------------------------------------
 
 set_result(StatusCode, Result, Req, #{ result_content_type := ResultContentType } = State) ->
     {{Type, SubType, _Params}, _Quality, _AcceptExt} = ResultContentType,
-    % TODO use params
     ContentTypeHeader = {<<"content-type">>, <<Type/binary, "/", SubType/binary>>},
     Data = encode_result_body(Result, ResultContentType),
     {response(StatusCode, [ContentTypeHeader], Data), Req, State};
@@ -375,12 +375,20 @@ set_result(StatusCode, Result, Req, State) ->
     {response(StatusCode, [], Data), Req, State}.
 
 encode_result_body(Result, {{<<"application">>, <<"x-erlang-etf">>, _Params}, _Quality, _AcceptExt}) ->
-    % TODO use Params
-    backwater_codec_etf:encode(Result).
+    backwater_media_etf:encode(Result).
 
 %% ------------------------------------------------------------------
-%% Internal Function Definitions
+%% Internal Function Definitions - Utilities 
 %% ------------------------------------------------------------------
+
+response(StatusCode) ->
+    #{ status_code => StatusCode }.
+
+response(StatusCode, Headers) ->
+    (response(StatusCode))#{ headers => Headers }.
+
+response(StatusCode, Headers, Body) ->
+    (response(StatusCode, Headers))#{ body => Body }.
 
 utf8bin_to_atom(BinValue, #{ decode_unsafe_terms := true }) ->
     binary_to_atom(BinValue, utf8);

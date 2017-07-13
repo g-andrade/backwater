@@ -8,14 +8,12 @@
     stdlib,
     edoc,
     cowboy,
-    hackney,
-    %jsx,
-    recon % TODO actually optional
+    hackney
    ]},
-  {env,[]},
+  {env,[]}, % Check config/sys.config example
   {modules, []},
 
-  {maintainers, []},
-  {licenses, []},
-  {links, []}
+  {maintainers, ["Guilherme Andrade"]},
+  {licenses, ["MIT"]},
+  {links, [{"Github", "https://github.com/g-andrade/backwater"}]}
  ]}.

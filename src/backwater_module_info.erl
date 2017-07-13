@@ -1,10 +1,11 @@
--module(backwater_cached_module_info).
+-module(backwater_module_info).
 %%
 %% ------------------------------------------------------------------
 %% API Function Exports
 %% ------------------------------------------------------------------
 
 -export([find/1]).
+-export([find/2]).
 
 %% ------------------------------------------------------------------
 %% Macro Definitions
@@ -21,6 +22,9 @@
 %% ------------------------------------------------------------------
 
 find(Module) ->
+    find(Module, []).
+
+find(Module, [use_process_dictionary_cache])  ->
     % WARNING: very dirty hack using process dictionary
     Now = now_milliseconds(),
     case erlang:get({cached_module_info_lookup, Module}) of
@@ -30,7 +34,9 @@ find(Module) ->
             find_and_parse_and_cache_module_info(Module);
         #{ result := CachedResult } ->
             CachedResult
-    end.
+    end;
+find(Module, []) ->
+    find_and_parse_module_info(Module).
 
 %% ------------------------------------------------------------------
 %% Internal Function Definitions
