@@ -310,12 +310,11 @@ read_and_decode_args(Req, State) ->
 decode_args(Data, Req, State) ->
     #{ args_content_type := ArgsContentType } = State,
     case ArgsContentType of
-        {<<"application">>, <<"x-erlang-etf">>, Params} ->
-            decode_etf_args(Params, Data, Req, State)
+        {<<"application">>, <<"x-erlang-etf">>, _Params} ->
+            decode_etf_args(Data, Req, State)
     end.
 
-decode_etf_args(_Params, Data, Req, State) ->
-    % TODO use Params
+decode_etf_args(Data, Req, State) ->
     #{ access_conf := AccessConf } = State,
     #{ decode_unsafe_terms := DecodeUnsafeTerms } = AccessConf,
     case backwater_media_etf:decode(Data, DecodeUnsafeTerms) of

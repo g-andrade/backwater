@@ -23,5 +23,4 @@ to_unicode_string(Other) ->
     end.
 
 latin1_binary_to_lower(Bin) ->
-    % TODO optimize
     list_to_binary( string:to_lower( binary_to_list(Bin) ) ).
