@@ -47,4 +47,4 @@ init([Ref, ServerConfig]) ->
 %% ------------------------------------------------------------------
 
 server_name(Ref) ->
-    list_to_atom("backwater_" ++ backwater_util:to_unicode_string(Ref) ++ "_server_sup").
+    list_to_atom("backwater_" ++ backwater_ref:to_unicode_string(Ref) ++ "_server_sup").

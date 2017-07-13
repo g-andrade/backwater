@@ -98,7 +98,7 @@ code_change(_OldVsn, State, _Extra) ->
 %% ------------------------------------------------------------------
 
 server_name(Ref) ->
-    list_to_atom("backwater_" ++ backwater_util:to_unicode_string(Ref) ++ "_cowboy_instance").
+    list_to_atom("backwater_" ++ backwater_ref:to_unicode_string(Ref) ++ "_cowboy_instance").
 
 start_cowboy(Ref, ServerConfig) ->
     {StartFunction, NbAcceptors, TransOpts, BaseProtoOpts,

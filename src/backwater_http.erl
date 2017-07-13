@@ -24,7 +24,7 @@ encode_request(Version, Module, Function, Args, ClientConfig) ->
     encode_request_with_auth(Method, Url, Headers, Body, ClientConfig).
 
 decode_response(StatusCode, Headers, Body, ClientConfig) ->
-    CiHeaders = lists:keymap(fun backwater_util:latin1_binary_to_lower/1, 1, Headers),
+    CiHeaders = lists:keymap(fun latin1_binary_to_lower/1, 1, Headers),
     decode_response_(StatusCode, CiHeaders, Body, ClientConfig).
 
 %% ------------------------------------------------------------------
@@ -163,6 +163,10 @@ find_header_value(CiKey, CiHeaders) ->
         {CiKey, Value} -> {ok, Value};
         false -> error
     end.
+
+latin1_binary_to_lower(Bin) ->
+    % TODO: optimize
+    list_to_binary( string:to_lower( binary_to_list(Bin) ) ).
 
 % FIXME: duplicate in backwater_client, reconsider whole thing
 backwater_error(Error) ->

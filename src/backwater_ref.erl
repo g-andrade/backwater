@@ -1,11 +1,10 @@
--module(backwater_util).
+-module(backwater_ref).
 
 %% ------------------------------------------------------------------
 %% API Function Exports
 %% ------------------------------------------------------------------
 
 -export([to_unicode_string/1]).
--export([latin1_binary_to_lower/1]).
 
 %% ------------------------------------------------------------------
 %% API Function Definitions
@@ -21,6 +20,3 @@ to_unicode_string(Other) ->
         {'EXIT', '_'} ->
             io_lib:format("~p", [Other])
     end.
-
-latin1_binary_to_lower(Bin) ->
-    list_to_binary( string:to_lower( binary_to_list(Bin) ) ).
