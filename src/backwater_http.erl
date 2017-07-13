@@ -113,9 +113,13 @@ decode_response_body(CiHeaders, Body, ClientConfig) ->
 %% encoding
 
 handle_response_body_content_encoding({ok, <<"gzip">>}, CiHeaders, Body, ClientConfig) ->
-    UncompressedBody = zlib:gunzip(Body), % TODO handle failure
-    ContentTypeLookup = find_content_type(CiHeaders),
-    handle_response_body_content_type(ContentTypeLookup, UncompressedBody, ClientConfig);
+    case backwater_encoding_gzip:decode(Body) of
+        {ok, UncompressedBody} ->
+            ContentTypeLookup = find_content_type(CiHeaders),
+            handle_response_body_content_type(ContentTypeLookup, UncompressedBody, ClientConfig);
+        {error, _Error} ->
+            {error, {undecodable_response_body, Body}}
+    end;
 handle_response_body_content_encoding({ok, OtherEncoding}, _CiHeaders, _Body, _ClientConfig) ->
     {error, {unknown_content_encoding, OtherEncoding}};
 handle_response_body_content_encoding(error, CiHeaders, Body, ClientConfig) ->
