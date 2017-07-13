@@ -311,11 +311,12 @@ read_and_decode_args(Req, State) ->
 decode_args(Data, Req, State) ->
     #{ args_content_type := ArgsContentType } = State,
     case ArgsContentType of
-        {<<"application">>, <<"x-erlang-etf">>, _Params} ->
-            decode_etf_args(Data, Req, State)
+        {<<"application">>, <<"x-erlang-etf">>, Params} ->
+            decode_etf_args(Params, Data, Req, State)
     end.
 
-decode_etf_args(Data, Req, State) ->
+decode_etf_args(_Params, Data, Req, State) ->
+    % TODO use Params
     #{ access_conf := AccessConf } = State,
     #{ decode_unsafe_terms := DecodeUnsafeTerms } = AccessConf,
     case backwater_codec_etf:decode(Data, DecodeUnsafeTerms) of
@@ -366,15 +367,16 @@ clean_exception_stacktrace(Stacktrace, UntilMFA) ->
 set_result(StatusCode, Result, Req, #{ result_content_type := ResultContentType } = State) ->
     {{Type, SubType, _Params}, _Quality, _AcceptExt} = ResultContentType,
     % TODO use params
-    {Data, EncodedParamsSuffix} = encode_result_body(Result, ResultContentType),
-    ContentTypeHeader = {<<"content-type">>, <<Type/binary, "/", SubType/binary, EncodedParamsSuffix/binary>>},
+    ContentTypeHeader = {<<"content-type">>, <<Type/binary, "/", SubType/binary>>},
+    Data = encode_result_body(Result, ResultContentType),
     {response(StatusCode, [ContentTypeHeader], Data), Req, State};
 set_result(StatusCode, Result, Req, State) ->
     Data = io_lib:format("~p", [Result]),
     {response(StatusCode, [], Data), Req, State}.
 
-encode_result_body(Result, {{<<"application">>, <<"x-erlang-etf">>, Params}, _Quality, _AcceptExt}) ->
-    backwater_codec_etf:encode(Result, Params).
+encode_result_body(Result, {{<<"application">>, <<"x-erlang-etf">>, _Params}, _Quality, _AcceptExt}) ->
+    % TODO use Params
+    backwater_codec_etf:encode(Result).
 
 %% ------------------------------------------------------------------
 %% Internal Function Definitions

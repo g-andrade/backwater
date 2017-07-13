@@ -40,12 +40,10 @@ call(Ref, Version, Module, Function, Args, ConfigOverride) ->
          {connect_timeout, ConnectTimeout},
          {recv_timeout, ReceiveTimeout}],
 
-    %io:format("request headers: ~p~n", [RequestHeaders]),
     case hackney:request(RequestMethod, RequestUrl, RequestHeaders,
                          RequestBody, Options)
     of
         {ok, StatusCode, ResponseHeaders, ClientRef} ->
-            %io:format("response headers: ~p~n", [ResponseHeaders]),
             case hackney:body(ClientRef) of
                 {ok, ResponseBody} ->
                     decode_http_response(StatusCode, ResponseHeaders, ResponseBody, ClientConfig);
@@ -57,15 +55,14 @@ call(Ref, Version, Module, Function, Args, ConfigOverride) ->
     end.
 
 encode_http_request(Version, Module, Function, Args, ClientConfig) ->
-    MediaType = <<"application/x-erlang-etf">>,
-    ContentTypeParams = [{<<"compressed">>, <<"6">>}],
-    {Body, EncodedContentTypeParamsSuffix} = backwater_codec_etf:encode(Args, ContentTypeParams),
+    Body = backwater_codec_etf:encode(Args),
     Arity = length(Args),
     Method = "POST",
     Url = request_url(Version, Module, Function, Arity, ClientConfig),
+    MediaType = <<"application/x-erlang-etf">>,
     Headers =
-        [{<<"accept">>, <<MediaType/binary>>},
-         {<<"content-type">>, <<MediaType/binary, EncodedContentTypeParamsSuffix/binary>>}],
+        [{<<"accept">>, <<MediaType/binary, "">>},
+         {<<"content-type">>, <<MediaType/binary, "">>}],
     encode_http_request_with_auth(Method, Url, Headers, Body, ClientConfig).
 
 decode_http_response(200 = StatusCode, ResponseHeaders, ResponseBody, ClientConfig) ->
