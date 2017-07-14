@@ -14,13 +14,13 @@
 encode_request(Version, Module, Function, Args, ClientConfig) ->
     Body = backwater_media_etf:encode(Args),
     Arity = length(Args),
-    Method = "POST",
+    Method = <<"POST">>,
     Url = request_url(Version, Module, Function, Arity, ClientConfig),
     MediaType = <<"application/x-erlang-etf">>,
     Headers =
-        [{<<"accept">>, <<MediaType/binary, "">>},
+        [{<<"accept">>, <<MediaType/binary>>},
          {<<"accept-encoding">>, <<"gzip">>},
-         {<<"content-type">>, <<MediaType/binary, "">>}],
+         {<<"content-type">>, <<MediaType/binary>>}],
     encode_request_with_auth(Method, Url, Headers, Body, ClientConfig).
 
 decode_response(StatusCode, Headers, Body, ClientConfig) ->
@@ -140,7 +140,7 @@ handle_response_body_content_type({ok, {<<"application/x-erlang-etf">>, _Params}
     end;
 handle_response_body_content_type({error, {invalid_content_type, RawContentType}},
                                    _Body, _ClientConfig) ->
-    {error, {invalid_response_content_type, RawContentType}};
+    {error, {invalid_content_type, RawContentType}};
 handle_response_body_content_type({error, content_type_missing},
                                    Body, _ClientConfig) ->
     {raw, Body}.

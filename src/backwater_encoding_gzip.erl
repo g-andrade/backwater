@@ -10,6 +10,7 @@
 %% API Function Definitions
 %% ------------------------------------------------------------------
 
+-spec decode(iodata()) -> {ok, iodata()} | {error, term()}.
 decode(Data) ->
     try
         {ok, zlib:gunzip(Data)}

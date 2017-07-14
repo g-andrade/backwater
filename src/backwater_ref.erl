@@ -10,9 +10,11 @@
 %% API Function Definitions
 %% ------------------------------------------------------------------
 
+-spec to_unicode_string(term()) -> unicode:charlist().
 to_unicode_string(Atom) when is_atom(Atom) ->
     atom_to_list(Atom);
 to_unicode_string(Other) ->
+    % TODO something better
     case catch io_lib:format("~s", [Other]) of
         List when is_list(List) ->
             Binary = iolist_to_binary(List),

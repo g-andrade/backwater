@@ -75,7 +75,7 @@ app_config_changed(Clients, Servers) ->
       fun (#{ id := Id } = Child) ->
               case lists:member(Id, HandledIds) of
                   true -> ok;
-                  false -> ok = start_child(Child)
+                  false -> {ok, _} = start_child(Child)
               end
       end,
       UpdatedChildren).
