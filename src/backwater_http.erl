@@ -86,6 +86,8 @@ decode_response_(200 = StatusCode, CiHeaders, Body, ClientConfig) ->
             backwater_error({unknown_content_encoding, ContentEncoding});
         {error, {undecodable_response_body, Binary}} ->
             backwater_error({undecodable_response_body, StatusCode, Binary});
+        {error, {unknown_content_type, RawContentType}} ->
+            backwater_error({unknown_content_type, StatusCode, RawContentType});
         {error, {invalid_content_type, RawContentType}} ->
             backwater_error({invalid_content_type, StatusCode, RawContentType})
     end;
@@ -115,6 +117,8 @@ decode_response_(StatusCode, CiHeaders, Body, ClientConfig) ->
             backwater_error({unknown_content_encoding, ContentEncoding});
         {error, {undecodable_response_body, Binary}} ->
             backwater_error({undecodable_response_body, StatusCode, Binary});
+        {error, {unknown_content_type, RawContentType}} ->
+            backwater_error({unknown_content_type, StatusCode, RawContentType});
         {error, {invalid_content_type, RawContentType}} ->
             backwater_error({invalid_content_type, StatusCode, RawContentType})
     end.
@@ -152,6 +156,9 @@ handle_response_body_content_type({ok, {<<"application/x-erlang-etf">>, _Params}
         {ok, Decoded} -> {term, Decoded};
         error -> {error, {undecodable_response_body, Body}}
     end;
+handle_response_body_content_type({ok, {OtherContentType, _Params}},
+                                   _Body, _ClientConfig) ->
+    {error, {unknown_content_type, OtherContentType}};
 handle_response_body_content_type({error, {invalid_content_type, RawContentType}},
                                    _Body, _ClientConfig) ->
     {error, {invalid_content_type, RawContentType}};
