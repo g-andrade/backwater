@@ -8,6 +8,12 @@
 -export([decode_response/4]).
 
 %% ------------------------------------------------------------------
+%% Macro Definitions
+%% ------------------------------------------------------------------
+
+-define(COMPRESSION_THRESHOLD, 300). % bytes
+
+%% ------------------------------------------------------------------
 %% API Function Definitions
 %% ------------------------------------------------------------------
 
@@ -21,7 +27,7 @@ encode_request(Version, Module, Function, Args, ClientConfig) ->
         [{<<"accept">>, <<MediaType/binary>>},
          {<<"accept-encoding">>, <<"gzip">>},
          {<<"content-type">>, <<MediaType/binary>>}],
-    encode_request_with_auth(Method, Url, Headers, Body, ClientConfig).
+    encode_request_with_compression(Method, Url, Headers, Body, ClientConfig).
 
 decode_response(StatusCode, Headers, Body, ClientConfig) ->
     CiHeaders = lists:keymap(fun latin1_binary_to_lower/1, 1, Headers),
@@ -42,11 +48,19 @@ request_url(Version, Module, Function, Arity, ClientConfig) ->
          edoc_lib:escape_uri(atom_to_list(Function)),
          integer_to_list(Arity)])).
 
+encode_request_with_compression(Method, Url, Headers, Body, ClientConfig)
+  when byte_size(Body) > ?COMPRESSION_THRESHOLD ->
+    CompressedBody = backwater_encoding_gzip:encode(Body),
+    UpdatedHeaders = [{<<"content-encoding">>, <<"gzip">>} | Headers],
+    encode_request_with_auth(Method, Url, UpdatedHeaders, CompressedBody, ClientConfig);
+encode_request_with_compression(Method, Url, Headers, Body, ClientConfig) ->
+    encode_request_with_auth(Method, Url, Headers, Body, ClientConfig).
+
 encode_request_with_auth(Method, Url, Headers, Body, #{ authentication := none }) ->
     {Method, Url, Headers, Body};
 encode_request_with_auth(Method, Url, Headers, Body, ClientConfig) ->
     #{ authentication := {basic, {Username, Password}} } = ClientConfig,
-    AuthHeader = {"authorization", http_basic_auth_header_value(Username, Password)},
+    AuthHeader = {<<"authorization">>, http_basic_auth_header_value(Username, Password)},
     UpdatedHeaders = [AuthHeader | Headers],
     {Method, Url, UpdatedHeaders, Body}.
 

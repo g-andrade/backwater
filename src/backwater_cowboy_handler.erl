@@ -28,6 +28,7 @@
            module_info => backwater_module_info:module_info(),
            function_properties => backwater_module_info:fun_properties(),
            args_content_type => content_type(),
+           args_content_encoding => binary(),
            accepted_result_content_types => [accepted_content_type()],
            result_content_type => content_type() }.
 
@@ -305,23 +306,40 @@ find_resource(Req, State) ->
 
 -spec check_args_content_type(req(), state()) -> {response(), req(), state()}.
 check_args_content_type(Req, State) ->
-    ParseResult = cowboy_req:parse_header(<<"content-type">>, Req, none),
+    ParseResult = cowboy_req:parse_header(<<"content-type">>, Req),
     case handle_parsed_content_type(ParseResult, Req) of
         {{valid, ContentType}, Req2} ->
             State2 = State#{ args_content_type => ContentType },
-            check_accepted_result_content_types(Req2, State2);
+            check_args_content_encoding(Req2, State2);
         {bad_header, Req2} ->
             set_result(400, {bad_header, 'content-type'}, Req2, State)
     end.
 
 -spec handle_parsed_content_type(parse_header_result(content_type()), req())
         -> {{valid, content_type()} | bad_header, req()}.
-handle_parsed_content_type({ok, ContentType, Req}, _PrevReq) ->
+handle_parsed_content_type({ok, {_, _, _} = ContentType, Req}, _PrevReq) ->
     {{valid, ContentType}, Req};
+handle_parsed_content_type({ok, _, Req}, _PrevReq) ->
+    {bad_header, Req};
 handle_parsed_content_type({undefined, _Unparsable, Req}, _PrevReq) ->
     {bad_header, Req};
 handle_parsed_content_type({error, badarg}, Req) ->
     {bad_header, Req}.
+
+%% ------------------------------------------------------------------
+%% Internal Function Definitions - Validate Arguments Content Encoding
+%% ------------------------------------------------------------------
+
+-spec check_args_content_encoding(req(), state()) -> {response(), req(), state()}.
+check_args_content_encoding(Req, State) ->
+    case cowboy_req:header(<<"content-encoding">>, Req) of
+        {<<ContentEncoding/binary>>, Req2} ->
+            State2 = State#{ args_content_encoding => ContentEncoding },
+            check_accepted_result_content_types(Req2, State2);
+        {undefined, Req2} ->
+            State2 = State#{ args_content_encoding => <<"identity">> },
+            check_accepted_result_content_types(Req2, State2)
+    end.
 
 %% ------------------------------------------------------------------
 %% Internal Function Definitions - Validate Accepted Content Types
@@ -367,8 +385,20 @@ negotiate_args_content_type(Req, State) ->
           KnownContentTypes),
 
     case SearchResult of
+        true -> negotiate_args_content_encoding(Req, State);
+        false -> set_result(415, unsupported_content_type, Req, State)
+    end.
+
+%% ------------------------------------------------------------------
+%% Internal Function Definitions - Negotiate Arguments Content Encoding
+%% ------------------------------------------------------------------
+
+-spec negotiate_args_content_encoding(req(), state()) -> {response(), req(), state()}.
+negotiate_args_content_encoding(Req, State) ->
+    #{ args_content_encoding := ArgsContentEncoding } = State,
+    case lists:member(ArgsContentEncoding, [<<"identity">>, <<"gzip">>]) of
         true -> negotiate_result_content_type(Req, State);
-        false -> {response(415), Req, State}
+        false -> set_result(415, unsupported_content_encoding, Req, State)
     end.
 
 %% ------------------------------------------------------------------
@@ -405,15 +435,26 @@ negotiate_result_content_type(Req, State) ->
 read_and_decode_args(Req, State) ->
     case cowboy_req:body(Req) of
         {ok, Data, Req2} ->
-            decode_args(Data, Req2, State);
+            decode_args_content_encoding(Data, Req2, State);
         {more, _Data, Req2} ->
             {response(413), Req2, State};
         {error, _Error} ->
             set_result(400, unable_to_read_body, Req, State)
     end.
 
--spec decode_args(binary(), req(), state()) -> {response(), req(), state()}.
-decode_args(Data, Req, State) ->
+-spec decode_args_content_encoding(binary(), req(), state()) -> {response(), req(), state()}.
+decode_args_content_encoding(Data, Req, #{ args_content_encoding := <<"identity">> } = State) ->
+    decode_args_content_type(Data, Req, State);
+decode_args_content_encoding(Data, Req, #{ args_content_encoding := <<"gzip">> } = State) ->
+    case backwater_encoding_gzip:decode(Data) of
+        {ok, UncompressedData} ->
+            decode_args_content_type(UncompressedData, Req, State);
+        {error, _} ->
+            set_result(400, unable_to_uncompress_body, Req, State)
+    end.
+
+-spec decode_args_content_type(binary(), req(), state()) -> {response(), req(), state()}.
+decode_args_content_type(Data, Req, State) ->
     #{ args_content_type := ArgsContentType } = State,
     case ArgsContentType of
         {<<"application">>, <<"x-erlang-etf">>, _Params} ->
