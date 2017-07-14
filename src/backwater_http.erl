@@ -140,7 +140,9 @@ handle_response_body_content_encoding({ok, <<"gzip">>}, CiHeaders, Body, ClientC
     end;
 handle_response_body_content_encoding({ok, OtherEncoding}, _CiHeaders, _Body, _ClientConfig) ->
     {error, {unknown_content_encoding, OtherEncoding}};
-handle_response_body_content_encoding(error, CiHeaders, Body, ClientConfig) ->
+handle_response_body_content_encoding(Lookup, CiHeaders, Body, ClientConfig)
+  when Lookup =:= error;
+       Lookup =:= {ok, <<"identity">>} ->
     ContentTypeLookup = find_content_type(CiHeaders),
     handle_response_body_content_type(ContentTypeLookup, Body, ClientConfig).
 
