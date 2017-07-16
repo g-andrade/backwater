@@ -375,12 +375,7 @@ negotiate_args_content_type(Req, State) ->
     #{ known_content_types := KnownContentTypes } = FunctionProperties,
 
     {Type, SubType, _ContentTypeParams} = ArgsContentType,
-    SearchResult =
-        lists:any(
-          fun ({KnownType, KnownSubType}) ->
-                  (KnownType =:= Type andalso KnownSubType =:= SubType)
-          end,
-          KnownContentTypes),
+    SearchResult = lists:member({Type, SubType}, KnownContentTypes),
 
     case SearchResult of
         true -> negotiate_args_content_encoding(Req, State);
