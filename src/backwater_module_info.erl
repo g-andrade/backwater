@@ -83,11 +83,11 @@ find_and_parse_module_info(Module) ->
         {ok, RawModuleInfo} ->
             {attributes, ModuleAttributes} = lists:keyfind(attributes, 1, RawModuleInfo),
             {exports, Exports} = lists:keyfind(exports, 1, RawModuleInfo),
-            case module_attributes_find_backwater_version(ModuleAttributes) of
-                {ok, BackwaterVersion} ->
+            case module_attributes_find_backwater_module_version(ModuleAttributes) of
+                {ok, BackwaterModuleVersion} ->
                     BackwaterExports = module_attributes_get_backwater_exports(ModuleAttributes),
                     FilteredBackwaterExports = maps:with(Exports, BackwaterExports),
-                    {ok, #{ version => BackwaterVersion,
+                    {ok, #{ version => BackwaterModuleVersion,
                             exports => FilteredBackwaterExports }};
                 error ->
                     error
@@ -104,11 +104,11 @@ find_module_info(Module) ->
         error:undef -> error
     end.
 
--spec module_attributes_find_backwater_version(raw_module_attributes())
+-spec module_attributes_find_backwater_module_version(raw_module_attributes())
         -> {ok, version()} | error.
-module_attributes_find_backwater_version(ModuleAttributes) ->
-    case lists:keyfind(backwater_version, 1, ModuleAttributes) of
-        {backwater_version, Version} ->
+module_attributes_find_backwater_module_version(ModuleAttributes) ->
+    case lists:keyfind(backwater_module_version, 1, ModuleAttributes) of
+        {backwater_module_version, Version} ->
             <<BinVersion/binary>> = unicode:characters_to_binary(Version),
             {ok, BinVersion};
         false ->
