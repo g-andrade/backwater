@@ -80,11 +80,9 @@
          {undefined, binary(), req()} |
          {error, badarg}).
 
--type call_result() :: {success, term()} | {exception, Class :: term(), Exception :: term(), stacktrace()}.
-
--type stacktrace() :: [stacktrace_entry()].
--type stacktrace_entry() :: {module(), atom(), arity(), term()}.
-
+-type call_result() ::
+        ({success, term()} |
+         {exception, Class :: term(), Exception :: term(), [erlang:stack_item()]}).
 
 %% ------------------------------------------------------------------
 %% cowboy_http_handler Function Definitions
@@ -501,17 +499,13 @@ call_function(Module, Function, Args, #{ return_exception_stacktraces := ReturnE
         Class:Exception when ReturnExceptionStacktraces ->
             Stacktrace = erlang:get_stacktrace(),
             % Hide all calls previous to the one made to the target function (cowboy stuff, etc.)
-            CleanStacktrace = clean_stacktrace_above(Stacktrace, {?MODULE,call_function,4}),
-            {exception, Class, Exception, CleanStacktrace};
+            % This works under the assumption that *no sensible call* would ever go through the
+            % current function again.
+            PurgedStacktrace = backwater_util:purge_stacktrace_below({?MODULE,call_function,4}, Stacktrace),
+            {exception, Class, Exception, PurgedStacktrace};
         Class:Exception ->
             {exception, Class, Exception, []}
     end.
-
--spec clean_stacktrace_above(stacktrace(), {module(),atom(),arity()}) -> stacktrace().
-clean_stacktrace_above(Stacktrace, UntilMFA) ->
-    lists:takewhile(
-      fun ({M,F,A,_Extra}) -> {M,F,A} =/= UntilMFA end,
-      Stacktrace).
 
 %% ------------------------------------------------------------------
 %% Internal Function Definitions - Encode Result
