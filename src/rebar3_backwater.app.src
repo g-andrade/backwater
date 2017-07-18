@@ -1,0 +1,17 @@
+{application, rebar3_backwater,
+ [{description, "An OTP library"},
+  {vsn, git},
+  {registered, []},
+  {applications,
+   [kernel,
+    stdlib,
+    unistring,
+    forms
+   ]},
+  {env,[]},
+  {modules, []},
+
+  {maintainers, ["Guilherme Andrade"]},
+  {licenses, ["MIT"]},
+  {links, [{"Github", "https://github.com/g-andrade/rebar3_backwater"}]}
+ ]}.
