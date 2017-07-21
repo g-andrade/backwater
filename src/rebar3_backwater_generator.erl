@@ -81,7 +81,7 @@ generate_backwater_code(ClientRef, ModuleFilename) ->
     ModuleInfo = generate_module_info(ParseResult, ModuleFilename),
     rebar_api:debug("ModuleInfo: ~p", [maps:to_list(ModuleInfo)]),
     TransformedModuleInfo = (catch transform_module(ModuleInfo)),
-    rebar_api:debug("TransformedModuleInfo: ~p", [TransformedModuleInfo]),
+    %rebar_api:debug("TransformedModuleInfo: ~p", [TransformedModuleInfo]),
     write_module(ClientRef, TransformedModuleInfo).
 
 parse_module({attribute, _LineNumber, module, Module}, Acc) ->
@@ -107,8 +107,8 @@ parse_module({attribute, _LineNumber, spec, {{_Name, _Arity}, _Definitions} = Sp
 parse_module({function, _LineNumber, Name, Arity, Clauses}, Acc) ->
     Definitions =
         lists:map(
-          fun ({clause, _ClauseLineNumber, Vars, Guards, _Body}) when length(Vars) =:= Arity ->
-                  #{ vars => Vars, guards => Guards }
+          fun ({clause, _ClauseLineNumber, Vars, _Guards, _Body}) when length(Vars) =:= Arity ->
+                  #{ vars => Vars }
           end,
           Clauses),
 
@@ -181,12 +181,13 @@ trim_functions_and_specs(ModuleInfo) ->
 trim_type_specs(ModuleInfo1) ->
     ModuleInfo2 = externalize_function_specs_user_types(ModuleInfo1),
     ModuleInfo3 = externalize_type_specs_user_types(ModuleInfo2),
-    ModuleInfo4 = determine_required_user_types(ModuleInfo3),
+    ModuleInfo4 = externalize_record_definitions_user_types(ModuleInfo3),
+    ModuleInfo5 = determine_required_user_types(ModuleInfo4),
     #{ required_user_types := RequiredUserTypes,
-       type_specs := TypeSpecs1 } = ModuleInfo4,
+       type_specs := TypeSpecs1 } = ModuleInfo5,
     TypeExports2 = sets:new(),
     TypeSpecs2 = maps:with(sets:to_list(RequiredUserTypes), TypeSpecs1),
-    ModuleInfo4#{
+    ModuleInfo5#{
       type_exports => TypeExports2,
       type_specs => TypeSpecs2 }.
 
@@ -198,7 +199,7 @@ rename_module(ModuleInfo) ->
 write_module(ClientRef, ModuleInfo) ->
     #{ dir := Dir, module := Module } = ModuleInfo,
     ModuleFilename = filename:join(Dir, atom_to_list(Module) ++ ".erl"),
-    ModuleSrc = generate_module_source(ClientRef, ModuleInfo),
+    ModuleSrc = (catch generate_module_source(ClientRef, ModuleInfo)),
     rebar_api:debug("module src: ~p", [ModuleSrc]),
     case file:write_file(ModuleFilename, ModuleSrc) of
         ok -> ok;
@@ -218,6 +219,7 @@ externalize_function_specs_user_types(ModuleInfo1) ->
 externalize_function_spec_definitions_user_types({_Name, _Arity}, Definitions, Acc) ->
     lists:mapfoldl(fun externalize_user_types/2, Acc, Definitions).
 
+
 externalize_type_specs_user_types(ModuleInfo1) ->
     #{ type_specs := TypeSpecs1 } = ModuleInfo1,
     {TypeSpecs2, ModuleInfo2} =
@@ -231,6 +233,20 @@ externalize_type_spec_user_types({_Name, _Arity}, {Definition1, Args1}, Acc1) ->
     {Definition2, Acc2} = externalize_user_types(Definition1, Acc1),
     {Args2, Acc3} = lists:mapfoldl(fun externalize_user_types/2, Acc2, Args1),
     {{Definition2, Args2}, Acc3}.
+
+
+externalize_record_definitions_user_types(ModuleInfo1) ->
+    #{ record_definitions := RecordDefinitions1 } = ModuleInfo1,
+    {RecordDefinitions2, ModuleInfo2} =
+        rebar3_backwater_util:maps_mapfold(
+          fun externalize_record_definition_user_types/3,
+          ModuleInfo1,
+          RecordDefinitions1),
+    ModuleInfo2#{ record_definitions => RecordDefinitions2 }.
+
+externalize_record_definition_user_types(_Name, FieldDefinitions, Acc) ->
+    lists:mapfoldl(fun externalize_user_types/2, Acc, FieldDefinitions).
+
 
 externalize_user_types({type, LineNumber, 'fun', [ArgSpecs1, ReturnSpec1]}, Acc1) ->
     {ArgSpecs2, Acc2} = externalize_user_types(ArgSpecs1, Acc1),
@@ -272,7 +288,22 @@ externalize_user_types({user_type, LineNumber, Name, Params1}, Acc1) ->
         false ->
             {{user_type, LineNumber, Name, Params2}, Acc2}
     end;
+externalize_user_types({type, LineNumber, record, FieldDefinitions1}, Acc1) ->
+    {FieldDefinitions2, Acc2} = lists:mapfoldl(fun externalize_user_types/2, Acc1, FieldDefinitions1),
+    {{type, LineNumber, record, FieldDefinitions2}, Acc2};
+externalize_user_types({record_field, LineNumber, FieldNameDefinition1}, Acc1) ->
+    {FieldNameDefinition2, Acc2} = externalize_user_types(FieldNameDefinition1, Acc1),
+    {{record_field, LineNumber, FieldNameDefinition2}, Acc2};
+externalize_user_types({record_field, LineNumber, FieldNameDefinition1, FieldDefaultValueDefinition1}, Acc1) ->
+    {FieldNameDefinition2, Acc2} = externalize_user_types(FieldNameDefinition1, Acc1),
+    {FieldDefaultValueDefinition2, Acc3} = externalize_user_types(FieldDefaultValueDefinition1, Acc2),
+    {{record_field, LineNumber, FieldNameDefinition2, FieldDefaultValueDefinition2}, Acc3};
+externalize_user_types({typed_record_field, ActualFieldDefinition1, FieldTypeDefinition1}, Acc1) ->
+    {ActualFieldDefinition2, Acc2} = externalize_user_types(ActualFieldDefinition1, Acc1),
+    {FieldTypeDefinition2, Acc3} = externalize_user_types(FieldTypeDefinition1, Acc2),
+    {{typed_record_field, ActualFieldDefinition2, FieldTypeDefinition2}, Acc3};
 externalize_user_types(Decl, Acc) ->
+    rebar_api:debug("ignoring (externalize) ~p", [Decl]),
     {Decl, Acc}.
 
 
@@ -339,8 +370,8 @@ determine_required_user_types({user_type, _LineNumber, Name, Params}, Acc1) ->
             Acc4 = determine_required_user_types(Definition, Acc3),
             lists:foldl(fun determine_required_user_types/2, Acc4, Args)
     end;
-determine_required_user_types(Decl, Acc) ->
-    rebar_api:debug("ignoring: ~p", [Decl]),
+determine_required_user_types(_Decl, Acc) ->
+    %rebar_api:debug("ignoring (determining) ~p", [Decl]),
     Acc.
 
 generate_module_source(ClientRef, ModuleInfo) ->
@@ -374,7 +405,7 @@ generate_module_source_header(ModuleInfo) ->
 
 generate_module_source_exports(ModuleInfo) ->
     #{ exports := Exports } = ModuleInfo,
-    rebar_api:debug("Exports: ~p", [Exports]),
+    %rebar_api:debug("Exports: ~p", [Exports]),
     ExportsList = lists:sort( sets:to_list(Exports) ),
     [{attribute, 0, export, ExportsList}].
 
@@ -405,7 +436,7 @@ generate_module_source_function_spec({Name, Arity}, ModuleInfo) ->
             {attribute, ?DUMMY_LINE_NUMBER, spec, {{Name, Arity}, WrappedDefinitions}};
         error ->
             Definition = generic_function_spec(Arity),
-            {attribute, ?DUMMY_LINE_NUMBER, spec, {{Name, Arity}, Definition}}
+            {attribute, ?DUMMY_LINE_NUMBER, spec, {{Name, Arity}, [Definition]}}
     end.
 
 generate_module_source_function_definitions(ClientRef, ModuleInfo) ->
@@ -446,26 +477,113 @@ wrap_return_type(OriginalType) ->
     {type, ?DUMMY_LINE_NUMBER, union, [SuccessSpec, ErrorSpec]}.
 
 generate_module_source_function(ClientRef, {{Name, Arity}, Definitions}, OriginalModule) ->
-    Clauses =
-        lists:map(
-          fun (#{ vars := Vars, guards := Guards }) ->
-                  Body = generate_module_source_function_body(ClientRef, OriginalModule, Name, Vars),
-                  {clause, 0, Vars, Guards, Body}
+    IndexedVarLists = generate_module_source_indexed_var_lists(Definitions),
+    ArgNames = generate_module_source_arg_names(IndexedVarLists),
+    UniqueArgNames = generate_module_source_unique_arg_names(ArgNames),
+    ArgVars = [{var, ?DUMMY_LINE_NUMBER, list_to_atom(StringName)} || StringName <- UniqueArgNames],
+    Guards = [],
+    Body = generate_module_source_function_body(ClientRef, OriginalModule, Name, ArgVars),
+    Clause = {clause, ?DUMMY_LINE_NUMBER, ArgVars, Guards, Body},
+    {function, ?DUMMY_LINE_NUMBER, Name, Arity, [Clause]}.
+
+generate_module_source_indexed_var_lists(Definitions) ->
+    IndexedVarListsDict =
+        lists:foldl(
+          fun (#{ vars := Vars }, AccA) ->
+                  EnumeratedVars = rebar3_backwater_util:lists_enumerate(Vars),
+                  lists:foldl(
+                    fun ({Index, Var}, AccB) ->
+                            orddict:append(Index, Var, AccB)
+                    end,
+                    AccA,
+                    EnumeratedVars)
           end,
+          orddict:new(),
           Definitions),
-    {function, ?DUMMY_LINE_NUMBER, Name, Arity, Clauses}.
+    orddict:to_list(IndexedVarListsDict).
 
-generate_module_source_function_body(ClientRef, OriginalModule, Name, Vars) ->
-    [fully_qualified_call_clause(ClientRef, OriginalModule, Name, Vars)].
+generate_module_source_arg_names(IndexedVarLists) ->
+    lists:map(
+      fun ({Index, Vars}) ->
+              ArgNames = filter_arg_names_from_function_vars(Vars),
+              CleanArgNames = lists:map(fun clean_arg_name/1, ArgNames),
+              ValidArgNames = lists:filter(fun is_valid_arg_name/1, CleanArgNames),
+              UniqueArgNames1 = lists:usort(ValidArgNames),
+              UniqueArgNames2 =
+                case UniqueArgNames1 =:= [] of
+                    true -> [generated_arg_name(Index)];
+                    false -> UniqueArgNames1
+                end,
+              string:join(UniqueArgNames2, "_Or_")
+      end,
+      IndexedVarLists).
 
-fully_qualified_call_clause(ClientRef, Module, Name, Vars) ->
+filter_arg_names_from_function_vars(Vars) ->
+    lists:foldr(
+      fun F({var, _LineNumber, AtomName}, Acc) ->
+              [atom_to_list(AtomName) | Acc];
+          F({match, _LineNumber1, Left, Right}, Acc1) ->
+              Acc2 = F(Right, Acc1),
+              F(Left, Acc2);
+          F(Other, Acc) ->
+              rebar_api:debug("filtering out arg names from function vars: ~p", [Other]),
+              Acc
+      end,
+      [],
+      Vars).
+
+clean_arg_name(ArgName1) ->
+    ArgName2 = lists:dropwhile(fun (C) -> C =:= $_ end, ArgName1), % drop prefixing underscores
+    lists:takewhile(fun (C) -> C =/= $_ end, ArgName2).            % drop trailing underscores
+
+is_valid_arg_name(ArgName) ->
+    length(ArgName) > 0 andalso                        % non-empty
+    [hd(ArgName)] =:= string:to_upper([hd(ArgName)]).  % first character is upper case
+
+generated_arg_name(Index) ->
+    "Arg" ++ integer_to_list(Index).
+
+generate_module_source_unique_arg_names(ArgNames) ->
+    CountPerArgName =
+        lists:foldl(
+          fun (ArgName, Acc) ->
+                  dict:update_counter(ArgName, +1, Acc)
+          end,
+          dict:new(),
+          ArgNames),
+
+    case lists:any(fun ({_ArgName, Count}) -> Count > 1 end, dict:to_list(CountPerArgName)) of
+        false ->
+            % no conflicts
+            ArgNames;
+        true ->
+            {MappedArgNames, _} =
+                lists:mapfoldl(
+                  fun (ArgName, Index) ->
+                          MappedArgName =
+                            case dict:fetch(ArgName, CountPerArgName) of
+                                1 -> ArgName;
+                                _ -> generated_arg_name(Index)
+                            end,
+                          {MappedArgName, Index + 1}
+                  end,
+                  1,
+                  ArgNames),
+
+            generate_module_source_unique_arg_names(MappedArgNames)
+    end.
+
+generate_module_source_function_body(ClientRef, OriginalModule, Name, ArgVars) ->
+    [fully_qualified_call_clause(ClientRef, OriginalModule, Name, ArgVars)].
+
+fully_qualified_call_clause(ClientRef, Module, Name, ArgVars) ->
     Call = {remote, ?DUMMY_LINE_NUMBER,
             {atom, ?DUMMY_LINE_NUMBER, backwater_client},
             {atom, ?DUMMY_LINE_NUMBER, call}},
     Args =
         [erl_syntax:abstract(ClientRef),
          {atom, ?DUMMY_LINE_NUMBER, Module}, {atom, ?DUMMY_LINE_NUMBER, Name},
-         fully_qualified_call_clause_args(Vars)],
+         fully_qualified_call_clause_args(ArgVars)],
     {call, ?DUMMY_LINE_NUMBER, Call, Args}.
 
 fully_qualified_call_clause_args([]) ->
