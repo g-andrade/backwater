@@ -84,30 +84,25 @@ generate_backwater_code(ClientRef, ModuleFilename) ->
     %rebar_api:debug("TransformedModuleInfo: ~p", [TransformedModuleInfo]),
     write_module(ClientRef, TransformedModuleInfo).
 
-parse_module({attribute, _LineNumber, module, Module}, Acc) ->
+parse_module({attribute, _Line, module, Module}, Acc) ->
     dict:store(module, Module, Acc);
-parse_module({attribute, _LineNumber, export, Pairs}, Acc) ->
+parse_module({attribute, _Line, export, Pairs}, Acc) ->
     dict:append_list(exports, Pairs, Acc);
-parse_module({attribute, _LineNumber, export_type, Pairs}, Acc) ->
+parse_module({attribute, _Line, export_type, Pairs}, Acc) ->
     dict:append_list(type_exports, Pairs, Acc);
-parse_module({attribute, _LineNumber, backwater_module_version, RawVersion}, Acc) ->
+parse_module({attribute, _Line, backwater_module_version, RawVersion}, Acc) ->
     <<Version/binary>> = unicode:characters_to_binary(RawVersion),
     dict:store(backwater_module_version, Version, Acc);
-parse_module({attribute, _LineNumber, backwater_export, {Name, Arity}}, Acc) ->
+parse_module({attribute, _Line, backwater_export, {Name, Arity}}, Acc) ->
     dict:append(backwater_exports, {Name, Arity}, Acc);
-parse_module({attribute, _LineNumber, backwater_exports, List}, Acc) when is_list(List) ->
+parse_module({attribute, _Line, backwater_exports, List}, Acc) when is_list(List) ->
     dict:append_list(backwater_exports, List, Acc);
-parse_module({attribute, _LineNumber, record, {Name, FieldDefinitions}}, Acc) ->
-    dict:append(record_definitions, {Name, FieldDefinitions}, Acc);
-parse_module({attribute, _LineNumber, type, {Name, Definition, Args}}, Acc) ->
-    Arity = length(Args),
-    dict:append(type_specs, {{Name, Arity}, {Definition, Args}}, Acc);
-parse_module({attribute, _LineNumber, spec, {{_Name, _Arity}, _Definitions} = Spec}, Acc) ->
+parse_module({attribute, _Line, spec, {{_Name, _Arity}, _Definitions} = Spec}, Acc) ->
     dict:append(function_specs, Spec, Acc);
-parse_module({function, _LineNumber, Name, Arity, Clauses}, Acc) ->
+parse_module({function, _Line, Name, Arity, Clauses}, Acc) ->
     Definitions =
         lists:map(
-          fun ({clause, _ClauseLineNumber, Vars, _Guards, _Body}) when length(Vars) =:= Arity ->
+          fun ({clause, _ClauseLine, Vars, _Guards, _Body}) when length(Vars) =:= Arity ->
                   #{ vars => Vars }
           end,
           Clauses),
@@ -126,8 +121,6 @@ generate_module_info(ParseResult, ModuleFilename) ->
         #{ exports => sets:new(),
            type_exports => sets:new(),
            backwater_exports => sets:new(),
-           record_definitions => maps:new(),
-           type_specs => maps:new(),
            function_specs => maps:new(),
            function_definitions => maps:new(),
            dir => filename:dirname(ModuleFilename) },
@@ -146,10 +139,6 @@ generate_module_info(ParseResult, ModuleFilename) ->
                       Version;
                   (backwater_exports, BackwaterExports) ->
                       sets:from_list(BackwaterExports);
-                  (record_definitions, RecordDefinitions) ->
-                      maps:from_list(RecordDefinitions);
-                  (type_specs, TypeSpecs) ->
-                      maps:from_list(TypeSpecs);
                   (function_specs, FunctionSpecs) ->
                       maps:from_list(FunctionSpecs);
                   (function_definitions, FunctionDefinitions) ->
@@ -162,7 +151,7 @@ generate_module_info(ParseResult, ModuleFilename) ->
 transform_module(ModuleInfo1) ->
     ModuleInfo2 = trim_exports(ModuleInfo1),
     ModuleInfo3 = trim_functions_and_specs(ModuleInfo2),
-    ModuleInfo4 = trim_type_specs(ModuleInfo3),
+    ModuleInfo4 = externalize_function_specs_user_types(ModuleInfo3),
     rename_module(ModuleInfo4).
 
 trim_exports(ModuleInfo) ->
@@ -177,19 +166,6 @@ trim_functions_and_specs(ModuleInfo) ->
     ModuleInfo#{
       function_definitions => maps:with(sets:to_list(Exports), FunctionDefinitions),
       function_specs => maps:with(sets:to_list(Exports), FunctionSpecs) }.
-
-trim_type_specs(ModuleInfo1) ->
-    ModuleInfo2 = externalize_function_specs_user_types(ModuleInfo1),
-    ModuleInfo3 = externalize_type_specs_user_types(ModuleInfo2),
-    ModuleInfo4 = externalize_record_definitions_user_types(ModuleInfo3),
-    ModuleInfo5 = determine_required_user_types(ModuleInfo4),
-    #{ required_user_types := RequiredUserTypes,
-       type_specs := TypeSpecs1 } = ModuleInfo5,
-    TypeExports2 = sets:new(),
-    TypeSpecs2 = maps:with(sets:to_list(RequiredUserTypes), TypeSpecs1),
-    ModuleInfo5#{
-      type_exports => TypeExports2,
-      type_specs => TypeSpecs2 }.
 
 rename_module(ModuleInfo) ->
     #{ module := Module1 } = ModuleInfo,
@@ -220,172 +196,62 @@ externalize_function_spec_definitions_user_types({_Name, _Arity}, Definitions, A
     lists:mapfoldl(fun externalize_user_types/2, Acc, Definitions).
 
 
-externalize_type_specs_user_types(ModuleInfo1) ->
-    #{ type_specs := TypeSpecs1 } = ModuleInfo1,
-    {TypeSpecs2, ModuleInfo2} =
-        rebar3_backwater_util:maps_mapfold(
-          fun externalize_type_spec_user_types/3,
-          ModuleInfo1,
-          TypeSpecs1),
-    ModuleInfo2#{ type_specs => TypeSpecs2 }.
-
-externalize_type_spec_user_types({_Name, _Arity}, {Definition1, Args1}, Acc1) ->
-    {Definition2, Acc2} = externalize_user_types(Definition1, Acc1),
-    {Args2, Acc3} = lists:mapfoldl(fun externalize_user_types/2, Acc2, Args1),
-    {{Definition2, Args2}, Acc3}.
-
-
-externalize_record_definitions_user_types(ModuleInfo1) ->
-    #{ record_definitions := RecordDefinitions1 } = ModuleInfo1,
-    {RecordDefinitions2, ModuleInfo2} =
-        rebar3_backwater_util:maps_mapfold(
-          fun externalize_record_definition_user_types/3,
-          ModuleInfo1,
-          RecordDefinitions1),
-    ModuleInfo2#{ record_definitions => RecordDefinitions2 }.
-
-externalize_record_definition_user_types(_Name, FieldDefinitions, Acc) ->
-    lists:mapfoldl(fun externalize_user_types/2, Acc, FieldDefinitions).
-
-
-externalize_user_types({type, LineNumber, 'fun', [ArgSpecs1, ReturnSpec1]}, Acc1) ->
-    {ArgSpecs2, Acc2} = externalize_user_types(ArgSpecs1, Acc1),
-    {ReturnSpec2, Acc3} = externalize_user_types(ReturnSpec1, Acc2),
-    {{type, LineNumber, 'fun', [ArgSpecs2, ReturnSpec2]}, Acc3};
-externalize_user_types({type, LineNumber, bounded_fun, [FunSpec1, Constraints1]}, Acc1) ->
-    {FunSpec2, Acc2} = externalize_user_types(FunSpec1, Acc1),
-    {Constraints2, Acc3} = lists:mapfoldl(fun externalize_user_types/2, Acc2, Constraints1),
-    {{type, LineNumber, bounded_fun, [FunSpec2, Constraints2]}, Acc3};
-externalize_user_types({type, LineNumber, constraint, [ConstraintSpec1, ConstraintArgs1]}, Acc1) ->
-    {ConstraintSpec2, Acc2} = externalize_user_types(ConstraintSpec1, Acc1),
-    {ConstraintArgs2, Acc3} = lists:mapfoldl(fun externalize_user_types/2, Acc2, ConstraintArgs1),
-    {{type, LineNumber, constraint, [ConstraintSpec2, ConstraintArgs2]}, Acc3};
-externalize_user_types({remote_type, LineNumber, [ModuleSpec1, FunctionSpec1, Args1]}, Acc1) ->
+externalize_user_types({type, Line, record, Args}, Acc1) ->
+    rebar_api:debug("record ~p, replaced by generic term - use exported type instead", [Args]),
+    {{type, Line, term, []}, Acc1};
+externalize_user_types({user_type, Line, Name, Args1}, Acc1) ->
+    {Args2, Acc2} = externalize_user_types(Args1, Acc1),
+    #{ module := Module, type_exports := TypeExports } = Acc2,
+    Arity = length(Args2),
+    Id = {Name, Arity},
+    sets:is_element(Id, TypeExports) orelse rebar_api:debug("type ~p/~p not exported", [Name, Arity]),
+    {{remote_type, Line, [{atom, Line, Module}, {atom, Line, Name}, Args2]}, Acc2};
+externalize_user_types(List, Acc) when is_list(List) ->
+    lists:mapfoldl(fun externalize_user_types/2, Acc, List);
+externalize_user_types(Literal, Acc) when is_atom(Literal); is_integer(Literal) ->
+    {Literal, Acc};
+externalize_user_types({LiteralType, _Line, _LiteralValue} = T, Acc)
+  when LiteralType =:= atom;
+       LiteralType =:= char;
+       LiteralType =:= float;
+       LiteralType =:= integer;
+       LiteralType =:= string ->
+    {T, Acc};
+externalize_user_types({ann_type, Line, Types1}, Acc1) ->
+    {Types2, Acc2} = externalize_user_types(Types1, Acc1),
+    {{ann_type, Line, Types2}, Acc2};
+externalize_user_types({op, Line, Op, Arg1}, Acc1) ->
+    % unary operator
+    {Arg2, Acc2} = externalize_user_types(Arg1, Acc1),
+    {{op, Line, Op, Arg2}, Acc2};
+externalize_user_types({op, Line, Op, Left1, Right1}, Acc1) ->
+    % binary operator
+    {Left2, Acc2} = externalize_user_types(Left1, Acc1),
+    {Right2, Acc3} = externalize_user_types(Right1, Acc2),
+    {{op, Line, Op, Left2, Right2}, Acc3};
+externalize_user_types({remote_type, Line, [ModuleSpec1, FunctionSpec1, Args1]}, Acc1) ->
     {ModuleSpec2, Acc2} = externalize_user_types(ModuleSpec1, Acc1),
     {FunctionSpec2, Acc3} = externalize_user_types(FunctionSpec1, Acc2),
-    {Args2, Acc4} = lists:mapfoldl(fun externalize_user_types/2, Acc3, Args1),
-    {{remote_type, LineNumber, [ModuleSpec2, FunctionSpec2, Args2]}, Acc4};
-externalize_user_types({type, LineNumber, CompositeType, TypeSpecs1}, Acc1)
-  when (CompositeType =:= list orelse
-        CompositeType =:= map orelse
-        CompositeType =:= map_field_assoc orelse
-        CompositeType =:= map_field_exact orelse
-        CompositeType =:= product orelse
-        CompositeType =:= tuple orelse
-        CompositeType =:= union),
-       is_list(TypeSpecs1) ->
-    {TypeSpecs2, Acc2} = lists:mapfoldl(fun externalize_user_types/2, Acc1, TypeSpecs1),
-    {{type, LineNumber, CompositeType, TypeSpecs2}, Acc2};
-externalize_user_types({user_type, LineNumber, Name, Params1}, Acc1) ->
-    {Params2, Acc2} = lists:mapfoldl(fun externalize_user_types/2, Acc1, Params1),
-    #{ module := Module, type_exports := TypeExports } = Acc2,
-    Arity = length(Params2),
-    Id = {Name, Arity},
-    case sets:is_element(Id, TypeExports) of
-        true ->
-            {{remote_type, LineNumber, [{atom, LineNumber, Module}, {atom, LineNumber, Name}, Params2]},
-             Acc2};
-        false ->
-            {{user_type, LineNumber, Name, Params2}, Acc2}
-    end;
-externalize_user_types({type, LineNumber, record, FieldDefinitions1}, Acc1) ->
-    {FieldDefinitions2, Acc2} = lists:mapfoldl(fun externalize_user_types/2, Acc1, FieldDefinitions1),
-    {{type, LineNumber, record, FieldDefinitions2}, Acc2};
-externalize_user_types({record_field, LineNumber, FieldNameDefinition1}, Acc1) ->
-    {FieldNameDefinition2, Acc2} = externalize_user_types(FieldNameDefinition1, Acc1),
-    {{record_field, LineNumber, FieldNameDefinition2}, Acc2};
-externalize_user_types({record_field, LineNumber, FieldNameDefinition1, FieldDefaultValueDefinition1}, Acc1) ->
-    {FieldNameDefinition2, Acc2} = externalize_user_types(FieldNameDefinition1, Acc1),
-    {FieldDefaultValueDefinition2, Acc3} = externalize_user_types(FieldDefaultValueDefinition1, Acc2),
-    {{record_field, LineNumber, FieldNameDefinition2, FieldDefaultValueDefinition2}, Acc3};
-externalize_user_types({typed_record_field, ActualFieldDefinition1, FieldTypeDefinition1}, Acc1) ->
-    {ActualFieldDefinition2, Acc2} = externalize_user_types(ActualFieldDefinition1, Acc1),
-    {FieldTypeDefinition2, Acc3} = externalize_user_types(FieldTypeDefinition1, Acc2),
-    {{typed_record_field, ActualFieldDefinition2, FieldTypeDefinition2}, Acc3};
-externalize_user_types(Decl, Acc) ->
-    rebar_api:debug("ignoring (externalize) ~p", [Decl]),
-    {Decl, Acc}.
+    {Args2, Acc4} = externalize_user_types(Args1, Acc3),
+    {{remote_type, Line, [ModuleSpec2, FunctionSpec2, Args2]}, Acc4};
+externalize_user_types({type, _Line, _Builtin, any} = T, Acc) ->
+    {T, Acc};
+externalize_user_types({type, Line, Builtin, Args1}, Acc1) when is_list(Args1) ->
+    {Args2, Acc2} = externalize_user_types(Args1, Acc1),
+    {{type, Line, Builtin, Args2}, Acc2};
+externalize_user_types({var, _Line, _Name} = T, Acc) ->
+    {T, Acc}.
 
-
-determine_required_user_types(ModuleInfo1) ->
-    #{ function_specs := FunctionSpecs } = ModuleInfo1,
-    ModuleInfo2 =
-        maps:fold(
-          fun determine_required_user_types_in_function_spec/3,
-          ModuleInfo1#{ required_user_types => sets:new() },
-          FunctionSpecs),
-
-    #{ record_definitions := RecordDefinitions } = ModuleInfo2,
-    ModuleInfo3 =
-        maps:fold(
-          fun determine_required_user_types_in_record_definitions/3,
-          ModuleInfo2,
-          RecordDefinitions),
-    ModuleInfo3.
-
-determine_required_user_types_in_function_spec({_Name, _Arity}, Definitions, Acc) ->
-    lists:foldl(fun determine_required_user_types/2, Acc, Definitions).
-
-determine_required_user_types_in_record_definitions(_Name, FieldDefinitions, Acc) ->
-    lists:foldl(fun determine_required_user_types/2, Acc, FieldDefinitions).
-
-determine_required_user_types({type, _LineNumber, 'fun', [ArgSpecs, ReturnSpec]}, Acc1) ->
-    Acc2 = determine_required_user_types(ArgSpecs, Acc1),
-    determine_required_user_types(ReturnSpec, Acc2);
-determine_required_user_types({type, _LineNumber, bounded_fun, [FunSpec, Constraints]}, Acc1) ->
-    Acc2 = determine_required_user_types(FunSpec, Acc1),
-    lists:foldl(fun determine_required_user_types/2, Acc2, Constraints);
-determine_required_user_types({type, _LineNumber, constraint, [ConstraintSpec, ConstraintArgs]}, Acc1) ->
-    Acc2 = determine_required_user_types(ConstraintSpec, Acc1),
-    lists:foldl(fun determine_required_user_types/2, Acc2, ConstraintArgs);
-determine_required_user_types({remote_type, _LineNumber, [ModuleSpec, FunctionSpec, Args]}, Acc1) ->
-    Acc2 = determine_required_user_types(ModuleSpec, Acc1),
-    Acc3 = determine_required_user_types(FunctionSpec, Acc2),
-    lists:foldl(fun determine_required_user_types/2, Acc3, Args);
-determine_required_user_types({type, _LineNumber, CompositeType, TypeSpecs}, Acc)
-  when (CompositeType =:= list orelse
-        CompositeType =:= map orelse
-        CompositeType =:= map_field_assoc orelse
-        CompositeType =:= map_field_exact orelse
-        CompositeType =:= product orelse
-        CompositeType =:= tuple orelse
-        CompositeType =:= union),
-       is_list(TypeSpecs) ->
-    lists:foldl(fun determine_required_user_types/2, Acc, TypeSpecs);
-determine_required_user_types({user_type, _LineNumber, Name, Params}, Acc1) ->
-    Acc2 = lists:foldl(fun determine_required_user_types/2, Acc1, Params),
-    Arity = length(Params),
-    Id = {Name, Arity},
-    #{ required_user_types := RequiredUserTypes1 } = Acc2,
-    case sets:is_element(Id, RequiredUserTypes1) of
-        true ->
-            % loop detected, stop now
-            rebar_api:debug("loop detected! ~p", [Id]),
-            Acc1;
-        false ->
-            #{ type_specs := TypeSpecs } = Acc2,
-            {ok, {Definition, Args}} = maps:find(Id, TypeSpecs),
-            RequiredUserTypes2 = sets:add_element(Id, RequiredUserTypes1),
-            Acc3 = Acc2#{ required_user_types => RequiredUserTypes2 },
-            Acc4 = determine_required_user_types(Definition, Acc3),
-            lists:foldl(fun determine_required_user_types/2, Acc4, Args)
-    end;
-determine_required_user_types(_Decl, Acc) ->
-    %rebar_api:debug("ignoring (determining) ~p", [Decl]),
-    Acc.
 
 generate_module_source(ClientRef, ModuleInfo) ->
     Header = generate_module_source_header(ModuleInfo),
     Exports = generate_module_source_exports(ModuleInfo),
-    Types = generate_module_source_types(ModuleInfo),
     FunctionSpecs = generate_module_source_function_specs(ModuleInfo),
     FunctionDefinitions = generate_module_source_function_definitions(ClientRef, ModuleInfo),
     AllForms =
         (Header ++
          generate_module_source_section_header_comment("API Function Exports") ++
          Exports ++
-         generate_module_source_section_header_comment("Type Definitions") ++
-         Types ++
          generate_module_source_section_header_comment("API Function Specifications") ++
          FunctionSpecs ++
          generate_module_source_section_header_comment("API Function Definitions") ++
@@ -408,15 +274,6 @@ generate_module_source_exports(ModuleInfo) ->
     %rebar_api:debug("Exports: ~p", [Exports]),
     ExportsList = lists:sort( sets:to_list(Exports) ),
     [{attribute, 0, export, ExportsList}].
-
-generate_module_source_types(ModuleInfo) ->
-    #{ type_specs := TypeSpecs } = ModuleInfo,
-    TypeSpecsList = lists:keysort(1, maps:to_list(TypeSpecs)),
-    lists:map(
-      fun ({{Name, _Arity}, {Definition, Args}}) ->
-              {attribute, 0, type, {Name, Definition, Args}}
-      end,
-      TypeSpecsList).
 
 generate_module_source_function_specs(ModuleInfo) ->
     #{ function_definitions := FunctionDefinitions } = ModuleInfo,
@@ -449,12 +306,12 @@ generate_module_source_function_definitions(ClientRef, ModuleInfo) ->
       end,
       FunctionDefinitionsList).
 
-wrap_function_spec_return_types({type, LineNumber, 'fun', [ArgSpecs, ReturnSpec]}) ->
+wrap_function_spec_return_types({type, Line, 'fun', [ArgSpecs, ReturnSpec]}) ->
     WrappedReturnSpec = wrap_return_type(ReturnSpec),
-    {type, LineNumber, 'fun', [ArgSpecs, WrappedReturnSpec]};
-wrap_function_spec_return_types({type, LineNumber, bounded_fun, [FunSpec, Constraints]}) ->
+    {type, Line, 'fun', [ArgSpecs, WrappedReturnSpec]};
+wrap_function_spec_return_types({type, Line, bounded_fun, [FunSpec, Constraints]}) ->
     WrappedFunSpec = wrap_function_spec_return_types(FunSpec),
-    {type, LineNumber, bounded_fun, [WrappedFunSpec, Constraints]}.
+    {type, Line, bounded_fun, [WrappedFunSpec, Constraints]}.
 
 generic_function_spec(Arity) ->
     TermType = {type, ?DUMMY_LINE_NUMBER, term, []},
@@ -520,9 +377,9 @@ generate_module_source_arg_names(IndexedVarLists) ->
 
 filter_arg_names_from_function_vars(Vars) ->
     lists:foldr(
-      fun F({var, _LineNumber, AtomName}, Acc) ->
+      fun F({var, _Line, AtomName}, Acc) ->
               [atom_to_list(AtomName) | Acc];
-          F({match, _LineNumber1, Left, Right}, Acc1) ->
+          F({match, _Line1, Left, Right}, Acc1) ->
               Acc2 = F(Right, Acc1),
               F(Left, Acc2);
           F(Other, Acc) ->

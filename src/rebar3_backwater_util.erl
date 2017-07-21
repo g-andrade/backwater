@@ -9,7 +9,6 @@
 -export([lists_enumerate/1]).
 -export([lists_intersect/1]).
 -export([maps_mapfold/3]).
--export([random_ascii_alphanum_string/1]).
 
 %% ------------------------------------------------------------------
 %% API Function Definitions
@@ -49,14 +48,6 @@ maps_mapfold(Fun, Acc0, Map) ->
     MappedMap = maps:from_list(MappedList),
     {MappedMap, AccN}.
 
-random_ascii_alphanum_string(N) ->
-    random_string(
-      N,
-      {48,49,50,51,52,53,54,55,56,57,65,66,67,68,69,70,71,72,73,
-       74,75,76,77,78,79,80,81,82,83,84,85,86,87,88,89,90,97,98,99,
-       100,101,102,103,104,105,106,107,108,109,110,111,112,113,114,
-       115,116,117,118,119,120,121,122}).
-
 %% ------------------------------------------------------------------
 %% Internal Function Definitions
 %% ------------------------------------------------------------------
@@ -65,16 +56,3 @@ copies_recur(Acc, Count) when Count < 2 ->
     Acc;
 copies_recur([Value | _] = Acc, Count) ->
     copies_recur([Value | Acc], Count - 1).
-
-random_string(N, Alphabet) when is_list(Alphabet) ->
-    random_string(N, list_to_tuple(Alphabet));
-random_string(N, Alphabet) when tuple_size(Alphabet) > 0 ->
-    AlphabetSize = tuple_size(Alphabet),
-    (fun Recur(M, Acc) when M < 1 ->
-             Acc;
-         Recur(M, Acc) ->
-              Index = rand:uniform(AlphabetSize),
-              Char = element(Index, Alphabet),
-              Recur(M - 1, [Char | Acc])
-     end)(N, []).
-
