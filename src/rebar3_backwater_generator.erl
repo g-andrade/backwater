@@ -332,7 +332,7 @@ check_required_types_and_records(GenerationParams, ModuleInfo) ->
                 case RecordsRequiringExport of
                     [] -> "";
                     _ ->
-                        ["The following record require export (use either type() or opaque()):\n",
+                        ["References, in exported function specs, to the following records need to be replaced by exported type aliases:\n",
                          lists:join(
                            "\n",
                            [io_lib:format("\t~p:#~p{}", [OriginalModule, Name])
