@@ -5,8 +5,7 @@
   {applications,
    [kernel,
     stdlib,
-    unistring,
-    forms
+    unistring
    ]},
   {env,[]},
   {modules, []},

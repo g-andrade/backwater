@@ -75,15 +75,51 @@ filename_to_lower(Filename) ->
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 generate_backwater_code(ClientRef, ModuleFilename) ->
-    AbsForm = forms:read(ModuleFilename),
-    rebar_api:debug("AbsForm: ~p", [AbsForm]),
-    ParseResult = lists:foldl(fun parse_module/2, dict:new(), AbsForm),
+    {ok, Forms} = read_forms(ModuleFilename),
+    rebar_api:debug("AbsForm: ~p", [Forms]),
+    ParseResult = lists:foldl(fun parse_module/2, dict:new(), Forms),
     rebar_api:debug("ParseResult: ~p", [dict:to_list(ParseResult)]),
     ModuleInfo = generate_module_info(ParseResult, ModuleFilename),
     rebar_api:debug("ModuleInfo: ~p", [maps:to_list(ModuleInfo)]),
     TransformedModuleInfo = (catch transform_module(ModuleInfo)),
     rebar_api:debug("TransformedModuleInfo: ~p", [TransformedModuleInfo]),
     write_module(ClientRef, TransformedModuleInfo).
+
+%% ------------------------------------------------------------------
+%% Internal Function Definitions - Parsing the Original Code
+%% ------------------------------------------------------------------
+
+%%
+%% Based on forms[1] by Enrique Fernández, MIT License,
+%% commit 491b6768dd9d4f2cd22a90327041b630f68dd66a
+%%
+%% [1]: https://github.com/efcasado/forms
+%%
+-spec read_forms(atom() | iolist()) -> [erl_parse:abstract_form()].
+read_forms(Module) when is_atom(Module) ->
+    try beam_lib:chunks(code:which(Module), [abstract_code]) of
+        {ok, {Module, [{abstract_code, {raw_abstract_v1, Forms}}]}} ->
+            {ok, Forms};
+        {ok, {no_debug_info, _}} ->
+            {error, forms_not_found};
+        {error, beam_lib, {file_error, _, enoent}} ->
+            {error, module_not_found, Module}
+    catch
+        Class:Error ->
+            {error, {Class, Error}}
+    end;
+read_forms(File) ->
+    try epp:parse_file(File, []) of
+        {ok, Forms} ->
+            {ok, Forms};
+        {ok, Forms, _Extra} ->
+            {ok, Forms};
+        {error, enoent} ->
+            {error, file_not_found}
+    catch
+        Class:Error ->
+            {error, {Class, Error}}
+    end.
 
 parse_module({attribute, _Line, module, Module}, Acc) ->
     dict:store(module, Module, Acc);
@@ -150,6 +186,10 @@ generate_module_info(ParseResult, ModuleFilename) ->
 
     maps:merge(BaseModuleInfo, ModuleInfo).
 
+%% ------------------------------------------------------------------
+%% Internal Function Definitions - Transforming the Code
+%% ------------------------------------------------------------------
+
 transform_module(ModuleInfo1) ->
     ModuleInfo2 = trim_exports(ModuleInfo1),
     ModuleInfo3 = trim_functions_and_specs(ModuleInfo2),
@@ -184,7 +224,6 @@ write_module(ClientRef, ModuleInfo) ->
         {error, Error} -> error({couldnt_save_module, Error})
     end.
 
-
 externalize_function_specs_user_types(ModuleInfo1) ->
     #{ function_specs := FunctionSpecs1 } = ModuleInfo1,
     {FunctionSpecs2, ModuleInfo2} =
@@ -196,7 +235,6 @@ externalize_function_specs_user_types(ModuleInfo1) ->
 
 externalize_function_spec_definitions_user_types({_Name, _Arity}, Definitions, Acc) ->
     lists:mapfoldl(fun externalize_user_types/2, Acc, Definitions).
-
 
 externalize_user_types({type, Line, record, Args}, Acc1) ->
     rebar_api:debug("record ~p, replaced by generic term - use exported type instead", [Args]),
@@ -247,6 +285,9 @@ externalize_user_types({type, _Line, _Builtin} = T, Acc) ->
 externalize_user_types({var, _Line, _Name} = T, Acc) ->
     {T, Acc}.
 
+%% ------------------------------------------------------------------
+%% Internal Function Definitions - Generating the New Code
+%% ------------------------------------------------------------------
 
 generate_module_source(ClientRef, ModuleInfo) ->
     Header = generate_module_source_header(ModuleInfo),
