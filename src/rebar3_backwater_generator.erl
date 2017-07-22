@@ -6,6 +6,7 @@
 -define(DEFAULT_PARAM_EXPORTS, use_backwater_attributes).
 -define(DEFAULT_PARAM_UNEXPORTED_TYPES, warn).
 -define(DEFAULT_PARAM_NAME_PREFIX, "rpc_").
+-define(DEFAULT_PARAM_OUTPUT_DIRECTORY__SUBDIR, "rpc").
 -define(DEFAULT_BACKWATER_MODULE_VERSION, "1").
 -define(DUMMY_LINE_NUMBER, 1).
 
@@ -321,6 +322,7 @@ rename_module(GenerationParams, ModuleInfo) ->
 write_module(GenerationParams, ModuleInfo) ->
     ClientRef = target_client_ref(GenerationParams),
     OutputDirectory = target_output_directory(GenerationParams),
+    ok = ensure_directory_exists(OutputDirectory),
     #{ module := Module } = ModuleInfo,
     ModuleFilename = filename:join(OutputDirectory, atom_to_list(Module) ++ ".erl"),
     ModuleSrc = generate_module_source(ClientRef, ModuleInfo),
@@ -339,9 +341,24 @@ target_output_directory(GenerationParams) ->
         undefined ->
             #{ current_app_info := CurrentAppInfo } = GenerationParams,
             CurrentAppSourceDirectories = app_info_src_directories(CurrentAppInfo),
-            hd(CurrentAppSourceDirectories);
+            filename:join(hd(CurrentAppSourceDirectories), ?DEFAULT_PARAM_OUTPUT_DIRECTORY__SUBDIR);
         OutputDirectory ->
             OutputDirectory
+    end.
+
+ensure_directory_exists(Path) ->
+    AbsPath = filename:absname(Path),
+    Parts = filename:split(AbsPath),
+    ensure_directory_exists_recur(Parts, "").
+
+ensure_directory_exists_recur([], _) ->
+    ok;
+ensure_directory_exists_recur([H|T], Acc) ->
+    Path = filename:join(Acc, H),
+    case file:make_dir(Path) of
+        ok -> ensure_directory_exists_recur(T, Path);
+        {error, eexist} -> ensure_directory_exists_recur(T, Path);
+        {error, _} = Error -> Error
     end.
 
 externalize_function_specs_user_types(GenerationParams, ModuleInfo1) ->
