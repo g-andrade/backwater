@@ -5,7 +5,9 @@
 -export([format_error/1]).
 
 -define(PROVIDER, 'generate').
--define(DEPS, [{default, app_discovery}]).
+-define(DEPS, [{default, app_discovery},
+               {default, install_deps} % crucial in order for source paths of dependencies to be available
+              ]).
 -define(SHORT_DESC, "todo").
 -define(DESC, "todo").
 
@@ -26,14 +28,15 @@ init(State) ->
 
 -spec do(rebar_state:t()) -> {ok, rebar_state:t()}.
 do(State) ->
-    Apps =
-        case rebar_state:current_app(State) of
-            undefined ->
-                rebar_state:project_apps(State);
-            AppInfo ->
-                [AppInfo]
-        end,
-    lists:foreach(fun rebar3_backwater_generator:generate/1, Apps),
+    %Apps =
+    %    case rebar_state:current_app(State) of
+    %        undefined ->
+    %            rebar_state:project_apps(State);
+    %        AppInfo ->
+    %            [AppInfo]
+    %    end,
+    %lists:foreach(fun rebar3_backwater_generator:generate/1, Apps),
+    rebar3_backwater_generator:generate(State),
     {ok, State}.
 
 -spec format_error(any()) ->  iolist().

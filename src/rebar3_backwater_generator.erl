@@ -5,20 +5,67 @@
 -define(DUMMY_LINE_NUMBER, 1).
 -define(DEFAULT_BACKWATER_MODULE_VERSION, <<"1">>).
 
--spec generate(rebar_app_info:t()) -> ok.
-generate(AppInfo) ->
-    AppSourceFiles = app_source_files(AppInfo),
+-spec generate(State :: rebar_state:t()) -> ok.
+generate(State) ->
+    AppInfos =
+        case rebar_state:current_app(State) of
+            undefined ->
+                rebar_state:project_apps(State);
+            AppInfo ->
+                [AppInfo]
+        end,
 
+    SourceDirectoriesPerApp =
+        lists:foldl(
+          fun (AppInfo, Acc) ->
+                  AppName = binary_to_atom(rebar_app_info:name(AppInfo), utf8),
+                  AppSourceDirectories = app_info_src_directories(AppInfo),
+                  dict:append_list(AppName, AppSourceDirectories, Acc)
+          end,
+          dict:new(),
+          AppInfos ++ rebar_state:all_deps(State)),
+    rebar_api:debug("SourceDirectoriesPerApp: ~p", [dict:to_list(SourceDirectoriesPerApp)]),
+
+    lists:map(
+      fun (AppInfo) ->
+              generate(AppInfo, SourceDirectoriesPerApp)
+      end,
+      AppInfos).
+
+generate(AppInfo, SourceDirectoriesPerApp) ->
     Opts = rebar_app_info:opts(AppInfo),
-    {ok, BackwaterOpts} = dict:find(backwater_opts, Opts),
+    {ok, BackwaterOpts} = dict:find(backwater_opts, Opts), % TODO don't crash when missing?
     ClientRef = get_backwater_opt(client_ref, BackwaterOpts),
+    ModulesOpt = get_backwater_opt(modules, BackwaterOpts),
+    CurrentAppName = binary_to_atom(rebar_app_info:name(AppInfo), utf8),
+    OutputDirectory = hd(app_info_src_directories(AppInfo)), % TODO
+
+    AppModulePairs =
+        lists:map(
+          fun (Module) when is_atom(Module) ->
+                  {CurrentAppName, Module};
+              ({AppName, Module}) ->
+                  {AppName, Module}
+          end,
+          ModulesOpt),
 
     lists:foreach(
-      fun (AppSourceFile) ->
-              lists:suffix("/test_exposed_module.erl", AppSourceFile) andalso
-              generate_backwater_code(ClientRef, AppSourceFile)
+      fun ({AppName, Module}) ->
+              {ok, GenerationParams1} =
+                    find_module_name_or_path(AppName, Module, SourceDirectoriesPerApp),
+              GenerationParams2 =
+                    #{ client_ref => ClientRef,
+                       output_directory => OutputDirectory },
+              GenerationParams = maps:merge(GenerationParams1, GenerationParams2),
+              generate_backwater_code(GenerationParams)
       end,
-      AppSourceFiles).
+      AppModulePairs).
+
+app_info_src_directories(AppInfo) ->
+    BaseDir = rebar_app_info:dir(AppInfo),
+    Opts = rebar_app_info:opts(AppInfo),
+    RelDirs = rebar_opts:get(Opts, src_dir, ["src"]),
+    [filename:join(ec_cnv:to_list(BaseDir), RelDir) || RelDir <- RelDirs].
 
 get_backwater_opt(Key, Opts) ->
     case lists:keyfind(Key, 1, Opts) of
@@ -26,19 +73,43 @@ get_backwater_opt(Key, Opts) ->
         false -> error({missing_backwater_opt, Key})
     end.
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-app_source_files(AppInfo) ->
-    AppDir = rebar_app_info:dir(AppInfo),
-    case file:list_dir(AppDir) of
-        {ok, Filenames} ->
-            PossibleSrcDirs = filter_ci_filenames(Filenames, "src"),
-            FullPossibleSrcDirs = full_paths(AppDir, PossibleSrcDirs),
-            UnflattenedSourceFiles = [directory_source_files(SrcDir) || SrcDir <- FullPossibleSrcDirs],
-            lists:foldl(fun erlang:'++'/2, [], UnflattenedSourceFiles);
-        {error, OtherError} ->
-            error({cant_list_directory, AppDir, OtherError})
+find_module_name_or_path(AppName, Module, SourceDirectoriesPerApp) ->
+    case dict:find(AppName, SourceDirectoriesPerApp) of
+        {ok, SourceDirectories} ->
+            find_module_path(Module, SourceDirectories);
+        error ->
+            case application:load(AppName) of
+                ok ->
+                    {ok, #{ module_name => Module }};
+                {error, _Error} ->
+                    {error, module_not_found}
+            end
     end.
 
+find_module_path(Module, SourceDirectories) ->
+    ModuleStr = atom_to_list(Module),
+    Result =
+        rebar3_backwater_util:lists_anymap(
+          fun (SourceDirectory) ->
+                  SourceFiles = directory_source_files(SourceDirectory),
+                  ExpectedPrefix = filename:join(SourceDirectory, ModuleStr) ++ ".",
+                  rebar3_backwater_util:lists_anymap(
+                    fun (SourceFile) ->
+                            length(SourceFile) =:= length(ExpectedPrefix) + 3
+                            andalso lists:prefix(ExpectedPrefix, SourceFile)
+                    end,
+                    SourceFiles)
+          end,
+          SourceDirectories),
+
+    case Result of
+        {true, SourceFile} ->
+            {ok, #{ module_path => SourceFile }};
+        false ->
+            {error, module_not_found}
+    end.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 directory_source_files(SrcDir) ->
     case file:list_dir(SrcDir) of
         {ok, Filenames} ->
@@ -49,12 +120,6 @@ directory_source_files(SrcDir) ->
         {error, OtherError} ->
             error({cant_list_directory, SrcDir, OtherError})
     end.
-
-filter_ci_filenames(Filenames, Match) ->
-    LowMatch = filename_to_lower(Match),
-    lists:filter(
-      fun (Filename) -> filename_to_lower(Filename) =:= LowMatch end,
-      Filenames).
 
 filter_ci_filenames_by_extension(Filenames, Extension) ->
     LowExtensionWithDot = "." ++ filename_to_lower(Extension),
@@ -74,16 +139,16 @@ filename_to_lower(Filename) ->
     unistring:to_lower(Filename).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-generate_backwater_code(ClientRef, ModuleFilename) ->
-    {ok, Forms} = read_forms(ModuleFilename),
+generate_backwater_code(GenerationParams) ->
+    {ok, Forms} = read_forms(GenerationParams),
     rebar_api:debug("AbsForm: ~p", [Forms]),
     ParseResult = lists:foldl(fun parse_module/2, dict:new(), Forms),
     rebar_api:debug("ParseResult: ~p", [dict:to_list(ParseResult)]),
-    ModuleInfo = generate_module_info(ParseResult, ModuleFilename),
+    ModuleInfo = generate_module_info(ParseResult),
     rebar_api:debug("ModuleInfo: ~p", [maps:to_list(ModuleInfo)]),
     TransformedModuleInfo = (catch transform_module(ModuleInfo)),
     rebar_api:debug("TransformedModuleInfo: ~p", [TransformedModuleInfo]),
-    write_module(ClientRef, TransformedModuleInfo).
+    write_module(GenerationParams, TransformedModuleInfo).
 
 %% ------------------------------------------------------------------
 %% Internal Function Definitions - Parsing the Original Code
@@ -95,8 +160,8 @@ generate_backwater_code(ClientRef, ModuleFilename) ->
 %%
 %% [1]: https://github.com/efcasado/forms
 %%
--spec read_forms(atom() | iolist()) -> [erl_parse:abstract_form()].
-read_forms(Module) when is_atom(Module) ->
+%-spec read_forms(atom() | iolist()) -> [erl_parse:abstract_form()].
+read_forms(#{ module_name := Module })  ->
     try beam_lib:chunks(code:which(Module), [abstract_code]) of
         {ok, {Module, [{abstract_code, {raw_abstract_v1, Forms}}]}} ->
             {ok, Forms};
@@ -108,8 +173,8 @@ read_forms(Module) when is_atom(Module) ->
         Class:Error ->
             {error, {Class, Error}}
     end;
-read_forms(File) ->
-    try epp:parse_file(File, []) of
+read_forms(#{ module_path := ModulePath }) ->
+    try epp:parse_file(ModulePath, []) of
         {ok, Forms} ->
             {ok, Forms};
         {ok, Forms, _Extra} ->
@@ -153,15 +218,14 @@ parse_module(_Other, Acc) ->
     %rebar_api:debug("ignoring ~p", [Other]),
     Acc.
 
-generate_module_info(ParseResult, ModuleFilename) ->
+generate_module_info(ParseResult) ->
     BaseModuleInfo =
         #{ exports => sets:new(),
            type_exports => sets:new(),
            backwater_module_version => ?DEFAULT_BACKWATER_MODULE_VERSION,
            backwater_exports => sets:new(),
            function_specs => maps:new(),
-           function_definitions => maps:new(),
-           dir => filename:dirname(ModuleFilename) },
+           function_definitions => maps:new()  },
 
     ModuleInfo =
         maps:from_list(
@@ -214,9 +278,10 @@ rename_module(ModuleInfo) ->
     Module2 = list_to_atom("backwater_" ++ atom_to_list(Module1)),
     ModuleInfo#{ module => Module2, original_module => Module1 }.
 
-write_module(ClientRef, ModuleInfo) ->
-    #{ dir := Dir, module := Module } = ModuleInfo,
-    ModuleFilename = filename:join(Dir, atom_to_list(Module) ++ ".erl"),
+write_module(GenerationParams, ModuleInfo) ->
+    #{ client_ref := ClientRef, output_directory := OutputDirectory } = GenerationParams,
+    #{ module := Module } = ModuleInfo,
+    ModuleFilename = filename:join(OutputDirectory, atom_to_list(Module) ++ ".erl"),
     ModuleSrc = (catch generate_module_source(ClientRef, ModuleInfo)),
     rebar_api:debug("module src: ~p", [ModuleSrc]),
     case file:write_file(ModuleFilename, ModuleSrc) of
