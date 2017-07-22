@@ -14,6 +14,8 @@
 %% API Function Definitions
 %% ------------------------------------------------------------------
 
+copies(_Value, 0) ->
+    [];
 copies(Value, Count) ->
     copies_recur([Value], Count).
 

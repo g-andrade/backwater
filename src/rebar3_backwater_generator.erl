@@ -3,6 +3,7 @@
 -export([generate/1]).
 
 -define(DUMMY_LINE_NUMBER, 1).
+-define(DEFAULT_BACKWATER_MODULE_VERSION, <<"1">>).
 
 -spec generate(rebar_app_info:t()) -> ok.
 generate(AppInfo) ->
@@ -81,7 +82,7 @@ generate_backwater_code(ClientRef, ModuleFilename) ->
     ModuleInfo = generate_module_info(ParseResult, ModuleFilename),
     rebar_api:debug("ModuleInfo: ~p", [maps:to_list(ModuleInfo)]),
     TransformedModuleInfo = (catch transform_module(ModuleInfo)),
-    %rebar_api:debug("TransformedModuleInfo: ~p", [TransformedModuleInfo]),
+    rebar_api:debug("TransformedModuleInfo: ~p", [TransformedModuleInfo]),
     write_module(ClientRef, TransformedModuleInfo).
 
 parse_module({attribute, _Line, module, Module}, Acc) ->
@@ -120,6 +121,7 @@ generate_module_info(ParseResult, ModuleFilename) ->
     BaseModuleInfo =
         #{ exports => sets:new(),
            type_exports => sets:new(),
+           backwater_module_version => ?DEFAULT_BACKWATER_MODULE_VERSION,
            backwater_exports => sets:new(),
            function_specs => maps:new(),
            function_definitions => maps:new(),
@@ -237,8 +239,11 @@ externalize_user_types({remote_type, Line, [ModuleSpec1, FunctionSpec1, Args1]},
 externalize_user_types({type, _Line, _Builtin, any} = T, Acc) ->
     {T, Acc};
 externalize_user_types({type, Line, Builtin, Args1}, Acc1) when is_list(Args1) ->
+    Builtin =:= 'fun' andalso rebar_api:debug("fun! ~p", [Args1]),
     {Args2, Acc2} = externalize_user_types(Args1, Acc1),
     {{type, Line, Builtin, Args2}, Acc2};
+externalize_user_types({type, _Line, _Builtin} = T, Acc) ->
+    {T, Acc};
 externalize_user_types({var, _Line, _Name} = T, Acc) ->
     {T, Acc}.
 
@@ -248,63 +253,64 @@ generate_module_source(ClientRef, ModuleInfo) ->
     Exports = generate_module_source_exports(ModuleInfo),
     FunctionSpecs = generate_module_source_function_specs(ModuleInfo),
     FunctionDefinitions = generate_module_source_function_definitions(ClientRef, ModuleInfo),
-    AllForms =
-        (Header ++
-         generate_module_source_section_header_comment("API Function Exports") ++
-         Exports ++
-         generate_module_source_section_header_comment("API Function Specifications") ++
-         FunctionSpecs ++
-         generate_module_source_section_header_comment("API Function Definitions") ++
-         FunctionDefinitions),
 
-    SyntaxTree = erl_syntax:form_list(AllForms),
-    PrettyHookF =
-        fun(Node, Ctxt, Cont) ->
-                Doc = Cont(Node, Ctxt),
-                prettypr:above(prettypr:empty(), Doc)
-        end,
-    erl_prettypr:format(SyntaxTree, [{hook, PrettyHookF}, {paper, 160}, {ribbon, 120}]).
+    [Header,
+     generate_module_source_section_header_comment("API Function Exports"),
+     Exports,
+     generate_module_source_section_header_comment("API Function Specifications"),
+     FunctionSpecs,
+     generate_module_source_section_header_comment("API Function Definitions"),
+     FunctionDefinitions].
 
 generate_module_source_header(ModuleInfo) ->
     #{ module := Module } = ModuleInfo,
-    [{attribute, 0, module, Module}].
+    erl_pp:form({attribute, 0, module, Module}).
 
 generate_module_source_exports(ModuleInfo) ->
     #{ exports := Exports } = ModuleInfo,
     %rebar_api:debug("Exports: ~p", [Exports]),
     ExportsList = lists:sort( sets:to_list(Exports) ),
-    [{attribute, 0, export, ExportsList}].
+    lists:map(
+      fun ({Name, Arity}) ->
+              erl_pp:form({attribute, ?DUMMY_LINE_NUMBER, export, [{Name, Arity}]})
+      end,
+      ExportsList).
 
 generate_module_source_function_specs(ModuleInfo) ->
     #{ function_definitions := FunctionDefinitions } = ModuleInfo,
     FunctionNameArities = lists:keysort(1, maps:keys(FunctionDefinitions)),
-    lists:map(
-      fun ({Name, Arity}) ->
-              generate_module_source_function_spec({Name, Arity}, ModuleInfo)
-      end,
-      FunctionNameArities).
+    List =
+        lists:map(
+          fun ({Name, Arity}) ->
+                  generate_module_source_function_spec({Name, Arity}, ModuleInfo)
+          end,
+          FunctionNameArities),
+    lists:join("\n", List).
 
 generate_module_source_function_spec({Name, Arity}, ModuleInfo) ->
     #{ function_specs := FunctionSpecs } = ModuleInfo,
-    case maps:find({Name, Arity}, FunctionSpecs) of
-        {ok, Definitions} ->
-            WrappedDefinitions =
-                [wrap_function_spec_return_types(Definition) || Definition <- Definitions],
-            {attribute, ?DUMMY_LINE_NUMBER, spec, {{Name, Arity}, WrappedDefinitions}};
-        error ->
-            Definition = generic_function_spec(Arity),
-            {attribute, ?DUMMY_LINE_NUMBER, spec, {{Name, Arity}, [Definition]}}
-    end.
+    Attribute =
+        case maps:find({Name, Arity}, FunctionSpecs) of
+            {ok, Definitions} ->
+                WrappedDefinitions =
+                    [wrap_function_spec_return_types(Definition) || Definition <- Definitions],
+                {attribute, ?DUMMY_LINE_NUMBER, spec, {{Name, Arity}, WrappedDefinitions}};
+            error ->
+                Definition = generic_function_spec(Arity),
+                {attribute, ?DUMMY_LINE_NUMBER, spec, {{Name, Arity}, [Definition]}}
+        end,
+    erl_pp:form(Attribute).
 
 generate_module_source_function_definitions(ClientRef, ModuleInfo) ->
-    #{ function_definitions := FunctionDefinitions,
-       original_module := OriginalModule } = ModuleInfo,
+    #{ function_definitions := FunctionDefinitions } = ModuleInfo,
     FunctionDefinitionsList = lists:keysort(1, maps:to_list(FunctionDefinitions)),
-    lists:map(
-      fun (FunctionDefinitionKV) ->
-              generate_module_source_function(ClientRef, FunctionDefinitionKV, OriginalModule)
-      end,
-      FunctionDefinitionsList).
+    List =
+        lists:map(
+          fun (FunctionDefinitionKV) ->
+                  generate_module_source_function(ClientRef, FunctionDefinitionKV, ModuleInfo)
+          end,
+          FunctionDefinitionsList),
+    lists:join("\n", List).
 
 wrap_function_spec_return_types({type, Line, 'fun', [ArgSpecs, ReturnSpec]}) ->
     WrappedReturnSpec = wrap_return_type(ReturnSpec),
@@ -333,15 +339,18 @@ wrap_return_type(OriginalType) ->
          [{atom, ?DUMMY_LINE_NUMBER, error}, ErrorValueSpec]},
     {type, ?DUMMY_LINE_NUMBER, union, [SuccessSpec, ErrorSpec]}.
 
-generate_module_source_function(ClientRef, {{Name, Arity}, Definitions}, OriginalModule) ->
+generate_module_source_function(ClientRef, {{Name, Arity}, Definitions}, ModuleInfo) ->
+    #{ original_module := OriginalModule,
+       backwater_module_version := BackwaterModuleVersion } = ModuleInfo,
     IndexedVarLists = generate_module_source_indexed_var_lists(Definitions),
     ArgNames = generate_module_source_arg_names(IndexedVarLists),
     UniqueArgNames = generate_module_source_unique_arg_names(ArgNames),
     ArgVars = [{var, ?DUMMY_LINE_NUMBER, list_to_atom(StringName)} || StringName <- UniqueArgNames],
     Guards = [],
-    Body = generate_module_source_function_body(ClientRef, OriginalModule, Name, ArgVars),
+    Body = generate_module_source_function_body(
+             ClientRef, OriginalModule, BackwaterModuleVersion, Name, ArgVars),
     Clause = {clause, ?DUMMY_LINE_NUMBER, ArgVars, Guards, Body},
-    {function, ?DUMMY_LINE_NUMBER, Name, Arity, [Clause]}.
+    erl_pp:form({function, ?DUMMY_LINE_NUMBER, Name, Arity, [Clause]}).
 
 generate_module_source_indexed_var_lists(Definitions) ->
     IndexedVarListsDict =
@@ -430,16 +439,19 @@ generate_module_source_unique_arg_names(ArgNames) ->
             generate_module_source_unique_arg_names(MappedArgNames)
     end.
 
-generate_module_source_function_body(ClientRef, OriginalModule, Name, ArgVars) ->
-    [fully_qualified_call_clause(ClientRef, OriginalModule, Name, ArgVars)].
+generate_module_source_function_body(ClientRef, OriginalModule, BackwaterModuleVersion, Name, ArgVars) ->
+    [fully_qualified_call_clause(ClientRef, OriginalModule, BackwaterModuleVersion, Name, ArgVars)].
 
-fully_qualified_call_clause(ClientRef, Module, Name, ArgVars) ->
-    Call = {remote, ?DUMMY_LINE_NUMBER,
-            {atom, ?DUMMY_LINE_NUMBER, backwater_client},
-            {atom, ?DUMMY_LINE_NUMBER, call}},
+fully_qualified_call_clause(ClientRef, OriginalModule, BackwaterModuleVersion, Name, ArgVars) ->
+    Call =
+        {remote, ?DUMMY_LINE_NUMBER,
+         {atom, ?DUMMY_LINE_NUMBER, backwater_client},
+         {atom, ?DUMMY_LINE_NUMBER, call}},
     Args =
-        [erl_syntax:abstract(ClientRef),
-         {atom, ?DUMMY_LINE_NUMBER, Module}, {atom, ?DUMMY_LINE_NUMBER, Name},
+        [erl_syntax:revert( erl_syntax:abstract(ClientRef) ),
+         {atom, ?DUMMY_LINE_NUMBER, OriginalModule},
+         erl_syntax:revert( erl_syntax:abstract(BackwaterModuleVersion) ),
+         {atom, ?DUMMY_LINE_NUMBER, Name},
          fully_qualified_call_clause_args(ArgVars)],
     {call, ?DUMMY_LINE_NUMBER, Call, Args}.
 
@@ -450,4 +462,5 @@ fully_qualified_call_clause_args([H|T]) ->
 
 generate_module_source_section_header_comment(Comment) ->
     Rule = "% ------------------------------------------------------------------",
-    [erl_syntax:comment([Rule, "% " ++ Comment, Rule])].
+    Forms = [erl_syntax:comment([Rule, "% " ++ Comment, Rule])],
+    ["\n", erl_prettypr:format( erl_syntax:form_list(Forms) ), "\n"].
