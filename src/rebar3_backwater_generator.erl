@@ -5,6 +5,7 @@
 -define(DEFAULT_PARAM_CLIENT_REF, default).
 -define(DEFAULT_PARAM_EXPORTS, use_backwater_attributes).
 -define(DEFAULT_PARAM_UNEXPORTED_TYPES, warn).
+-define(DEFAULT_PARAM_NAME_PREFIX, "rpc_").
 -define(DEFAULT_BACKWATER_MODULE_VERSION, "1").
 -define(DUMMY_LINE_NUMBER, 1).
 
@@ -272,7 +273,7 @@ transform_module(GenerationParams, ModuleInfo1) ->
     ModuleInfo2 = transform_exports(GenerationParams, ModuleInfo1),
     ModuleInfo3 = trim_functions_and_specs(ModuleInfo2),
     ModuleInfo4 = externalize_function_specs_user_types(GenerationParams, ModuleInfo3),
-    rename_module(ModuleInfo4).
+    rename_module(GenerationParams, ModuleInfo4).
 
 transform_exports(GenerationParams, ModuleInfo1) ->
     #{ target_opts := TargetOpts } = GenerationParams,
@@ -297,9 +298,24 @@ trim_functions_and_specs(ModuleInfo) ->
       function_definitions => maps:with(sets:to_list(Exports), FunctionDefinitions),
       function_specs => maps:with(sets:to_list(Exports), FunctionSpecs) }.
 
-rename_module(ModuleInfo) ->
+rename_module(GenerationParams, ModuleInfo) ->
+    #{ target_opts := TargetOpts } = GenerationParams,
     #{ module := Module1 } = ModuleInfo,
-    Module2 = list_to_atom("backwater_" ++ atom_to_list(Module1)),
+    Module1Str = atom_to_list(Module1),
+    Module2Str =
+        case {proplists:get_value(module_name_prefix, TargetOpts),
+              proplists:get_value(module_name_suffix, TargetOpts)}
+        of
+            {undefined, undefined} ->
+                ?DEFAULT_PARAM_NAME_PREFIX ++ Module1Str;
+            {undefined, Suffix} ->
+                Module1Str ++ Suffix;
+            {Prefix, undefined} ->
+                Prefix ++ Module1Str;
+            {Prefix, Suffix} ->
+                Prefix ++ Module1Str ++ Suffix
+        end,
+    Module2 = list_to_atom(Module2Str),
     ModuleInfo#{ module => Module2, original_module => Module1 }.
 
 write_module(GenerationParams, ModuleInfo) ->
