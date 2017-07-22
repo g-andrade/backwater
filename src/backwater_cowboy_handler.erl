@@ -219,10 +219,10 @@ validate_form(Req, State) ->
        unvalidated_function := BinFunction,
        unvalidated_arity := BinArity } = State,
 
-    Version = (catch unicode:characters_to_binary(BinVersion)),
-    Module = (catch utf8bin_to_atom(BinModule, AccessConf)),
-    Function = (catch utf8bin_to_atom(BinFunction, AccessConf)),
-    Arity = (catch binary_to_integer(BinArity)),
+    Version = backwater_util:fast_catch(fun unicode:characters_to_binary/1, [BinVersion]),
+    Module = backwater_util:fast_catch(fun utf8bin_to_atom/2, [BinModule, AccessConf]),
+    Function = backwater_util:fast_catch(fun utf8bin_to_atom/2, [BinFunction, AccessConf]),
+    Arity = backwater_util:fast_catch(fun binary_to_integer/1, [BinArity]),
 
     if not is_binary(Version) ->
            {invalid_api_version, Req, State};

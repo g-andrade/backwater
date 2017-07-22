@@ -4,12 +4,22 @@
 %% API Function Exports
 %% ------------------------------------------------------------------
 
+-export([fast_catch/2]).
 -export([lists_anymap/2]).
 -export([purge_stacktrace_below/2]).
 
 %% ------------------------------------------------------------------
 %% API Function Definitions
 %% ------------------------------------------------------------------
+
+-spec fast_catch(Function :: fun ((...) -> term()), Args :: [term()]) -> term().
+fast_catch(Function, Args) ->
+    try
+        apply(Function, Args)
+    catch
+        Class:Exception ->
+            {error, {Class, Exception}}
+    end.
 
 -spec lists_anymap(Fun :: fun((term()) -> {true, term()} | true | false), [term()])
         -> {true, term()} | false.
