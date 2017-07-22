@@ -2,8 +2,11 @@
 
 -export([generate/1]).
 
+-define(DEFAULT_PARAM_CLIENT_REF, default).
+-define(DEFAULT_PARAM_USE_ALL_EXPORTS, false).
+-define(DEFAULT_PARAM_UNEXPORTED_TYPES, warn).
+-define(DEFAULT_BACKWATER_MODULE_VERSION, "1").
 -define(DUMMY_LINE_NUMBER, 1).
--define(DEFAULT_BACKWATER_MODULE_VERSION, <<"1">>).
 
 -spec generate(State :: rebar_state:t()) -> ok.
 generate(State) ->
@@ -63,9 +66,9 @@ generate(CurrentAppInfo, SourceDirectoriesPerApp) ->
       fun ({AppName, Module, TargetOpts}) ->
               {ok, GenerationParams1} = find_module_name_or_path(AppName, Module, SourceDirectoriesPerApp),
               GenerationParams2 =
-                GenerationParams1#{
-                  current_app_info => CurrentAppInfo,
-                  target_opts => TargetOpts },
+                    GenerationParams1#{
+                      current_app_info => CurrentAppInfo,
+                      target_opts => TargetOpts },
               ok = generate_backwater_code(GenerationParams2)
       end,
       Targets).
@@ -199,8 +202,10 @@ parse_module({attribute, _Line, deprecated, Data}, Acc) when is_list(Data) ->
 parse_module({attribute, _Line, deprecated, Data}, Acc) ->
     dict:append(deprecation_attributes, Data, Acc);
 parse_module({attribute, _Line, backwater_module_version, RawVersion}, Acc) ->
-    <<Version/binary>> = unicode:characters_to_binary(RawVersion),
-    dict:store(backwater_module_version, Version, Acc);
+    case unicode:characters_to_list(RawVersion) of
+        Version when is_list(Version) ->
+            dict:store(backwater_module_version, Version, Acc)
+    end;
 parse_module({attribute, _Line, backwater_export, {Name, Arity}}, Acc) ->
     dict:append(backwater_exports, {Name, Arity}, Acc);
 parse_module({attribute, _Line, backwater_exports, List}, Acc) when is_list(List) ->
@@ -276,7 +281,9 @@ transform_exports(GenerationParams, ModuleInfo1) ->
     Exports2 = sets:subtract(Exports1, sets:from_list(CommonExclusionList)),
     ModuleInfo2 = maps:remove(backwater_exports, ModuleInfo1),
     Exports3 =
-        case proplists:get_value(all_exports, TargetOpts, false) of
+        case proplists:get_value(use_all_exports, TargetOpts,
+                                 ?DEFAULT_PARAM_USE_ALL_EXPORTS)
+        of
             true -> Exports2;
             false -> sets:intersection(Exports2, BackwaterExports)
         end,
@@ -308,7 +315,7 @@ write_module(GenerationParams, ModuleInfo) ->
 
 target_client_ref(GenerationParams) ->
     #{ target_opts := TargetOpts } = GenerationParams,
-    proplists:get_value(client_ref, TargetOpts, default).
+    proplists:get_value(client_ref, TargetOpts, ?DEFAULT_PARAM_CLIENT_REF).
 
 target_output_directory(GenerationParams) ->
     #{ target_opts := TargetOpts } = GenerationParams,
@@ -338,7 +345,8 @@ externalize_function_specs_user_types(GenerationParams, ModuleInfo1) ->
     (sets:size(MissingTypesMessages) > 0 andalso
      begin
          #{ target_opts := TargetOpts } = GenerationParams,
-         MissingTypesBehaviour = proplists:get_value(unexported_types, TargetOpts, warn),
+         MissingTypesBehaviour =
+            proplists:get_value(unexported_types, TargetOpts, ?DEFAULT_PARAM_UNEXPORTED_TYPES),
          MissingTypesMsgFunction = missing_type_msg_function(MissingTypesBehaviour),
          MissingTypesMessagesList = lists:sort( sets:to_list(MissingTypesMessages) ),
          FormattedMsg =
