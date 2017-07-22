@@ -33,45 +33,46 @@ generate(State) ->
       AppInfos).
 
 generate(AppInfo, SourceDirectoriesPerApp) ->
-    Opts = rebar_app_info:opts(AppInfo),
-    {ok, BackwaterOpts} = dict:find(backwater_opts, Opts), % TODO don't crash when missing?
-    ClientRef = get_backwater_opt(client_ref, BackwaterOpts),
-    ModulesOpt = get_backwater_opt(modules, BackwaterOpts),
+    RebarOpts = rebar_app_info:opts(AppInfo),
+    {ok, BackwaterOpts} = dict:find(backwater_opts, RebarOpts), % TODO don't crash when missing?
+    GlobalClientRef = proplists:get_value(client_ref, BackwaterOpts, default),
+    UnprocessedTargets = proplists:get_all_values(target, BackwaterOpts),
     CurrentAppName = binary_to_atom(rebar_app_info:name(AppInfo), utf8),
-    OutputDirectory = hd(app_info_src_directories(AppInfo)), % TODO
+    GlobalOutputDirectory = hd(app_info_src_directories(AppInfo)), % TODO
 
-    AppModulePairs =
+    GlobalTargetOpts =
+        [{client_ref, GlobalClientRef},
+         {output_directory, GlobalOutputDirectory},
+         {all_exports, false}],
+
+    Targets =
         lists:map(
           fun (Module) when is_atom(Module) ->
-                  {CurrentAppName, Module};
-              ({AppName, Module}) ->
-                  {AppName, Module}
+                  {CurrentAppName, Module, GlobalTargetOpts};
+              ({Module, Opts}) when is_atom(Module), is_list(Opts) ->
+                  MergedOpts = rebar3_backwater_util:proplists_sort_and_merge(GlobalTargetOpts, Opts),
+                  {CurrentAppName, Module, MergedOpts};
+              ({AppName, Module}) when is_atom(AppName), is_atom(Module) ->
+                  {AppName, Module, GlobalTargetOpts};
+              ({AppName, Module, Opts}) when is_atom(AppName), is_atom(Module), is_list(Opts) ->
+                  MergedOpts = rebar3_backwater_util:proplists_sort_and_merge(GlobalTargetOpts, Opts),
+                  {AppName, Module, MergedOpts}
           end,
-          ModulesOpt),
+          UnprocessedTargets),
 
     lists:foreach(
-      fun ({AppName, Module}) ->
-              {ok, GenerationParams1} =
-                    find_module_name_or_path(AppName, Module, SourceDirectoriesPerApp),
-              GenerationParams2 =
-                    #{ client_ref => ClientRef,
-                       output_directory => OutputDirectory },
-              GenerationParams = maps:merge(GenerationParams1, GenerationParams2),
-              generate_backwater_code(GenerationParams)
+      fun ({AppName, Module, TargetOpts}) ->
+              {ok, GenerationParams1} = find_module_name_or_path(AppName, Module, SourceDirectoriesPerApp),
+              GenerationParams2 = GenerationParams1#{ target_opts => TargetOpts },
+              generate_backwater_code(GenerationParams2)
       end,
-      AppModulePairs).
+      Targets).
 
 app_info_src_directories(AppInfo) ->
     BaseDir = rebar_app_info:dir(AppInfo),
     Opts = rebar_app_info:opts(AppInfo),
     RelDirs = rebar_opts:get(Opts, src_dir, ["src"]),
     [filename:join(ec_cnv:to_list(BaseDir), RelDir) || RelDir <- RelDirs].
-
-get_backwater_opt(Key, Opts) ->
-    case lists:keyfind(Key, 1, Opts) of
-        {Key, Value} -> Value;
-        false -> error({missing_backwater_opt, Key})
-    end.
 
 find_module_name_or_path(AppName, Module, SourceDirectoriesPerApp) ->
     case dict:find(AppName, SourceDirectoriesPerApp) of
@@ -81,8 +82,10 @@ find_module_name_or_path(AppName, Module, SourceDirectoriesPerApp) ->
             case application:load(AppName) of
                 ok ->
                     {ok, #{ module_name => Module }};
-                {error, _Error} ->
-                    {error, module_not_found}
+                {error, {already_loaded, AppName}} ->
+                    {ok, #{ module_name => Module }};
+                {error, Error} ->
+                    {error, {unable_to_load_application, Error}}
             end
     end.
 
@@ -146,7 +149,7 @@ generate_backwater_code(GenerationParams) ->
     rebar_api:debug("ParseResult: ~p", [dict:to_list(ParseResult)]),
     ModuleInfo = generate_module_info(ParseResult),
     rebar_api:debug("ModuleInfo: ~p", [maps:to_list(ModuleInfo)]),
-    TransformedModuleInfo = (catch transform_module(ModuleInfo)),
+    TransformedModuleInfo = (catch transform_module(GenerationParams, ModuleInfo)),
     rebar_api:debug("TransformedModuleInfo: ~p", [TransformedModuleInfo]),
     write_module(GenerationParams, TransformedModuleInfo).
 
@@ -168,7 +171,7 @@ read_forms(#{ module_name := Module })  ->
         {ok, {no_debug_info, _}} ->
             {error, forms_not_found};
         {error, beam_lib, {file_error, _, enoent}} ->
-            {error, module_not_found, Module}
+            {error, {module_not_found, Module}}
     catch
         Class:Error ->
             {error, {Class, Error}}
@@ -254,16 +257,24 @@ generate_module_info(ParseResult) ->
 %% Internal Function Definitions - Transforming the Code
 %% ------------------------------------------------------------------
 
-transform_module(ModuleInfo1) ->
-    ModuleInfo2 = trim_exports(ModuleInfo1),
+transform_module(GenerationParams, ModuleInfo1) ->
+    ModuleInfo2 = transform_exports(GenerationParams, ModuleInfo1),
     ModuleInfo3 = trim_functions_and_specs(ModuleInfo2),
     ModuleInfo4 = externalize_function_specs_user_types(ModuleInfo3),
     rename_module(ModuleInfo4).
 
-trim_exports(ModuleInfo) ->
-    #{ exports := Exports, backwater_exports := BackwaterExports } = ModuleInfo,
-    Intersection = sets:intersection(Exports, BackwaterExports),
-    (maps:remove(backwater_exports, ModuleInfo))#{ exports => Intersection }.
+transform_exports(GenerationParams, ModuleInfo1) ->
+    #{ target_opts := TargetOpts } = GenerationParams,
+    #{ exports := Exports1, backwater_exports := BackwaterExports } = ModuleInfo1,
+    CommonExclusionList = [{module_info, 0}, {behaviour_info, 1}],
+    Exports2 = sets:subtract(Exports1, sets:from_list(CommonExclusionList)),
+    ModuleInfo2 = maps:remove(backwater_exports, ModuleInfo1),
+    Exports3 =
+        case proplists:get_value(all_exports, TargetOpts) of
+            true -> Exports2;
+            false -> sets:intersection(Exports2, BackwaterExports)
+        end,
+    ModuleInfo2#{ exports := Exports3 }.
 
 trim_functions_and_specs(ModuleInfo) ->
     #{ exports := Exports,
@@ -279,7 +290,9 @@ rename_module(ModuleInfo) ->
     ModuleInfo#{ module => Module2, original_module => Module1 }.
 
 write_module(GenerationParams, ModuleInfo) ->
-    #{ client_ref := ClientRef, output_directory := OutputDirectory } = GenerationParams,
+    #{ target_opts := TargetOpts } = GenerationParams,
+    ClientRef = proplists:get_value(client_ref, TargetOpts),
+    OutputDirectory = proplists:get_value(output_directory, TargetOpts),
     #{ module := Module } = ModuleInfo,
     ModuleFilename = filename:join(OutputDirectory, atom_to_list(Module) ++ ".erl"),
     ModuleSrc = (catch generate_module_source(ClientRef, ModuleInfo)),

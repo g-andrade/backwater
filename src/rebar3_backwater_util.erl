@@ -9,6 +9,7 @@
 -export([lists_enumerate/1]).
 -export([lists_intersect/1]).
 -export([maps_mapfold/3]).
+-export([proplists_sort_and_merge/2]).
 
 %% ------------------------------------------------------------------
 %% API Function Definitions
@@ -50,6 +51,11 @@ maps_mapfold(Fun, Acc0, Map) ->
     MappedMap = maps:from_list(MappedList),
     {MappedMap, AccN}.
 
+proplists_sort_and_merge(List1, List2) ->
+    SortedList1 = lists:usort(fun proplists_element_cmp/2, lists:reverse(List1)),
+    SortedList2 = lists:usort(fun proplists_element_cmp/2, lists:reverse(List2)),
+    lists:merge(fun proplists_element_cmp/2, SortedList2, SortedList1).
+
 %% ------------------------------------------------------------------
 %% Internal Function Definitions
 %% ------------------------------------------------------------------
@@ -58,3 +64,11 @@ copies_recur(Acc, Count) when Count < 2 ->
     Acc;
 copies_recur([Value | _] = Acc, Count) ->
     copies_recur([Value | Acc], Count - 1).
+
+proplists_element_cmp(A, B) ->
+    proplists_element_key(A) =< proplists_element_key(B).
+
+proplists_element_key(Atom) when is_atom(Atom) ->
+    Atom;
+proplists_element_key({Key, _Value}) ->
+    Key.
