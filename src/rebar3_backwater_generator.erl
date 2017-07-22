@@ -145,11 +145,10 @@ filename_to_lower(Filename) ->
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 generate_backwater_code(GenerationParams) ->
-    {ok, Forms} = read_forms(GenerationParams),
+    {ok, ModulePath, Forms} = read_forms(GenerationParams),
     ParseResult = lists:foldl(fun parse_module/2, dict:new(), Forms),
-    ModuleInfo = generate_module_info(ParseResult),
+    ModuleInfo = generate_module_info(ModulePath, ParseResult),
     TransformedModuleInfo = transform_module(GenerationParams, ModuleInfo),
-    check_required_types_and_records(GenerationParams, TransformedModuleInfo),
     write_module(GenerationParams, TransformedModuleInfo).
 
 %% ------------------------------------------------------------------
@@ -164,9 +163,10 @@ generate_backwater_code(GenerationParams) ->
 %%
 %-spec read_forms(atom() | iolist()) -> [erl_parse:abstract_form()].
 read_forms(#{ module_name := Module })  ->
-    try beam_lib:chunks(code:which(Module), [abstract_code]) of
+    ModulePath = code:which(Module),
+    try beam_lib:chunks(ModulePath, [abstract_code]) of
         {ok, {Module, [{abstract_code, {raw_abstract_v1, Forms}}]}} ->
-            {ok, Forms};
+            {ok, ModulePath, Forms};
         {ok, {no_debug_info, _}} ->
             {error, forms_not_found};
         {error, beam_lib, {file_error, _, enoent}} ->
@@ -178,7 +178,7 @@ read_forms(#{ module_name := Module })  ->
 read_forms(#{ module_path := ModulePath }) ->
     try epp:parse_file(ModulePath, []) of
         {ok, Forms} ->
-            {ok, Forms};
+            {ok, ModulePath, Forms};
         {ok, Forms, _Extra} ->
             {ok, Forms};
         {error, enoent} ->
@@ -223,17 +223,16 @@ parse_module({function, _Line, Name, Arity, Clauses}, Acc) ->
 parse_module(_Other, Acc) ->
     Acc.
 
-generate_module_info(ParseResult) ->
+generate_module_info(ModulePath, ParseResult) ->
     BaseModuleInfo =
-        #{ exports => sets:new(),
+        #{ original_path => ModulePath,
+           exports => sets:new(),
            type_exports => sets:new(),
            deprecation_attributes => sets:new(),
            backwater_module_version => ?DEFAULT_BACKWATER_MODULE_VERSION,
            backwater_exports => sets:new(),
            function_specs => maps:new(),
-           function_definitions => maps:new(),
-           types_requiring_export => sets:new(),
-           records_requiring_export => sets:new() },
+           function_definitions => maps:new() },
 
     ModuleInfo =
         maps:from_list(
@@ -267,7 +266,7 @@ generate_module_info(ParseResult) ->
 transform_module(GenerationParams, ModuleInfo1) ->
     ModuleInfo2 = transform_exports(GenerationParams, ModuleInfo1),
     ModuleInfo3 = trim_functions_and_specs(ModuleInfo2),
-    ModuleInfo4 = externalize_function_specs_user_types(ModuleInfo3),
+    ModuleInfo4 = externalize_function_specs_user_types(GenerationParams, ModuleInfo3),
     rename_module(ModuleInfo4).
 
 transform_exports(GenerationParams, ModuleInfo1) ->
@@ -296,53 +295,6 @@ rename_module(ModuleInfo) ->
     Module2 = list_to_atom("backwater_" ++ atom_to_list(Module1)),
     ModuleInfo#{ module => Module2, original_module => Module1 }.
 
-check_required_types_and_records(GenerationParams, ModuleInfo) ->
-    #{ target_opts := TargetOpts } = GenerationParams,
-    #{ original_module := OriginalModule,
-       types_requiring_export := TypesRequiringExport,
-       records_requiring_export := RecordsRequiringExport } = ModuleInfo,
-
-    MissingTypesBehaviour = proplists:get_value(unexported_types, TargetOpts, warn),
-    MsgFunctionName =
-        case MissingTypesBehaviour of
-            ignore -> debug;
-            warn -> warn;
-            error -> error;
-            abort -> abort
-        end,
-    TypesRequiringExportSize = sets:size(TypesRequiringExport),
-    RecordsRequiringExportSize = sets:size(RecordsRequiringExport),
-
-    if TypesRequiringExportSize > 0 ->
-           TypesRequiringExportList = lists:sort( sets:to_list(TypesRequiringExport) ),
-           Msg =
-                case TypesRequiringExportList of
-                    [] -> "";
-                    _ ->
-                        ["The following types require export:\n",
-                         lists:join(
-                           "\n",
-                           [io_lib:format("\t~p:~p/~p", [OriginalModule, Name, Arity])
-                            || {Name, Arity} <- TypesRequiringExportList])]
-                end,
-           rebar_api:MsgFunctionName(Msg, []);
-       RecordsRequiringExportSize > 0 ->
-           RecordsRequiringExportList = lists:sort( sets:to_list(RecordsRequiringExport) ),
-           Msg =
-                case RecordsRequiringExport of
-                    [] -> "";
-                    _ ->
-                        ["References, in exported function specs, to the following records need to be replaced by exported type aliases:\n",
-                         lists:join(
-                           "\n",
-                           [io_lib:format("\t~p:#~p{}", [OriginalModule, Name])
-                            || Name <- RecordsRequiringExportList])]
-                end,
-            rebar_api:MsgFunctionName(Msg, []);
-       true ->
-           ok
-    end.
-
 write_module(GenerationParams, ModuleInfo) ->
     ClientRef = target_client_ref(GenerationParams),
     OutputDirectory = target_output_directory(GenerationParams),
@@ -369,23 +321,44 @@ target_output_directory(GenerationParams) ->
             OutputDirectory
     end.
 
-externalize_function_specs_user_types(ModuleInfo1) ->
+externalize_function_specs_user_types(GenerationParams, ModuleInfo1) ->
+    % do it
     #{ function_specs := FunctionSpecs1 } = ModuleInfo1,
-    {FunctionSpecs2, ModuleInfo2} =
+    Acc1 = ModuleInfo1#{ missing_types_messages => sets:new() },
+    {FunctionSpecs2, Acc2} =
         rebar3_backwater_util:maps_mapfold(
           fun externalize_function_spec_definitions_user_types/3,
-          ModuleInfo1,
+          Acc1,
           FunctionSpecs1),
-    ModuleInfo2#{ function_specs => FunctionSpecs2 }.
+    #{ missing_types_messages := MissingTypesMessages } = Acc2,
+    ModuleInfo2 = maps:without([missing_types_messages], Acc2),
+    ModuleInfo3 = ModuleInfo2#{ function_specs => FunctionSpecs2 },
+
+    % handle types and records warnings
+    (sets:size(MissingTypesMessages) > 0 andalso
+     begin
+         #{ target_opts := TargetOpts } = GenerationParams,
+         MissingTypesBehaviour = proplists:get_value(unexported_types, TargetOpts, warn),
+         MissingTypesMsgFunction = missing_type_msg_function(MissingTypesBehaviour),
+         MissingTypesMessagesList = lists:sort( sets:to_list(MissingTypesMessages) ),
+         FormattedMsg =
+            lists:foldl(
+              fun ({ModulePath, Line, Fmt, Args}, Acc) ->
+                      [Acc, "\n", io_lib:format("~s:~p - " ++ Fmt, [ModulePath, Line | Args])]
+              end,
+              [],
+              MissingTypesMessagesList),
+         MissingTypesMsgFunction(FormattedMsg, [])
+     end),
+
+    ModuleInfo3.
 
 externalize_function_spec_definitions_user_types({_Name, _Arity}, Definitions, Acc) ->
     lists:mapfoldl(fun externalize_user_types/2, Acc, Definitions).
 
 externalize_user_types({type, Line, record, Args}, Acc1) ->
-    {atom, _NameLine, RecordName} = hd(Args),
-    #{ records_requiring_export := RecordsRequiringExport1 } = Acc1,
-    RecordsRequiringExport2 = sets:add_element(RecordName, RecordsRequiringExport1),
-    Acc2 = Acc1#{ records_requiring_export := RecordsRequiringExport2 },
+    {atom, _NameLine, Name} = hd(Args),
+    Acc2 = handle_unexported_record_reference(Line, Name, Acc1),
     {{type, Line, term, []}, Acc2};
 externalize_user_types({user_type, Line, Name, Args1}, Acc1) ->
     {Args2, Acc2} = externalize_user_types(Args1, Acc1),
@@ -395,10 +368,7 @@ externalize_user_types({user_type, Line, Name, Args1}, Acc1) ->
     Acc3 =
         case sets:is_element(Id, TypeExports) of
             true -> Acc2;
-            false ->
-                #{ types_requiring_export := TypesRequiringExport1 } = Acc2,
-                TypesRequiringExport2 = sets:add_element(Id, TypesRequiringExport1),
-                Acc2#{ types_requiring_export := TypesRequiringExport2 }
+            false -> handle_unexported_type(Line, Name, Arity, Acc2)
         end,
     {{remote_type, Line, [{atom, Line, Module}, {atom, Line, Name}, Args2]}, Acc3};
 externalize_user_types(List, Acc) when is_list(List) ->
@@ -438,6 +408,35 @@ externalize_user_types({type, _Line, _Builtin} = T, Acc) ->
     {T, Acc};
 externalize_user_types({var, _Line, _Name} = T, Acc) ->
     {T, Acc}.
+
+handle_unexported_record_reference(Line, Name, Acc) ->
+    maps:update_with(
+      missing_types_messages,
+      fun (Prev) ->
+              #{ original_path := ModulePath } = Acc,
+              Msg = {ModulePath, Line, "Reference to unexportable record #~p{}", [Name]},
+              sets:add_element(Msg, Prev)
+      end,
+      Acc).
+
+handle_unexported_type(Line, Name, Arity, Acc) ->
+    maps:update_with(
+      missing_types_messages,
+      fun (Prev) ->
+              #{ original_path := ModulePath } = Acc,
+              Msg = {ModulePath, Line, "Reference to unexported type ~p/~p", [Name, Arity]},
+              sets:add_element(Msg, Prev)
+      end,
+      Acc).
+
+missing_type_msg_function(ignore) ->
+    fun rebar_api:debug/2;
+missing_type_msg_function(warn) ->
+    fun rebar_api:warn/2;
+missing_type_msg_function(error) ->
+    fun rebar_api:error/2;
+missing_type_msg_function(abort) ->
+    fun rebar_api:abort/2.
 
 %% ------------------------------------------------------------------
 %% Internal Function Definitions - Generating the New Code
