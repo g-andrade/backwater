@@ -198,6 +198,10 @@ parse_module({attribute, _Line, export, Pairs}, Acc) ->
     dict:append_list(exports, Pairs, Acc);
 parse_module({attribute, _Line, export_type, Pairs}, Acc) ->
     dict:append_list(type_exports, Pairs, Acc);
+parse_module({attribute, _Line, deprecated, Data}, Acc) when is_list(Data) ->
+    dict:append_list(deprecation_attributes, Data, Acc);
+parse_module({attribute, _Line, deprecated, Data}, Acc) ->
+    dict:append(deprecation_attributes, Data, Acc);
 parse_module({attribute, _Line, backwater_module_version, RawVersion}, Acc) ->
     <<Version/binary>> = unicode:characters_to_binary(RawVersion),
     dict:store(backwater_module_version, Version, Acc);
@@ -228,6 +232,7 @@ generate_module_info(ParseResult) ->
     BaseModuleInfo =
         #{ exports => sets:new(),
            type_exports => sets:new(),
+           deprecation_attributes => sets:new(),
            backwater_module_version => ?DEFAULT_BACKWATER_MODULE_VERSION,
            backwater_exports => sets:new(),
            function_specs => maps:new(),
@@ -241,6 +246,8 @@ generate_module_info(ParseResult) ->
                       Module;
                   (exports, Exports) ->
                       sets:from_list(Exports);
+                  (deprecation_attributes, DeprecationAttributes) ->
+                      sets:from_list(DeprecationAttributes);
                   (type_exports, TypeExports) ->
                       sets:from_list(TypeExports);
                   (backwater_module_version, Version) ->
@@ -392,14 +399,10 @@ generate_module_source(ClientRef, ModuleInfo) ->
     FunctionDefinitions = generate_module_source_function_definitions(ClientRef, ModuleInfo),
 
     [Header,
-     generate_module_source_section_header_comment("API Function Exports"),
-     Exports,
-     generate_module_source_section_header_comment("API Function Xref Attributes"),
-     XRefAttributes,
-     generate_module_source_section_header_comment("API Function Specifications"),
-     FunctionSpecs,
-     generate_module_source_section_header_comment("API Function Definitions"),
-     FunctionDefinitions].
+     generate_module_source_section("Exports", Exports),
+     generate_module_source_section("Xref", XRefAttributes),
+     generate_module_source_section("Specifications", FunctionSpecs),
+     generate_module_source_section("Definitions", FunctionDefinitions)].
 
 generate_module_source_header(ModuleInfo) ->
     #{ module := Module } = ModuleInfo,
@@ -415,13 +418,30 @@ generate_module_source_exports(ModuleInfo) ->
       ExportsList).
 
 generate_module_source_xref_attributes(ModuleInfo) ->
-    #{ exports := Exports } = ModuleInfo,
+    #{ exports := Exports, deprecation_attributes := DeprecationAttributes } = ModuleInfo,
     ExportsList = lists:sort( sets:to_list(Exports) ),
-    lists:map(
-      fun ({Name, Arity}) ->
-              erl_pp:attribute({attribute, ?DUMMY_LINE_NUMBER, ignore_xref, {Name, Arity}})
-      end,
-      ExportsList).
+    DeprecationAttributesList = lists:sort( sets:to_list(DeprecationAttributes) ),
+
+    AbstractIgnoreAttributes =
+        lists:map(
+          fun ({Name, Arity}) ->
+                  erl_pp:attribute({attribute, ?DUMMY_LINE_NUMBER, ignore_xref, {Name, Arity}})
+          end,
+          ExportsList),
+
+    AbstractDeprecationAttributes =
+        lists:map(
+          fun (Data) ->
+                  erl_pp:attribute({attribute, ?DUMMY_LINE_NUMBER, deprecated, Data})
+          end,
+          DeprecationAttributesList),
+
+    [AbstractIgnoreAttributes,
+     case AbstractIgnoreAttributes =/= [] andalso AbstractDeprecationAttributes =/= [] of
+         true -> "\n";
+         false -> ""
+     end,
+     AbstractDeprecationAttributes].
 
 generate_module_source_function_specs(ModuleInfo) ->
     #{ function_definitions := FunctionDefinitions } = ModuleInfo,
@@ -608,6 +628,13 @@ fully_qualified_call_clause_args([]) ->
     {nil, ?DUMMY_LINE_NUMBER};
 fully_qualified_call_clause_args([H|T]) ->
     {cons, ?DUMMY_LINE_NUMBER, H, fully_qualified_call_clause_args(T)}.
+
+generate_module_source_section(Comment, Data) ->
+    case iolist_size(Data) =:= 0 of
+        true -> "";
+        false ->
+            [generate_module_source_section_header_comment(Comment), Data]
+    end.
 
 generate_module_source_section_header_comment(Comment) ->
     Rule = "% ------------------------------------------------------------------",
