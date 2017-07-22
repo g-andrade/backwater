@@ -462,8 +462,8 @@ generate_module_source_function(ClientRef, {{Name, Arity}, Definitions}, ModuleI
     #{ original_module := OriginalModule,
        backwater_module_version := BackwaterModuleVersion } = ModuleInfo,
     IndexedVarLists = generate_module_source_indexed_var_lists(Definitions),
-    ArgNames = generate_module_source_arg_names(IndexedVarLists),
-    UniqueArgNames = generate_module_source_unique_arg_names(ArgNames),
+    ArgNames = generate_module_source_arg_names(Arity, IndexedVarLists),
+    UniqueArgNames = generate_module_source_unique_arg_names(Arity, ArgNames),
     ArgVars = [{var, ?DUMMY_LINE_NUMBER, list_to_atom(StringName)} || StringName <- UniqueArgNames],
     Guards = [],
     Body = generate_module_source_function_body(
@@ -487,7 +487,7 @@ generate_module_source_indexed_var_lists(Definitions) ->
           Definitions),
     orddict:to_list(IndexedVarListsDict).
 
-generate_module_source_arg_names(IndexedVarLists) ->
+generate_module_source_arg_names(Arity, IndexedVarLists) ->
     lists:map(
       fun ({Index, Vars}) ->
               ArgNames = filter_arg_names_from_function_vars(Vars),
@@ -496,7 +496,7 @@ generate_module_source_arg_names(IndexedVarLists) ->
               UniqueArgNames1 = lists:usort(ValidArgNames),
               UniqueArgNames2 =
                 case UniqueArgNames1 =:= [] of
-                    true -> [generated_arg_name(Index)];
+                    true -> [generated_arg_name(Arity, Index)];
                     false -> UniqueArgNames1
                 end,
               string:join(UniqueArgNames2, "_Or_")
@@ -525,10 +525,12 @@ is_valid_arg_name(ArgName) ->
     length(ArgName) > 0 andalso                        % non-empty
     [hd(ArgName)] =:= string:to_upper([hd(ArgName)]).  % first character is upper case
 
-generated_arg_name(Index) ->
+generated_arg_name(FunctionArity, Index) when FunctionArity =:= 1, Index =:= 1 ->
+    "Arg";
+generated_arg_name(_FunctionArity, Index) ->
     "Arg" ++ integer_to_list(Index).
 
-generate_module_source_unique_arg_names(ArgNames) ->
+generate_module_source_unique_arg_names(Arity, ArgNames) ->
     CountPerArgName =
         lists:foldl(
           fun (ArgName, Acc) ->
@@ -548,14 +550,14 @@ generate_module_source_unique_arg_names(ArgNames) ->
                           MappedArgName =
                             case dict:fetch(ArgName, CountPerArgName) of
                                 1 -> ArgName;
-                                _ -> generated_arg_name(Index)
+                                _ -> generated_arg_name(Arity, Index)
                             end,
                           {MappedArgName, Index + 1}
                   end,
                   1,
                   ArgNames),
 
-            generate_module_source_unique_arg_names(MappedArgNames)
+            generate_module_source_unique_arg_names(Arity, MappedArgNames)
     end.
 
 generate_module_source_function_body(ClientRef, OriginalModule, BackwaterModuleVersion, Name, ArgVars) ->
