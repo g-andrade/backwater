@@ -60,17 +60,13 @@ init([Ref, ClientConfig]) ->
     ets:insert(ConfigTableName, Settings),
     {ok, no_state}.
 
-handle_call(Request, From, State) ->
-    lager:debug("unhandled call ~p from ~p on state ~p",
-                [Request, From, State]),
+handle_call(_Request, _From, State) ->
     {noreply, State}.
 
-handle_cast(Msg, State) ->
-    lager:debug("unhandled cast ~p on state ~p", [Msg, State]),
+handle_cast(_Msg, State) ->
     {noreply, State}.
 
-handle_info(Info, State) ->
-    lager:debug("unhandled info ~p on state ~p", [Info, State]),
+handle_info(_Info, State) ->
     {noreply, State}.
 
 terminate(_Reason, _State) ->
