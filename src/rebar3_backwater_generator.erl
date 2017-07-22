@@ -32,18 +32,18 @@ generate(State) ->
       end,
       AppInfos).
 
-generate(AppInfo, SourceDirectoriesPerApp) ->
-    RebarOpts = rebar_app_info:opts(AppInfo),
+generate(CurrentAppInfo, SourceDirectoriesPerApp) ->
+    RebarOpts = rebar_app_info:opts(CurrentAppInfo),
     {ok, BackwaterOpts} = dict:find(backwater_opts, RebarOpts), % TODO don't crash when missing?
-    GlobalClientRef = proplists:get_value(client_ref, BackwaterOpts, default),
     UnprocessedTargets = proplists:get_all_values(target, BackwaterOpts),
-    CurrentAppName = binary_to_atom(rebar_app_info:name(AppInfo), utf8),
-    GlobalOutputDirectory = hd(app_info_src_directories(AppInfo)), % TODO
+    CurrentAppName = binary_to_atom(rebar_app_info:name(CurrentAppInfo), utf8),
 
     GlobalTargetOpts =
-        [{client_ref, GlobalClientRef},
-         {output_directory, GlobalOutputDirectory},
-         {all_exports, false}],
+        lists:filter(
+          fun ({target, _}) -> false;
+              (_) -> true
+          end,
+          BackwaterOpts),
 
     Targets =
         lists:map(
@@ -63,7 +63,10 @@ generate(AppInfo, SourceDirectoriesPerApp) ->
     lists:foreach(
       fun ({AppName, Module, TargetOpts}) ->
               {ok, GenerationParams1} = find_module_name_or_path(AppName, Module, SourceDirectoriesPerApp),
-              GenerationParams2 = GenerationParams1#{ target_opts => TargetOpts },
+              GenerationParams2 =
+                GenerationParams1#{
+                  current_app_info => CurrentAppInfo,
+                  target_opts => TargetOpts },
               generate_backwater_code(GenerationParams2)
       end,
       Targets).
@@ -270,7 +273,7 @@ transform_exports(GenerationParams, ModuleInfo1) ->
     Exports2 = sets:subtract(Exports1, sets:from_list(CommonExclusionList)),
     ModuleInfo2 = maps:remove(backwater_exports, ModuleInfo1),
     Exports3 =
-        case proplists:get_value(all_exports, TargetOpts) of
+        case proplists:get_value(all_exports, TargetOpts, false) of
             true -> Exports2;
             false -> sets:intersection(Exports2, BackwaterExports)
         end,
@@ -290,9 +293,8 @@ rename_module(ModuleInfo) ->
     ModuleInfo#{ module => Module2, original_module => Module1 }.
 
 write_module(GenerationParams, ModuleInfo) ->
-    #{ target_opts := TargetOpts } = GenerationParams,
-    ClientRef = proplists:get_value(client_ref, TargetOpts),
-    OutputDirectory = proplists:get_value(output_directory, TargetOpts),
+    ClientRef = target_client_ref(GenerationParams),
+    OutputDirectory = target_output_directory(GenerationParams),
     #{ module := Module } = ModuleInfo,
     ModuleFilename = filename:join(OutputDirectory, atom_to_list(Module) ++ ".erl"),
     ModuleSrc = (catch generate_module_source(ClientRef, ModuleInfo)),
@@ -300,6 +302,21 @@ write_module(GenerationParams, ModuleInfo) ->
     case file:write_file(ModuleFilename, ModuleSrc) of
         ok -> ok;
         {error, Error} -> error({couldnt_save_module, Error})
+    end.
+
+target_client_ref(GenerationParams) ->
+    #{ target_opts := TargetOpts } = GenerationParams,
+    proplists:get_value(client_ref, TargetOpts, default).
+
+target_output_directory(GenerationParams) ->
+    #{ target_opts := TargetOpts } = GenerationParams,
+    case proplists:get_value(output_directory, TargetOpts) of
+        undefined ->
+            #{ current_app_info := CurrentAppInfo } = GenerationParams,
+            CurrentAppSourceDirectories = app_info_src_directories(CurrentAppInfo),
+            hd(CurrentAppSourceDirectories);
+        OutputDirectory ->
+            OutputDirectory
     end.
 
 externalize_function_specs_user_types(ModuleInfo1) ->
