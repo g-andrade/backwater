@@ -606,7 +606,11 @@ generate_module_source_arg_names(Arity, IndexedVarLists) ->
                     true -> [generated_arg_name(Arity, Index)];
                     false -> UniqueArgNames1
                 end,
-              string:join(UniqueArgNames2, "_Or_")
+              Concat = string:join(UniqueArgNames2, "_Or_"),
+              case length(Concat) > 255 of % atom limit
+                  true -> generated_arg_name(Arity, Index);
+                  false -> Concat
+              end
       end,
       IndexedVarLists).
 
