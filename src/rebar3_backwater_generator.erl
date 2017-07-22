@@ -3,7 +3,7 @@
 -export([generate/1]).
 
 -define(DEFAULT_PARAM_CLIENT_REF, default).
--define(DEFAULT_PARAM_USE_ALL_EXPORTS, false).
+-define(DEFAULT_PARAM_EXPORTS, use_backwater_attributes).
 -define(DEFAULT_PARAM_UNEXPORTED_TYPES, warn).
 -define(DEFAULT_BACKWATER_MODULE_VERSION, "1").
 -define(DUMMY_LINE_NUMBER, 1).
@@ -281,11 +281,11 @@ transform_exports(GenerationParams, ModuleInfo1) ->
     Exports2 = sets:subtract(Exports1, sets:from_list(CommonExclusionList)),
     ModuleInfo2 = maps:remove(backwater_exports, ModuleInfo1),
     Exports3 =
-        case proplists:get_value(use_all_exports, TargetOpts,
-                                 ?DEFAULT_PARAM_USE_ALL_EXPORTS)
+        case proplists:get_value(exports, TargetOpts, ?DEFAULT_PARAM_EXPORTS)
         of
-            true -> Exports2;
-            false -> sets:intersection(Exports2, BackwaterExports)
+            all -> Exports2;
+            use_backwater_attributes -> sets:intersection(Exports2, BackwaterExports);
+            List when is_list(List) -> sets:intersection(Exports2, sets:from_list(List))
         end,
     ModuleInfo2#{ exports := Exports3 }.
 
