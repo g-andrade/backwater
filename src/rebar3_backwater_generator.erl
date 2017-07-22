@@ -24,7 +24,6 @@ generate(State) ->
           end,
           dict:new(),
           AppInfos ++ rebar_state:all_deps(State)),
-    rebar_api:debug("SourceDirectoriesPerApp: ~p", [dict:to_list(SourceDirectoriesPerApp)]),
 
     lists:map(
       fun (AppInfo) ->
@@ -67,7 +66,7 @@ generate(CurrentAppInfo, SourceDirectoriesPerApp) ->
                 GenerationParams1#{
                   current_app_info => CurrentAppInfo,
                   target_opts => TargetOpts },
-              generate_backwater_code(GenerationParams2)
+              ok = generate_backwater_code(GenerationParams2)
       end,
       Targets).
 
@@ -147,13 +146,10 @@ filename_to_lower(Filename) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 generate_backwater_code(GenerationParams) ->
     {ok, Forms} = read_forms(GenerationParams),
-    rebar_api:debug("AbsForm: ~p", [Forms]),
     ParseResult = lists:foldl(fun parse_module/2, dict:new(), Forms),
-    rebar_api:debug("ParseResult: ~p", [dict:to_list(ParseResult)]),
     ModuleInfo = generate_module_info(ParseResult),
-    rebar_api:debug("ModuleInfo: ~p", [maps:to_list(ModuleInfo)]),
-    TransformedModuleInfo = (catch transform_module(GenerationParams, ModuleInfo)),
-    rebar_api:debug("TransformedModuleInfo: ~p", [TransformedModuleInfo]),
+    TransformedModuleInfo = transform_module(GenerationParams, ModuleInfo),
+    check_required_types_and_records(GenerationParams, TransformedModuleInfo),
     write_module(GenerationParams, TransformedModuleInfo).
 
 %% ------------------------------------------------------------------
@@ -225,7 +221,6 @@ parse_module({function, _Line, Name, Arity, Clauses}, Acc) ->
       dict:from_list([{{Name, Arity}, Definitions}]),
       Acc);
 parse_module(_Other, Acc) ->
-    %rebar_api:debug("ignoring ~p", [Other]),
     Acc.
 
 generate_module_info(ParseResult) ->
@@ -236,7 +231,9 @@ generate_module_info(ParseResult) ->
            backwater_module_version => ?DEFAULT_BACKWATER_MODULE_VERSION,
            backwater_exports => sets:new(),
            function_specs => maps:new(),
-           function_definitions => maps:new()  },
+           function_definitions => maps:new(),
+           types_requiring_export => sets:new(),
+           records_requiring_export => sets:new() },
 
     ModuleInfo =
         maps:from_list(
@@ -299,13 +296,59 @@ rename_module(ModuleInfo) ->
     Module2 = list_to_atom("backwater_" ++ atom_to_list(Module1)),
     ModuleInfo#{ module => Module2, original_module => Module1 }.
 
+check_required_types_and_records(GenerationParams, ModuleInfo) ->
+    #{ target_opts := TargetOpts } = GenerationParams,
+    #{ original_module := OriginalModule,
+       types_requiring_export := TypesRequiringExport,
+       records_requiring_export := RecordsRequiringExport } = ModuleInfo,
+
+    MissingTypesBehaviour = proplists:get_value(unexported_types, TargetOpts, warn),
+    MsgFunctionName =
+        case MissingTypesBehaviour of
+            ignore -> debug;
+            warn -> warn;
+            error -> error;
+            abort -> abort
+        end,
+    TypesRequiringExportSize = sets:size(TypesRequiringExport),
+    RecordsRequiringExportSize = sets:size(RecordsRequiringExport),
+
+    if TypesRequiringExportSize > 0 ->
+           TypesRequiringExportList = lists:sort( sets:to_list(TypesRequiringExport) ),
+           Msg =
+                case TypesRequiringExportList of
+                    [] -> "";
+                    _ ->
+                        ["The following types require export:\n",
+                         lists:join(
+                           "\n",
+                           [io_lib:format("\t~p:~p/~p", [OriginalModule, Name, Arity])
+                            || {Name, Arity} <- TypesRequiringExportList])]
+                end,
+           rebar_api:MsgFunctionName(Msg, []);
+       RecordsRequiringExportSize > 0 ->
+           RecordsRequiringExportList = lists:sort( sets:to_list(RecordsRequiringExport) ),
+           Msg =
+                case RecordsRequiringExport of
+                    [] -> "";
+                    _ ->
+                        ["The following record require export (use either type() or opaque()):\n",
+                         lists:join(
+                           "\n",
+                           [io_lib:format("\t~p:#~p{}", [OriginalModule, Name])
+                            || Name <- RecordsRequiringExportList])]
+                end,
+            rebar_api:MsgFunctionName(Msg, []);
+       true ->
+           ok
+    end.
+
 write_module(GenerationParams, ModuleInfo) ->
     ClientRef = target_client_ref(GenerationParams),
     OutputDirectory = target_output_directory(GenerationParams),
     #{ module := Module } = ModuleInfo,
     ModuleFilename = filename:join(OutputDirectory, atom_to_list(Module) ++ ".erl"),
-    ModuleSrc = (catch generate_module_source(ClientRef, ModuleInfo)),
-    rebar_api:debug("module src: ~p", [ModuleSrc]),
+    ModuleSrc = generate_module_source(ClientRef, ModuleInfo),
     case file:write_file(ModuleFilename, ModuleSrc) of
         ok -> ok;
         {error, Error} -> error({couldnt_save_module, Error})
@@ -339,15 +382,25 @@ externalize_function_spec_definitions_user_types({_Name, _Arity}, Definitions, A
     lists:mapfoldl(fun externalize_user_types/2, Acc, Definitions).
 
 externalize_user_types({type, Line, record, Args}, Acc1) ->
-    rebar_api:debug("record ~p, replaced by generic term - use exported type instead", [Args]),
-    {{type, Line, term, []}, Acc1};
+    {atom, _NameLine, RecordName} = hd(Args),
+    #{ records_requiring_export := RecordsRequiringExport1 } = Acc1,
+    RecordsRequiringExport2 = sets:add_element(RecordName, RecordsRequiringExport1),
+    Acc2 = Acc1#{ records_requiring_export := RecordsRequiringExport2 },
+    {{type, Line, term, []}, Acc2};
 externalize_user_types({user_type, Line, Name, Args1}, Acc1) ->
     {Args2, Acc2} = externalize_user_types(Args1, Acc1),
     #{ module := Module, type_exports := TypeExports } = Acc2,
     Arity = length(Args2),
     Id = {Name, Arity},
-    sets:is_element(Id, TypeExports) orelse rebar_api:debug("type ~p/~p not exported", [Name, Arity]),
-    {{remote_type, Line, [{atom, Line, Module}, {atom, Line, Name}, Args2]}, Acc2};
+    Acc3 =
+        case sets:is_element(Id, TypeExports) of
+            true -> Acc2;
+            false ->
+                #{ types_requiring_export := TypesRequiringExport1 } = Acc2,
+                TypesRequiringExport2 = sets:add_element(Id, TypesRequiringExport1),
+                Acc2#{ types_requiring_export := TypesRequiringExport2 }
+        end,
+    {{remote_type, Line, [{atom, Line, Module}, {atom, Line, Name}, Args2]}, Acc3};
 externalize_user_types(List, Acc) when is_list(List) ->
     lists:mapfoldl(fun externalize_user_types/2, Acc, List);
 externalize_user_types(Literal, Acc) when is_atom(Literal); is_integer(Literal) ->
@@ -379,7 +432,6 @@ externalize_user_types({remote_type, Line, [ModuleSpec1, FunctionSpec1, Args1]},
 externalize_user_types({type, _Line, _Builtin, any} = T, Acc) ->
     {T, Acc};
 externalize_user_types({type, Line, Builtin, Args1}, Acc1) when is_list(Args1) ->
-    Builtin =:= 'fun' andalso rebar_api:debug("fun! ~p", [Args1]),
     {Args2, Acc2} = externalize_user_types(Args1, Acc1),
     {{type, Line, Builtin, Args2}, Acc2};
 externalize_user_types({type, _Line, _Builtin} = T, Acc) ->
@@ -558,8 +610,7 @@ filter_arg_names_from_function_vars(Vars) ->
           F({match, _Line1, Left, Right}, Acc1) ->
               Acc2 = F(Right, Acc1),
               F(Left, Acc2);
-          F(Other, Acc) ->
-              rebar_api:debug("filtering out arg names from function vars: ~p", [Other]),
+          F(_Other, Acc) ->
               Acc
       end,
       [],
