@@ -387,12 +387,15 @@ externalize_user_types({var, _Line, _Name} = T, Acc) ->
 generate_module_source(ClientRef, ModuleInfo) ->
     Header = generate_module_source_header(ModuleInfo),
     Exports = generate_module_source_exports(ModuleInfo),
+    XRefAttributes = generate_module_source_xref_attributes(ModuleInfo),
     FunctionSpecs = generate_module_source_function_specs(ModuleInfo),
     FunctionDefinitions = generate_module_source_function_definitions(ClientRef, ModuleInfo),
 
     [Header,
      generate_module_source_section_header_comment("API Function Exports"),
      Exports,
+     generate_module_source_section_header_comment("API Function Xref Attributes"),
+     XRefAttributes,
      generate_module_source_section_header_comment("API Function Specifications"),
      FunctionSpecs,
      generate_module_source_section_header_comment("API Function Definitions"),
@@ -400,15 +403,23 @@ generate_module_source(ClientRef, ModuleInfo) ->
 
 generate_module_source_header(ModuleInfo) ->
     #{ module := Module } = ModuleInfo,
-    erl_pp:form({attribute, 0, module, Module}).
+    erl_pp:attribute({attribute, 0, module, Module}).
 
 generate_module_source_exports(ModuleInfo) ->
     #{ exports := Exports } = ModuleInfo,
-    %rebar_api:debug("Exports: ~p", [Exports]),
     ExportsList = lists:sort( sets:to_list(Exports) ),
     lists:map(
       fun ({Name, Arity}) ->
-              erl_pp:form({attribute, ?DUMMY_LINE_NUMBER, export, [{Name, Arity}]})
+              erl_pp:attribute({attribute, ?DUMMY_LINE_NUMBER, export, [{Name, Arity}]})
+      end,
+      ExportsList).
+
+generate_module_source_xref_attributes(ModuleInfo) ->
+    #{ exports := Exports } = ModuleInfo,
+    ExportsList = lists:sort( sets:to_list(Exports) ),
+    lists:map(
+      fun ({Name, Arity}) ->
+              erl_pp:attribute({attribute, ?DUMMY_LINE_NUMBER, ignore_xref, {Name, Arity}})
       end,
       ExportsList).
 
@@ -435,7 +446,7 @@ generate_module_source_function_spec({Name, Arity}, ModuleInfo) ->
                 Definition = generic_function_spec(Arity),
                 {attribute, ?DUMMY_LINE_NUMBER, spec, {{Name, Arity}, [Definition]}}
         end,
-    erl_pp:form(Attribute).
+    erl_pp:attribute(Attribute).
 
 generate_module_source_function_definitions(ClientRef, ModuleInfo) ->
     #{ function_definitions := FunctionDefinitions } = ModuleInfo,
@@ -486,7 +497,7 @@ generate_module_source_function(ClientRef, {{Name, Arity}, Definitions}, ModuleI
     Body = generate_module_source_function_body(
              ClientRef, OriginalModule, BackwaterModuleVersion, Name, ArgVars),
     Clause = {clause, ?DUMMY_LINE_NUMBER, ArgVars, Guards, Body},
-    erl_pp:form({function, ?DUMMY_LINE_NUMBER, Name, Arity, [Clause]}).
+    erl_pp:function({function, ?DUMMY_LINE_NUMBER, Name, Arity, [Clause]}).
 
 generate_module_source_indexed_var_lists(Definitions) ->
     IndexedVarListsDict =
