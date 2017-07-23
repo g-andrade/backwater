@@ -12,11 +12,19 @@
 %% Macro Definitions
 %% ------------------------------------------------------------------
 
+-define(DEFAULT_BACKWATER_MODULE_VERSION, <<"1">>).
+-define(DEFAULT_MODULE_EXPORTS, use_backwater_attributes).
 -define(CACHED_MODULE_INFO_TTL, 5000).
 
 %% ------------------------------------------------------------------
 %% Type Definitions
 %% ------------------------------------------------------------------
+
+-type exposed_module() :: module() | {module(), [exposed_module_opt()]}.
+-export_type([exposed_module/0]).
+
+-type exposed_module_opt() :: {exports, all | use_backwater_attributes | [atom()]}.
+-export_type([exposed_module_opt/0]).
 
 -type module_info() :: #{ version := version(), exports := exports() }.
 -export_type([module_info/0]).
@@ -50,27 +58,30 @@
 %% API Function Definitions
 %% ------------------------------------------------------------------
 
-generate(Modules, [use_process_dictionary_cache]) ->
-    KvList = lists:filtermap(fun find_and_parse_module_info_with_cache/1, Modules),
+-spec generate([exposed_module()], [use_process_dictionary_cache])
+        -> #{ BinModule :: non_empty_binary() => module_info() }.
+generate(ExposedModules, [use_process_dictionary_cache]) ->
+    KvList = lists:filtermap(fun find_and_parse_module_info_with_cache/1, ExposedModules),
     maps:from_list(KvList);
-generate(Modules, []) ->
-    KvList = lists:filtermap(fun find_and_parse_module_info/1, Modules),
+generate(ExposedModules, []) ->
+    KvList = lists:filtermap(fun find_and_parse_module_info/1, ExposedModules),
     maps:from_list(KvList).
 
 %% ------------------------------------------------------------------
 %% Internal Function Definitions
 %% ------------------------------------------------------------------
 
--spec find_and_parse_module_info_with_cache(module()) -> lookup_result().
-find_and_parse_module_info_with_cache(Module) ->
+-spec find_and_parse_module_info_with_cache(exposed_module()) -> lookup_result().
+find_and_parse_module_info_with_cache(ExposedModule) ->
+    Module = exposed_module_name(ExposedModule),
     CacheKey = {cached_module_info_lookup, Module},
     CachedResult = erlang:get(CacheKey),
     case CachedResult =:= undefined orelse cached_result_age(CachedResult) >= ?CACHED_MODULE_INFO_TTL
     of
         true ->
-            Result = find_and_parse_module_info(Module),
+            Result = find_and_parse_module_info(ExposedModule),
             CachedLookup = #{ result => Result, creation_timestamp => now_milliseconds() },
-            erlang:put({cached_module_info_lookup, Module}, CachedLookup),
+            erlang:put(CacheKey, CachedLookup),
             Result;
         false ->
             maps:get(result, CachedResult)
@@ -80,27 +91,33 @@ find_and_parse_module_info_with_cache(Module) ->
 cached_result_age(#{ creation_timestamp := CreationTimestamp }) ->
     now_milliseconds() - CreationTimestamp.
 
--spec find_and_parse_module_info(module()) -> lookup_result().
-find_and_parse_module_info(Module) ->
+-spec find_and_parse_module_info(exposed_module()) -> lookup_result().
+find_and_parse_module_info(ExposedModule) ->
+    Module = exposed_module_name(ExposedModule),
     case find_module_info(Module) of
         {ok, RawModuleInfo} ->
             {attributes, ModuleAttributes} = lists:keyfind(attributes, 1, RawModuleInfo),
-            {exports, AtomKeyedExports} = lists:keyfind(exports, 1, RawModuleInfo),
-            Exports = [{atom_to_binary(K, utf8), V} || {K, V} <- AtomKeyedExports],
-            case module_attributes_find_backwater_module_version(ModuleAttributes) of
-                {ok, BackwaterModuleVersion} ->
-                    BackwaterExports = module_attributes_get_backwater_exports(Module, ModuleAttributes),
-                    FilteredBackwaterExports = maps:with(Exports, BackwaterExports),
-                    BinModule = atom_to_binary(Module, utf8),
-                    {true,
-                     {BinModule, #{ version => BackwaterModuleVersion,
-                                    exports => FilteredBackwaterExports }}};
-                error ->
-                    false
-            end;
+            BackwaterModuleVersion = module_attributes_get_backwater_module_version(ModuleAttributes),
+            BackwaterExports = determine_module_exports(ExposedModule, RawModuleInfo),
+            BinModule = atom_to_binary(Module, utf8),
+            {true,
+             {BinModule, #{ version => BackwaterModuleVersion,
+                            exports => BackwaterExports }}};
         error ->
             false
     end.
+
+-spec exposed_module_name(exposed_module()) -> module().
+exposed_module_name({Module, _Opts}) ->
+    Module;
+exposed_module_name(Module) ->
+    Module.
+
+-spec exposed_module_opts(exposed_module()) -> [exposed_module_opt()].
+exposed_module_opts({_Module, Opts}) ->
+    Opts;
+exposed_module_opts(_Module) ->
+    [].
 
 -spec find_module_info(module()) -> {ok, raw_module_info()} | error.
 find_module_info(Module) ->
@@ -110,15 +127,34 @@ find_module_info(Module) ->
         error:undef -> error
     end.
 
--spec module_attributes_find_backwater_module_version(raw_module_attributes())
-        -> {ok, version()} | error.
-module_attributes_find_backwater_module_version(ModuleAttributes) ->
+-spec module_attributes_get_backwater_module_version(raw_module_attributes())
+        -> version().
+module_attributes_get_backwater_module_version(ModuleAttributes) ->
     case lists:keyfind(backwater_module_version, 1, ModuleAttributes) of
-        {backwater_module_version, Version} ->
-            <<BinVersion/binary>> = unicode:characters_to_binary(Version),
-            {ok, BinVersion};
+        {backwater_module_version, RawVersion} ->
+            <<_/binary>> = unicode:characters_to_binary(RawVersion);
         false ->
-            error
+            ?DEFAULT_BACKWATER_MODULE_VERSION
+    end.
+
+-spec determine_module_exports(exposed_module(), raw_module_info()) -> exports().
+determine_module_exports(ExposedModule, RawModuleInfo) ->
+    Module = exposed_module_name(ExposedModule),
+    Opts = exposed_module_opts(ExposedModule),
+    {attributes, ModuleAttributes} = lists:keyfind(attributes, 1, RawModuleInfo),
+    {exports, AtomKeyedExports} = lists:keyfind(exports, 1, RawModuleInfo),
+
+    case proplists:get_value(exports, Opts, ?DEFAULT_MODULE_EXPORTS) of
+        all ->
+            maps:from_list([backwater_export_entry_pair(Module, Pair) || Pair <- AtomKeyedExports]);
+        use_backwater_attributes ->
+            Exports = [{atom_to_binary(K, utf8), V} || {K, V} <- AtomKeyedExports],
+            BackwaterExports = module_attributes_get_backwater_exports(Module, ModuleAttributes),
+            maps:with(Exports, BackwaterExports);
+        List when is_list(List) ->
+            maps:from_list(
+              [backwater_export_entry_pair(Module, Pair) || Pair <- AtomKeyedExports,
+               lists:member(Pair, List)])
     end.
 
 -spec module_attributes_get_backwater_exports(module(), raw_module_attributes()) -> exports().

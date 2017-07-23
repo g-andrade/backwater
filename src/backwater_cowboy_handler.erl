@@ -55,7 +55,7 @@
 
 -type access_conf() ::
         #{ decode_unsafe_terms := boolean(),
-           exposed_modules := [module()],
+           exposed_modules := [backwater_module_info:exposed_module()],
            return_exception_stacktraces := boolean(),
            authentication => {basic, password()} }.
 
@@ -256,7 +256,9 @@ check_authorization(Req, State) ->
 
     SearchResult =
         lists:any(
-          fun (Module) -> BinModule =:= atom_to_binary(Module, utf8) end,
+          fun ({Module, _Opts}) -> BinModule =:= atom_to_binary(Module, utf8);
+              (Module) -> BinModule =:= atom_to_binary(Module, utf8)
+          end,
           ExposedModules),
 
     case SearchResult of
@@ -508,7 +510,7 @@ call_function(MF, Args, #{ return_exception_stacktraces := ReturnExceptionStackt
             % Hide all calls previous to the one made to the target function (cowboy stuff, etc.)
             % This works under the assumption that *no sensible call* would ever go through the
             % current function again.
-            PurgedStacktrace = backwater_util:purge_stacktrace_below({?MODULE,call_function,4}, Stacktrace),
+            PurgedStacktrace = backwater_util:purge_stacktrace_below({?MODULE,call_function,3}, Stacktrace),
             {exception, Class, Exception, PurgedStacktrace};
         Class:Exception ->
             {exception, Class, Exception, []}
