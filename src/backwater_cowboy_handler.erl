@@ -22,8 +22,10 @@
            unvalidated_arity := binary(),
            access_conf => access_conf(),
            version => backwater_module_info:version(),
-           module => module(),
-           function => atom(),
+           bin_module => binary(),
+           bin_function => binary(),
+           %module => module(),
+           %function => atom(),
            arity => arity(),
            module_info => backwater_module_info:module_info(),
            function_properties => backwater_module_info:fun_properties(),
@@ -57,8 +59,8 @@
            return_exception_stacktraces := boolean(),
            authentication => {basic, password()} }.
 
--type username() :: nonempty_binary().
--type password() :: nonempty_binary().
+-type username() :: non_empty_binary().
+-type password() :: non_empty_binary().
 
 -type content_type() :: {Type :: binary(), SubType :: binary(), content_type_params()}.
 -type content_type_params() :: [{binary(), binary()}].
@@ -191,7 +193,7 @@ default_access_conf(authenticated_access) ->
        exposed_modules => [],
        return_exception_stacktraces => true }.
 
-%-spec failed_auth_prompt_header() -> {nonempty_binary(), nonempty_binary()}.
+%-spec failed_auth_prompt_header() -> {non_empty_binary(), non_empty_binary()}.
 failed_auth_prompt_header() ->
     {<<"www-authenticate">>, <<"Basic realm=\"backwater\"">>}.
 
@@ -213,30 +215,31 @@ check_form(Req, State) ->
              when Error :: (invalid_api_version | invalid_module_name |
                             invalid_function_name | invalid_function_arity).
 validate_form(Req, State) ->
-    #{ access_conf := AccessConf,
-       unvalidated_version := BinVersion,
-       unvalidated_module := BinModule,
-       unvalidated_function := BinFunction,
-       unvalidated_arity := BinArity } = State,
+    #{ unvalidated_version := UnvalidatedVersion,
+       unvalidated_module := UnvalidatedModule,
+       unvalidated_function := UnvalidatedFunction,
+       unvalidated_arity := UnvalidatedArity } = State,
 
-    Version = backwater_util:fast_catch(fun unicode:characters_to_binary/1, [BinVersion]),
-    Module = backwater_util:fast_catch(fun utf8bin_to_atom/2, [BinModule, AccessConf]),
-    Function = backwater_util:fast_catch(fun utf8bin_to_atom/2, [BinFunction, AccessConf]),
-    Arity = backwater_util:fast_catch(fun binary_to_integer/1, [BinArity]),
+    Version = backwater_util:fast_catch(fun unicode:characters_to_binary/1, [UnvalidatedVersion]),
+    %Module = backwater_util:fast_catch(fun utf8bin_to_atom/2, [BinModule, AccessConf]),
+    %Function = backwater_util:fast_catch(fun utf8bin_to_atom/2, [BinFunction, AccessConf]),
+    BinModule = backwater_util:fast_catch(fun unicode:characters_to_binary/1, [UnvalidatedModule]),
+    BinFunction = backwater_util:fast_catch(fun unicode:characters_to_binary/1, [UnvalidatedFunction]),
+    Arity = backwater_util:fast_catch(fun binary_to_integer/1, [UnvalidatedArity]),
 
     if not is_binary(Version) ->
            {invalid_api_version, Req, State};
-       not is_atom(Module) ->
+       not is_binary(BinModule) orelse byte_size(BinModule) < 1 orelse byte_size(BinModule) > 255 ->
            {invalid_module_name, Req, State};
-       not is_atom(Function) ->
+       not is_binary(BinFunction) orelse byte_size(BinFunction) < 1 orelse byte_size(BinFunction) > 255 ->
            {invalid_function_name, Req, State};
        not is_integer(Arity) orelse Arity < 0 orelse Arity > 255 ->
            {invalid_function_arity, Req, State};
        true ->
            NewState =
                 State#{ version => Version,
-                        module => Module,
-                        function => Function,
+                        bin_module => BinModule,
+                        bin_function => BinFunction,
                         arity => Arity },
            {valid, Req, NewState}
     end.
@@ -247,11 +250,16 @@ validate_form(Req, State) ->
 
 -spec check_authorization(req(), state()) -> {response(), req(), state()}.
 check_authorization(Req, State) ->
-    #{ module := Module,
+    #{ bin_module := BinModule,
        access_conf := AccessConf } = State,
     #{ exposed_modules := ExposedModules } = AccessConf,
 
-    case lists:member(Module, ExposedModules) of
+    SearchResult =
+        lists:any(
+          fun (Module) -> BinModule =:= atom_to_binary(Module, utf8) end,
+          ExposedModules),
+
+    case SearchResult of
         true ->
             check_existence(Req, State);
         false ->
@@ -278,16 +286,19 @@ check_existence(Req, State) ->
                             function_not_exported |
                             module_not_found).
 find_resource(Req, State) ->
-    #{ version := RequiredVersion,
-       module := RequiredModule,
-       function := RequiredFunction,
-       arity := RequiredArity } = State,
+    #{ access_conf := AccessConf,
+       version := BinVersion,
+       bin_module := BinModule,
+       bin_function := BinFunction,
+       arity := Arity } = State,
+    #{ exposed_modules := ExposedModules } = AccessConf,
+    InfoPerExposedModule = backwater_module_info:generate(ExposedModules, [use_process_dictionary_cache]),
 
-    case backwater_module_info:find(RequiredModule) of
-        {ok, #{ version := Version }} when Version =/= RequiredVersion ->
+    case maps:find(BinModule, InfoPerExposedModule) of
+        {ok, #{ version := Version }} when Version =/= BinVersion ->
             {module_version_not_found, Req, State};
         {ok, #{ exports := Exports } = ModuleInfo} ->
-            case maps:find({RequiredFunction, RequiredArity}, Exports) of
+            case maps:find({BinFunction, Arity}, Exports) of
                 {ok, Resource} ->
                     State2 = State#{ module_info => ModuleInfo, function_properties => Resource },
                     {found, Req, State2};
@@ -482,14 +493,15 @@ validate_args(Args, Req, State) ->
 
 -spec handle_call([term()], req(), state()) -> {response(), req(), state()}.
 handle_call(Args, Req, State) ->
-    #{ access_conf := AccessConf, module := Module, function := Function } = State,
-    Result = call_function(Module, Function, Args, AccessConf),
+    #{ access_conf := AccessConf, function_properties := FunctionProperties } = State,
+    #{ function_ref := FunctionRef } = FunctionProperties,
+    Result = call_function(FunctionRef, Args, AccessConf),
     set_result(200, Result, Req, State).
 
--spec call_function(module(), atom(), [term()], access_conf()) -> call_result().
-call_function(Module, Function, Args, #{ return_exception_stacktraces := ReturnExceptionStacktraces }) ->
+-spec call_function(fun(), [term()], access_conf()) -> call_result().
+call_function(MF, Args, #{ return_exception_stacktraces := ReturnExceptionStacktraces }) ->
     try
-        {success, apply(Module, Function, Args)}
+        {success, apply(MF, Args)}
     catch
         Class:Exception when ReturnExceptionStacktraces ->
             Stacktrace = erlang:get_stacktrace(),
@@ -535,12 +547,6 @@ response(StatusCode, Headers) ->
 -spec response(http_status(), http_headers(), iodata()) -> response().
 response(StatusCode, Headers, Body) ->
     (response(StatusCode, Headers))#{ body => Body }.
-
--spec utf8bin_to_atom(binary(), access_conf()) -> atom() | no_return().
-utf8bin_to_atom(BinValue, #{ decode_unsafe_terms := true }) ->
-    binary_to_atom(BinValue, utf8);
-utf8bin_to_atom(BinValue, #{ decode_unsafe_terms := false }) ->
-    binary_to_existing_atom(BinValue, utf8).
 
 -spec nocache_headers() -> http_headers().
 nocache_headers() ->
