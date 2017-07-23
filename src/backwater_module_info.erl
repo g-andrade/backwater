@@ -6,7 +6,8 @@
 %% API Function Exports
 %% ------------------------------------------------------------------
 
--export([generate/2]).
+-export([exposed_module_name/1]).
+-export([generate/1]).
 
 %% ------------------------------------------------------------------
 %% Macro Definitions
@@ -14,7 +15,6 @@
 
 -define(DEFAULT_BACKWATER_MODULE_VERSION, <<"1">>).
 -define(DEFAULT_MODULE_EXPORTS, use_backwater_attributes).
--define(CACHED_MODULE_INFO_TTL, 5000).
 
 %% ------------------------------------------------------------------
 %% Type Definitions
@@ -52,44 +52,24 @@
 -type raw_module_info() :: [{atom(), term()}].
 -type raw_module_attributes() :: [{atom(), term()}].
 
--type cached_result() :: #{ creation_timestamp := integer(), result := lookup_result() }.
-
 %% ------------------------------------------------------------------
 %% API Function Definitions
 %% ------------------------------------------------------------------
 
--spec generate([exposed_module()], [use_process_dictionary_cache])
-        -> #{ BinModule :: non_empty_binary() => module_info() }.
-generate(ExposedModules, [use_process_dictionary_cache]) ->
-    KvList = lists:filtermap(fun find_and_parse_module_info_with_cache/1, ExposedModules),
-    maps:from_list(KvList);
-generate(ExposedModules, []) ->
+-spec exposed_module_name(exposed_module()) -> module().
+exposed_module_name({Module, _Opts}) ->
+    Module;
+exposed_module_name(Module) ->
+    Module.
+
+-spec generate([exposed_module()]) -> #{ BinModule :: non_empty_binary() => module_info() }.
+generate(ExposedModules) ->
     KvList = lists:filtermap(fun find_and_parse_module_info/1, ExposedModules),
     maps:from_list(KvList).
 
 %% ------------------------------------------------------------------
 %% Internal Function Definitions
 %% ------------------------------------------------------------------
-
--spec find_and_parse_module_info_with_cache(exposed_module()) -> lookup_result().
-find_and_parse_module_info_with_cache(ExposedModule) ->
-    Module = exposed_module_name(ExposedModule),
-    CacheKey = {cached_module_info_lookup, Module},
-    CachedResult = erlang:get(CacheKey),
-    case CachedResult =:= undefined orelse cached_result_age(CachedResult) >= ?CACHED_MODULE_INFO_TTL
-    of
-        true ->
-            Result = find_and_parse_module_info(ExposedModule),
-            CachedLookup = #{ result => Result, creation_timestamp => now_milliseconds() },
-            erlang:put(CacheKey, CachedLookup),
-            Result;
-        false ->
-            maps:get(result, CachedResult)
-    end.
-
--spec cached_result_age(cached_result()) -> integer().
-cached_result_age(#{ creation_timestamp := CreationTimestamp }) ->
-    now_milliseconds() - CreationTimestamp.
 
 -spec find_and_parse_module_info(exposed_module()) -> lookup_result().
 find_and_parse_module_info(ExposedModule) ->
@@ -106,12 +86,6 @@ find_and_parse_module_info(ExposedModule) ->
         error ->
             false
     end.
-
--spec exposed_module_name(exposed_module()) -> module().
-exposed_module_name({Module, _Opts}) ->
-    Module;
-exposed_module_name(Module) ->
-    Module.
 
 -spec exposed_module_opts(exposed_module()) -> [exposed_module_opt()].
 exposed_module_opts({_Module, Opts}) ->
@@ -180,7 +154,3 @@ backwater_export_entry_pair(Module, {AtomF,A}) ->
            function_ref => fun Module:AtomF/A },
     F = atom_to_binary(AtomF, utf8),
     {{F,A}, Properties}.
-
--spec now_milliseconds() -> integer().
-now_milliseconds() ->
-    erlang:monotonic_time(millisecond).

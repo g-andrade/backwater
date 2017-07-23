@@ -85,7 +85,15 @@ app_config_changed(Clients, Servers) ->
 %% ------------------------------------------------------------------
 
 init([Clients, Servers]) ->
+    CacheChildSpec =
+        #{ id => cache,
+           start => {backwater_cache, start_link, []},
+           restart => permanent,
+           type => worker,
+           modules => [backwater_cache] },
+
     Children =
+        [CacheChildSpec] ++
         maps:values(maps:map(fun client_childspec/2, Clients)) ++
         maps:values(maps:map(fun server_childspec/2, Servers)),
     {ok, {#{}, Children}}.

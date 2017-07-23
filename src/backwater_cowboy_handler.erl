@@ -11,6 +11,12 @@
 -export([terminate/3]).
 
 %% ------------------------------------------------------------------
+%% Macro Definitions
+%% ------------------------------------------------------------------
+
+-define(MODULE_INFO_TTL, (timer:seconds(5))).
+
+%% ------------------------------------------------------------------
 %% Type Definitions
 %% ------------------------------------------------------------------
 
@@ -221,8 +227,6 @@ validate_form(Req, State) ->
        unvalidated_arity := UnvalidatedArity } = State,
 
     Version = backwater_util:fast_catch(fun unicode:characters_to_binary/1, [UnvalidatedVersion]),
-    %Module = backwater_util:fast_catch(fun utf8bin_to_atom/2, [BinModule, AccessConf]),
-    %Function = backwater_util:fast_catch(fun utf8bin_to_atom/2, [BinFunction, AccessConf]),
     BinModule = backwater_util:fast_catch(fun unicode:characters_to_binary/1, [UnvalidatedModule]),
     BinFunction = backwater_util:fast_catch(fun unicode:characters_to_binary/1, [UnvalidatedFunction]),
     Arity = backwater_util:fast_catch(fun binary_to_integer/1, [UnvalidatedArity]),
@@ -256,8 +260,9 @@ check_authorization(Req, State) ->
 
     SearchResult =
         lists:any(
-          fun ({Module, _Opts}) -> BinModule =:= atom_to_binary(Module, utf8);
-              (Module) -> BinModule =:= atom_to_binary(Module, utf8)
+          fun (ExposedModule) ->
+                  ModuleName = backwater_module_info:exposed_module_name(ExposedModule),
+                  BinModule =:= atom_to_binary(ModuleName, utf8)
           end,
           ExposedModules),
 
@@ -294,7 +299,17 @@ find_resource(Req, State) ->
        bin_function := BinFunction,
        arity := Arity } = State,
     #{ exposed_modules := ExposedModules } = AccessConf,
-    InfoPerExposedModule = backwater_module_info:generate(ExposedModules, [use_process_dictionary_cache]),
+
+    CacheKey = {exposed_modules, erlang:phash2(ExposedModules)},
+    InfoPerExposedModule =
+        case backwater_cache:find(CacheKey) of
+            {ok, Cached} ->
+                Cached;
+            error ->
+                Info = backwater_module_info:generate(ExposedModules),
+                backwater_cache:put(CacheKey, Info, ?MODULE_INFO_TTL),
+                Info
+        end,
 
     case maps:find(BinModule, InfoPerExposedModule) of
         {ok, #{ version := Version }} when Version =/= BinVersion ->
