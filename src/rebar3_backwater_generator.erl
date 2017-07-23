@@ -168,7 +168,9 @@ generate_backwater_code(GenerationParams) ->
 %%
 %-spec read_forms(atom() | iolist()) -> [erl_parse:abstract_form()].
 read_forms(#{ module_name := Module })  ->
-    ModulePath = code:which(Module),
+    %ModulePath = code:which(Module),
+    ModuleStr = atom_to_list(Module),
+    ModulePath = code:where_is_file(ModuleStr ++ ".beam"),
     try beam_lib:chunks(ModulePath, [abstract_code]) of
         {ok, {Module, [{abstract_code, {raw_abstract_v1, Forms}}]}} ->
             {ok, ModulePath, Forms};
