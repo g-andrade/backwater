@@ -12,7 +12,7 @@
 %% Macro Definitions
 %% ------------------------------------------------------------------
 
--define(CACHED_MODULE_INFO_TTL, 500).
+-define(CACHED_MODULE_INFO_TTL, 5000).
 
 %% ------------------------------------------------------------------
 %% Type Definitions
