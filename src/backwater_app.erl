@@ -1,4 +1,4 @@
--module(backwater_client_app).
+-module(backwater_app).
 -behaviour(application).
 
 %% ------------------------------------------------------------------
@@ -14,18 +14,14 @@
 %% ------------------------------------------------------------------
 
 start(_StartType, _StartArgs) ->
-    Clients = clients_from_config(),
-    backwater_client_app_sup:start_link(Clients).
+    Clients = application:get_env(backwater, clients, #{}),
+    Servers = application:get_env(backwater, servers, #{}),
+    backwater_sup:start_link(Clients, Servers).
 
 stop(_State) ->
     ok.
 
 config_change(_Changed, _New, _Removed) ->
-    Clients = clients_from_config(),
-    backwater_client_app_sup:app_config_changed(Clients).
-
-%% internal
-
-clients_from_config() ->
-    Env = application:get_all_env(backwater_client),
-    [{Ref, Config} || {Ref, Config} <- Env, is_map(Config)].
+    Clients = application:get_env(backwater, clients, #{}),
+    Servers = application:get_env(backwater, servers, #{}),
+    backwater_sup:app_config_changed(Clients, Servers).

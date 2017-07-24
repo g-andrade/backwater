@@ -1,0 +1,2 @@
+-type non_empty_binary() :: <<_:8,_:_*8>>.
+-export_type([non_empty_binary/0]).

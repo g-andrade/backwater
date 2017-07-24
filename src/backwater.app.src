@@ -1,16 +1,16 @@
-{application, backwater_client,
- [{description, "RPC framework for remote Erlang and Elixir modules - client"},
+{application, backwater,
+ [{description, "RPC framework for remote Erlang and Elixir modules"},
   {vsn, git},
   {registered, []},
-  {mod, {backwater_client_app, []}},
+  {mod, {backwater_app, []}},
   {applications,
    [kernel,
     stdlib,
-    edoc, % ?
-    backwater_common,
+    edoc,
+    cowboy,
     hackney
    ]},
-  {env,[]},
+  {env,[]}, % Check config/sys.config example
   {modules, []},
 
   {maintainers, ["Guilherme Andrade"]},

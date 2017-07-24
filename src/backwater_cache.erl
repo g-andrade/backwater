@@ -8,7 +8,6 @@
 %% ------------------------------------------------------------------
 
 -export([start_link/0]).            -ignore_xref({start_link,0}).
--export([child_spec/1]).
 -export([find/1]).
 -export([put/3]).
 
@@ -54,13 +53,6 @@
 
 start_link() ->
     gen_server:start_link({local, ?SERVER}, ?CB_MODULE, [], []).
-
-child_spec(Id) ->
-    #{ id => Id,
-       start => {?MODULE, start_link, []},
-       restart => permanent,
-       type => worker,
-       modules => [?MODULE] }.
 
 -spec find(term()) -> {ok, term()} | error.
 find(Key) ->
