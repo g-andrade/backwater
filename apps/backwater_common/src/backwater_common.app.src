@@ -1,0 +1,17 @@
+{application, backwater_common,
+ [{description, "RPC framework for remote Erlang and Elixir modules - common code"},
+  {vsn, git},
+  {registered, []},
+  %{mod, {backwater_app, []}},
+  {applications,
+   [kernel,
+    stdlib,
+    edoc % ?
+   ]},
+  {env,[]},
+  {modules, []},
+
+  {maintainers, ["Guilherme Andrade"]},
+  {licenses, ["MIT"]},
+  {links, [{"Github", "https://github.com/g-andrade/backwater"}]}
+ ]}.

@@ -6,6 +6,7 @@
 
 -export([fast_catch/2]).
 -export([lists_anymap/2]).
+-export([lists_keyupdate_with/5]).
 -export([purge_stacktrace_below/2]).
 
 %% ------------------------------------------------------------------
@@ -30,6 +31,17 @@ lists_anymap(Fun, [H|T]) ->
         {true, MappedH} -> {true, MappedH};
         true -> {true, H};
         false -> lists_anymap(Fun, T)
+    end.
+
+-spec lists_keyupdate_with(term(), pos_integer(), [tuple()], fun ((tuple()) -> tuple()), tuple()) 
+        -> [tuple()].
+lists_keyupdate_with(Key, N, TupleList, Fun, Initial) ->
+    case lists:keyfind(Key, N, TupleList) of
+        Tuple when is_tuple(Tuple) ->
+            NewTuple = Fun(Tuple),
+            lists:keystore(Key, N, TupleList, NewTuple);
+        false ->
+            lists:keystore(Key, N, TupleList, Initial)
     end.
 
 -spec purge_stacktrace_below({module(),atom(),arity()}, [erlang:stack_item()])

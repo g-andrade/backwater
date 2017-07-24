@@ -1,6 +1,6 @@
 -module(backwater_cowboy_handler).
 
--include("backwater_common.hrl").
+-include_lib("backwater_common/include/backwater_common.hrl").
 
 %% ------------------------------------------------------------------
 %% cowboy_http_handler Function Exports
@@ -15,6 +15,19 @@
 %% ------------------------------------------------------------------
 
 -define(MODULE_INFO_TTL, (timer:seconds(5))).
+
+%% ------------------------------------------------------------------
+%% Type exports
+%% ------------------------------------------------------------------
+
+-export_type([backwater_opts/0]).
+-export_type([backwater_cowboy_opts/0]).
+-export_type([backwater_cowboy_protocol/0]).
+-export_type([backwater_transport_opts/0]).
+-export_type([backwater_protocol_opts/0]).
+-export_type([access_conf/0]).
+-export_type([username/0]).
+-export_type([password/0]).
 
 %% ------------------------------------------------------------------
 %% Type Definitions
@@ -40,24 +53,23 @@
            accepted_result_content_types => [accepted_content_type()],
            result_content_type => content_type() }.
 
+
 -type backwater_opts() ::
         #{ cowboy => backwater_cowboy_opts(),
            unauthenticated_access => access_conf(),
            authenticated_access => #{ username() => access_conf() } }.
 
-
 -type backwater_cowboy_opts() ::
         #{ protocol => backwater_cowboy_protocol(),
            number_of_acceptors => pos_integer(),
            transport_options => backwater_transport_opts(),
-           protocol_options => backwater_protocol_options() }.
+           protocol_options => backwater_protocol_opts() }.
 
 -type backwater_cowboy_protocol() :: http | https.
 
 -type backwater_transport_opts() :: ranch_tcp:opts() | ranch_ssl:opts().
 
--type backwater_protocol_options() :: cowboy_protocol:opts().
-
+-type backwater_protocol_opts() :: cowboy_protocol:opts().
 
 -type access_conf() ::
         #{ decode_unsafe_terms := boolean(),
@@ -65,8 +77,9 @@
            return_exception_stacktraces := boolean(),
            authentication => {basic, password()} }.
 
--type username() :: non_empty_binary().
--type password() :: non_empty_binary().
+-type username() :: binary().
+-type password() :: binary().
+
 
 -type content_type() :: {Type :: binary(), SubType :: binary(), content_type_params()}.
 -type content_type_params() :: [{binary(), binary()}].
@@ -199,7 +212,7 @@ default_access_conf(authenticated_access) ->
        exposed_modules => [],
        return_exception_stacktraces => true }.
 
-%-spec failed_auth_prompt_header() -> {non_empty_binary(), non_empty_binary()}.
+%-spec failed_auth_prompt_header() -> {nonempty_binary(), nonempty_binary()}.
 failed_auth_prompt_header() ->
     {<<"www-authenticate">>, <<"Basic realm=\"backwater\"">>}.
 

@@ -4,7 +4,7 @@
 %% API Function Exports
 %% ------------------------------------------------------------------
 
--export([childspec/3]).
+-export([child_spec/3]).
 -export([start/2]).
 -export([stop/1]).
 -export([call/5]).
@@ -14,14 +14,14 @@
 %% API Function Definitions
 %% ------------------------------------------------------------------
 
-childspec(Id, Ref, ClientConfig) ->
-    backwater_client_sup:childspec(Id, Ref, ClientConfig).
+child_spec(Id, Ref, ClientConfig) ->
+    backwater_client_sup:child_spec(Id, Ref, ClientConfig).
 
 start(Ref, ClientConfig) ->
-    backwater_sup:start_client(Ref, ClientConfig).
+    backwater_client_app_sup:start_client(Ref, ClientConfig).
 
 stop(Ref) ->
-    backwater_sup:stop_client(Ref).
+    backwater_client_app_sup:stop_client(Ref).
 
 call(Ref, Version, Module, Function, Args) ->
     call(Ref, Version, Module, Function, Args, #{}).
@@ -31,7 +31,7 @@ call(Ref, Version, Module, Function, Args, ConfigOverride) ->
     #{ connect_timeout := ConnectTimeout,
        receive_timeout := ReceiveTimeout } = ClientConfig,
     {RequestMethod, RequestUrl, RequestHeaders, RequestBody} =
-        backwater_http:encode_request(Version, Module, Function, Args, ClientConfig),
+        backwater_client_http:encode_request(Version, Module, Function, Args, ClientConfig),
 
     Options =
         [{pool, default}, % TODO
@@ -44,7 +44,7 @@ call(Ref, Version, Module, Function, Args, ConfigOverride) ->
         {ok, StatusCode, ResponseHeaders, ClientRef} ->
             case hackney:body(ClientRef) of
                 {ok, ResponseBody} ->
-                    backwater_http:decode_response(StatusCode, ResponseHeaders, ResponseBody, ClientConfig);
+                    backwater_client_http:decode_response(StatusCode, ResponseHeaders, ResponseBody, ClientConfig);
                 {error, BodyError} ->
                     backwater_error({response_body, BodyError})
             end;
@@ -52,6 +52,6 @@ call(Ref, Version, Module, Function, Args, ConfigOverride) ->
             backwater_error({socket, SocketError})
     end.
 
-% FIXME: duplicate in backwater_http, reconsider whole thing
+% FIXME: duplicate in backwater_client_http, reconsider whole thing
 backwater_error(Error) ->
     {error, Error}.

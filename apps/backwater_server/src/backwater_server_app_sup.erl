@@ -1,16 +1,14 @@
--module(backwater_sup).
+-module(backwater_server_app_sup).
 -behaviour(supervisor).
 
 %% ------------------------------------------------------------------
 %% API Function Exports
 %% ------------------------------------------------------------------
 
--export([start_link/2]).
--export([start_client/2]).
--export([stop_client/1]).
+-export([start_link/1]).
 -export([start_server/2]).
 -export([stop_server/1]).
--export([app_config_changed/2]).
+-export([app_config_changed/1]).
 
 %% ------------------------------------------------------------------
 %% supervisor Function Exports
@@ -29,27 +27,19 @@
 %% API Function Definitions
 %% ------------------------------------------------------------------
 
-start_link(Clients, Servers) ->
-    supervisor:start_link({local, ?SERVER}, ?CB_MODULE, [Clients, Servers]).
-
-start_client(Ref, Config) ->
-    Child = client_childspec(Ref, Config),
-    start_child(Child).
-
-stop_client(Ref) ->
-    stop_child({client, Ref}).
+start_link(Servers) ->
+    supervisor:start_link({local, ?SERVER}, ?CB_MODULE, [Servers]).
 
 start_server(Ref, Config) ->
-    Child = server_childspec(Ref, Config),
+    Child = server_child_spec({Ref, Config}),
     start_child(Child).
 
 stop_server(Ref) ->
     stop_child({server, Ref}).
 
-app_config_changed(Clients, Servers) ->
+app_config_changed(Servers) ->
     UpdatedChildren =
-        maps:values(maps:map(fun client_childspec/2, Clients)) ++
-        maps:values(maps:map(fun server_childspec/2, Servers)),
+        [cache_child_spec() | lists:map(fun server_child_spec/1, Servers)],
 
     UpdatedChildrenPerId =
         maps:from_list(
@@ -84,29 +74,20 @@ app_config_changed(Clients, Servers) ->
 %% supervisor Function Definitions
 %% ------------------------------------------------------------------
 
-init([Clients, Servers]) ->
-    CacheChildSpec =
-        #{ id => cache,
-           start => {backwater_cache, start_link, []},
-           restart => permanent,
-           type => worker,
-           modules => [backwater_cache] },
-
-    Children =
-        [CacheChildSpec] ++
-        maps:values(maps:map(fun client_childspec/2, Clients)) ++
-        maps:values(maps:map(fun server_childspec/2, Servers)),
+init([Servers]) ->
+    Children = 
+        [cache_child_spec() | lists:map(fun server_child_spec/1, Servers)],
     {ok, {#{}, Children}}.
 
 %% ------------------------------------------------------------------
 %% Internal Function Definitions
 %% ------------------------------------------------------------------
 
-client_childspec(Ref, Config) ->
-    backwater_client_sup:childspec({client, Ref}, Ref, Config).
+cache_child_spec() ->
+    backwater_cache:child_spec(cache).
 
-server_childspec(Ref, Config) ->
-    backwater_server_sup:childspec({server, Ref}, Ref, Config).
+server_child_spec({Ref, Config}) ->
+    backwater_server_sup:child_spec({server, Ref}, Ref, Config).
 
 start_child(Child) ->
     supervisor:start_child(?SERVER, Child).
@@ -126,8 +107,7 @@ update_child(#{ id := Id } = NewChild) ->
             ok;
         {ok, _ExistingChild} ->
             ok = stop_child(Id),
-            {ok, _Pid} = start_child(NewChild),
-            ok;
+            start_child(NewChild);
         {error, not_found} ->
             {error, not_found}
     end.
