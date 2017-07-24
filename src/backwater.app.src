@@ -8,8 +8,7 @@
     stdlib,
     edoc,
     cowboy,
-    hackney,
-    unistring
+    hackney
    ]},
   {env,[]}, % Check config/sys.config example
   {modules, []},

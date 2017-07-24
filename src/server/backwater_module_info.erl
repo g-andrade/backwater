@@ -43,10 +43,10 @@
            function_ref := fun() }.
 -export_type([fun_properties/0]).
 
--type content_type() :: {non_empty_binary(), non_empty_binary()}.
+-type content_type() :: {nonempty_binary(), nonempty_binary()}.
 -export_type([content_type/0]).
 
--type lookup_result() :: {true, {BinModule :: non_empty_binary(), module_info()}} | false.
+-type lookup_result() :: {true, {BinModule :: nonempty_binary(), module_info()}} | false.
 -export_type([lookup_result/0]).
 
 -type raw_module_info() :: [{atom(), term()}].
@@ -62,7 +62,7 @@ exposed_module_name({Module, _Opts}) ->
 exposed_module_name(Module) ->
     Module.
 
--spec generate([exposed_module()]) -> #{ BinModule :: non_empty_binary() => module_info() }.
+-spec generate([exposed_module()]) -> #{ BinModule :: nonempty_binary() => module_info() }.
 generate(ExposedModules) ->
     KvList = lists:filtermap(fun find_and_parse_module_info/1, ExposedModules),
     maps:from_list(KvList).

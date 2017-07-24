@@ -6,7 +6,7 @@
 %% ------------------------------------------------------------------
 
 -export([start_link/2]).
--export([childspec/3]).
+-export([child_spec/3]).
 
 %% ------------------------------------------------------------------
 %% supervisor Function Exports
@@ -27,7 +27,7 @@
 start_link(Ref, ServerConfig) ->
     supervisor:start_link({local, server_name(Ref)}, ?CB_MODULE, [Ref, ServerConfig]).
 
-childspec(Id, Ref, ServerConfig) ->
+child_spec(Id, Ref, ServerConfig) ->
     #{ id => Id,
        start => {?MODULE, start_link, [Ref, ServerConfig]},
        restart => transient,
@@ -39,7 +39,7 @@ childspec(Id, Ref, ServerConfig) ->
 %% ------------------------------------------------------------------
 
 init([Ref, ServerConfig]) ->
-    Children = [backwater_cowboy_instance:childspec(cowboy_instance, Ref, ServerConfig)],
+    Children = [backwater_cowboy_instance:child_spec(cowboy_instance, Ref, ServerConfig)],
     {ok, {#{}, Children}}.
 
 %% ------------------------------------------------------------------

@@ -1,4 +1,4 @@
--module(rebar3_backwater_generator).
+-module(backwater_rebar3_generator).
 
 -export([generate/1]).
 
@@ -54,12 +54,12 @@ generate(CurrentAppInfo, SourceDirectoriesPerApp) ->
           fun (Module) when is_atom(Module) ->
                   {CurrentAppName, Module, GlobalTargetOpts};
               ({Module, Opts}) when is_atom(Module), is_list(Opts) ->
-                  MergedOpts = rebar3_backwater_util:proplists_sort_and_merge(GlobalTargetOpts, Opts),
+                  MergedOpts = backwater_rebar3_util:proplists_sort_and_merge(GlobalTargetOpts, Opts),
                   {CurrentAppName, Module, MergedOpts};
               ({AppName, Module}) when is_atom(AppName), is_atom(Module) ->
                   {AppName, Module, GlobalTargetOpts};
               ({AppName, Module, Opts}) when is_atom(AppName), is_atom(Module), is_list(Opts) ->
-                  MergedOpts = rebar3_backwater_util:proplists_sort_and_merge(GlobalTargetOpts, Opts),
+                  MergedOpts = backwater_rebar3_util:proplists_sort_and_merge(GlobalTargetOpts, Opts),
                   {AppName, Module, MergedOpts}
           end,
           UnprocessedTargets),
@@ -99,11 +99,11 @@ find_module_name_or_path(AppName, Module, SourceDirectoriesPerApp) ->
 find_module_path(Module, SourceDirectories) ->
     ModuleStr = atom_to_list(Module),
     Result =
-        rebar3_backwater_util:lists_anymap(
+        backwater_rebar3_util:lists_anymap(
           fun (SourceDirectory) ->
                   SourceFiles = directory_source_files(SourceDirectory),
                   ExpectedPrefix = filename:join(SourceDirectory, ModuleStr) ++ ".",
-                  rebar3_backwater_util:lists_anymap(
+                  backwater_rebar3_util:lists_anymap(
                     fun (SourceFile) ->
                             length(SourceFile) =:= length(ExpectedPrefix) + 3
                             andalso lists:prefix(ExpectedPrefix, SourceFile)
@@ -368,7 +368,7 @@ externalize_function_specs_user_types(GenerationParams, ModuleInfo1) ->
     #{ function_specs := FunctionSpecs1 } = ModuleInfo1,
     Acc1 = ModuleInfo1#{ missing_types_messages => sets:new() },
     {FunctionSpecs2, Acc2} =
-        rebar3_backwater_util:maps_mapfold(
+        backwater_rebar3_util:maps_mapfold(
           fun externalize_function_spec_definitions_user_types/3,
           Acc1,
           FunctionSpecs1),
@@ -582,7 +582,7 @@ wrap_function_spec_return_types({type, Line, bounded_fun, [FunSpec, Constraints]
 
 generic_function_spec(Arity) ->
     TermType = {type, ?DUMMY_LINE_NUMBER, term, []},
-    ArgSpecs = {type, ?DUMMY_LINE_NUMBER, product, rebar3_backwater_util:copies(TermType, Arity)},
+    ArgSpecs = {type, ?DUMMY_LINE_NUMBER, product, backwater_rebar3_util:copies(TermType, Arity)},
     ReturnSpec = wrap_return_type(TermType),
     {type, ?DUMMY_LINE_NUMBER, 'fun', [ArgSpecs, ReturnSpec]}.
 
@@ -617,7 +617,7 @@ generate_module_source_indexed_var_lists(Definitions) ->
     IndexedVarListsDict =
         lists:foldl(
           fun (#{ vars := Vars }, AccA) ->
-                  EnumeratedVars = rebar3_backwater_util:lists_enumerate(Vars),
+                  EnumeratedVars = backwater_rebar3_util:lists_enumerate(Vars),
                   lists:foldl(
                     fun ({Index, Var}, AccB) ->
                             orddict:append(Index, Var, AccB)

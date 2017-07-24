@@ -38,4 +38,4 @@ config_change(_Changed, _New, _Removed) ->
 
 -spec init(rebar_state:t()) -> {ok, rebar_state:t()}.
 init(State0) ->
-    rebar3_backwater_prv_generate:init(State0).
+    backwater_rebar3_prv_generate:init(State0).

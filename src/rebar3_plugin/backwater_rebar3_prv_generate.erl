@@ -1,4 +1,4 @@
--module(rebar3_backwater_prv_generate).
+-module(backwater_rebar3_prv_generate).
 
 -export([init/1]).
 -export([do/1]).
@@ -35,8 +35,8 @@ do(State) ->
     %        AppInfo ->
     %            [AppInfo]
     %    end,
-    %lists:foreach(fun rebar3_backwater_generator:generate/1, Apps),
-    rebar3_backwater_generator:generate(State),
+    %lists:foreach(fun backwater_rebar3_generator:generate/1, Apps),
+    backwater_rebar3_generator:generate(State),
     {ok, State}.
 
 -spec format_error(any()) ->  iolist().
