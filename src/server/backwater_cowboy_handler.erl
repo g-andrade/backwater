@@ -35,15 +35,11 @@
 -type state() ::
         #{ req := req(),
            backwater_opts := backwater_opts(),
-           unvalidated_version := binary(),
-           unvalidated_module := binary(),
-           unvalidated_function := binary(),
-           unvalidated_arity := binary(),
-           access_conf => access_conf(),
            version => backwater_module_info:version(),
            bin_module => binary(),
            bin_function => binary(),
            arity => arity(),
+           access_conf => access_conf(),
            module_info => backwater_module_info:module_info(),
            function_properties => backwater_module_info:fun_properties(),
            args_content_type => content_type(),
@@ -110,23 +106,22 @@
 -spec init(req(), [backwater_opts(), ...]) -> {ok, req(), state()}.
 init(Req1, [BackwaterOpts]) ->
     %% initialize
-    UnvalidatedVersion = cowboy_req:binding(version, Req1),
-    UnvalidatedModule = cowboy_req:binding(module, Req1),
-    UnvalidatedFunction = cowboy_req:binding(function, Req1),
-    UnvalidatedArity = cowboy_req:binding(arity, Req1),
+    Version = cowboy_req:binding(version, Req1),
+    BinModule = cowboy_req:binding(module, Req1),
+    BinFunction = cowboy_req:binding(function, Req1),
+    Arity = cowboy_req:binding(arity, Req1),
     State1 = #{ req => Req1,
                 backwater_opts => BackwaterOpts,
-                unvalidated_version => UnvalidatedVersion,
-                unvalidated_module => UnvalidatedModule,
-                unvalidated_function => UnvalidatedFunction,
-                unvalidated_arity => UnvalidatedArity
+                version => Version,
+                bin_module => BinModule,
+                bin_function => BinFunction,
+                arity => Arity
              },
 
     State2 =
         execute_pipeline(
           [fun check_method/1,
            fun check_authentication/1,
-           fun check_form/1,
            fun check_authorization/1,
            fun check_existence/1,
            fun check_args_content_type/1,
@@ -243,51 +238,6 @@ default_access_conf(authenticated_access) ->
 %-spec failed_auth_prompt_header() -> {nonempty_binary(), nonempty_binary()}.
 failed_auth_prompt_headers() ->
     #{ <<"www-authenticate">> => <<"Basic realm=\"backwater\"">> }.
-
-%% ------------------------------------------------------------------
-%% Internal Function Definitions - Check Request Form
-%% ------------------------------------------------------------------
-
--spec check_form(state()) -> {continue | stop, state()}.
-check_form(State) ->
-    case validate_form(State) of
-        {valid, State2} ->
-            {continue, State2};
-        Error ->
-            {stop, response(400, Error, State)}
-    end.
-
--spec validate_form(state())
-        -> {valid, state()} | Error
-             when Error :: (invalid_api_version | invalid_module_name |
-                            invalid_function_name | invalid_function_arity).
-validate_form(State) ->
-    #{ unvalidated_version := UnvalidatedVersion,
-       unvalidated_module := UnvalidatedModule,
-       unvalidated_function := UnvalidatedFunction,
-       unvalidated_arity := UnvalidatedArity } = State,
-
-    Version = backwater_util:fast_catch(fun unicode:characters_to_binary/1, [UnvalidatedVersion]),
-    BinModule = backwater_util:fast_catch(fun unicode:characters_to_binary/1, [UnvalidatedModule]),
-    BinFunction = backwater_util:fast_catch(fun unicode:characters_to_binary/1, [UnvalidatedFunction]),
-    Arity = backwater_util:fast_catch(fun binary_to_integer/1, [UnvalidatedArity]),
-
-    if not is_binary(Version) ->
-           invalid_api_version;
-       not is_binary(BinModule) orelse byte_size(BinModule) < 1 orelse byte_size(BinModule) > 255 ->
-           invalid_module_name;
-       not is_binary(BinFunction) orelse byte_size(BinFunction) < 1 orelse byte_size(BinFunction) > 255 ->
-           invalid_function_name;
-       not is_integer(Arity) orelse Arity < 0 orelse Arity > 255 ->
-           invalid_function_arity;
-       true ->
-           NewState =
-                State#{ version => Version,
-                        bin_module => BinModule,
-                        bin_function => BinFunction,
-                        arity => Arity },
-           {valid, NewState}
-    end.
 
 %% ------------------------------------------------------------------
 %% Internal Function Definitions - Check Request Authorization

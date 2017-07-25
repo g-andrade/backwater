@@ -57,9 +57,12 @@
 -type route_rule() :: {'_' | nonempty_string(), [route_path(), ...]}.
 -export_type([route_rule/0]).
 
--type route_path() :: {nonempty_string(), backwater_cowboy_handler,
+-type route_path() :: {nonempty_string(), route_constraints(), backwater_cowboy_handler,
                        [backwater_cowboy_handler:backwater_opts(), ...]}.
 -export_type([route_path/0]).
+
+-type route_constraints() :: [{version, nonempty} | {module | function | arity, fun ()}, ...].
+-export_type([route_constraints/0]).
 
 %% ------------------------------------------------------------------
 %% API Function Definitions
@@ -86,8 +89,13 @@ cowboy_route_rule(BackwaterOpts) ->
 -spec cowboy_route_path(backwater_cowboy_handler:backwater_opts()) -> route_path().
 cowboy_route_path(BackwaterOpts) ->
     BasePath = maps:get(base_path, BackwaterOpts, "/rpcall/"),
+    Constraints =
+        [{version, nonempty},
+         {module, fun encoded_atom_constraint/2},
+         {function, fun encoded_atom_constraint/2},
+         {arity, fun arity_constraint/2}],
     {BasePath ++ ":version/:module/:function/:arity",
-     backwater_cowboy_handler, [BackwaterOpts]}.
+     Constraints, backwater_cowboy_handler, [BackwaterOpts]}.
 
 %% ------------------------------------------------------------------
 %% gen_server Function Definitions
@@ -166,3 +174,42 @@ parse_config(ServerConfig) ->
     ProtoOpts = maps:merge(ExtraProtoOpts, DefaultProtoOpts),
     BackwaterOpts = maps:with([unauthenticated_access, authenticated_access], ServerConfig),
     {StartFunction, TransportOpts, ProtoOpts, BackwaterOpts}.
+
+-spec encoded_atom_constraint(forward | reverse | format_error, binary())
+        -> {ok, binary()} | {error, cant_convert_to_atom} | iolist().
+encoded_atom_constraint(Operation, Binary) when Operation =:= forward; Operation =:= reverse ->
+    case byte_size(Binary) < 256 of
+        true -> {ok, Binary};
+        false -> {error, cant_convert_to_atom}
+    end;
+encoded_atom_constraint(format_error, {cant_convert_to_atom, Value}) ->
+    io_lib:format("Value \"~p\" cannot be converted to an atom", [Value]).
+
+-spec arity_constraint(forward | reverse | format_error, binary())
+        -> {ok, arity()} | {error, too_small | too_large | not_a_number} | iolist().
+arity_constraint(forward, Binary) ->
+    try binary_to_integer(Binary) of
+        Integer when Integer < 0 ->
+            {error, too_small};
+        Integer when Integer > 255 ->
+            {error, too_large};
+        Arity ->
+            {ok, Arity}
+    catch
+        error:badarg ->
+            {error, not_a_number}
+    end;
+arity_constraint(reverse, Integer) when not  is_integer(Integer) ->
+    {error, not_a_number};
+arity_constraint(reverse, Integer) when Integer < 0 ->
+    {error, too_small};
+arity_constraint(reverse, Integer) when Integer > 255 ->
+    {error, too_large};
+arity_constraint(reverse, Arity) ->
+    {ok, integer_to_binary(Arity)};
+arity_constraint(format_error, {too_small, Value}) ->
+    io_lib:format("Value \"~p\" is too small to be interpreted as arity", [Value]);
+arity_constraint(format_error, {too_large, Value}) ->
+    io_lib:format("Value \"~p\" is too large to be interpreted as arity", [Value]);
+arity_constraint(format_error, {not_a_number, Value}) ->
+    io_lib:format("Value \"~p\" is not a number", [Value]).
