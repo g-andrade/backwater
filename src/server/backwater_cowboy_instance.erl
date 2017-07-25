@@ -161,7 +161,7 @@ parse_config(ServerConfig) ->
             https -> start_tls
         end,
     TransportOpts = maps:get(transport_options, CowboyOptions, []),
-    DefaultProtoOpts = #{ compress => true },
+    DefaultProtoOpts = #{ stream_handlers => [cowboy_compress_h, cowboy_stream_h] },
     ExtraProtoOpts = maps:get(protocol_options, CowboyOptions, #{}),
     ProtoOpts = maps:merge(ExtraProtoOpts, DefaultProtoOpts),
     BackwaterOpts = maps:with([unauthenticated_access, authenticated_access], ServerConfig),

@@ -10,6 +10,7 @@
 -export([lists_enumerate/1]).
 -export([lists_intersect/1]).
 -export([maps_mapfold/3]).
+-export([maps_merge/1]).
 -export([proplists_sort_and_merge/2]).
 -export([purge_stacktrace_below/2]).
 
@@ -61,6 +62,9 @@ maps_mapfold(Fun, Acc0, Map) ->
           List),
     MappedMap = maps:from_list(MappedList),
     {MappedMap, AccN}.
+
+maps_merge(Maps) ->
+    lists:foldl(fun (Map2, Map1) -> maps:merge(Map1, Map2) end, #{}, Maps).
 
 proplists_sort_and_merge(List1, List2) ->
     SortedList1 = lists:usort(fun proplists_element_cmp/2, lists:reverse(List1)),

@@ -33,7 +33,8 @@
 %% ------------------------------------------------------------------
 
 -type state() ::
-        #{ backwater_opts := backwater_opts(),
+        #{ req := req(),
+           backwater_opts := backwater_opts(),
            unvalidated_version := binary(),
            unvalidated_module := binary(),
            unvalidated_function := binary(),
@@ -42,13 +43,13 @@
            version => backwater_module_info:version(),
            bin_module => binary(),
            bin_function => binary(),
-           %module => module(),
-           %function => atom(),
            arity => arity(),
            module_info => backwater_module_info:module_info(),
            function_properties => backwater_module_info:fun_properties(),
            args_content_type => content_type(),
            args_content_encoding => binary(),
+           args => [term()],
+           response => response(),
            accepted_result_content_types => [accepted_content_type()],
            result_content_type => content_type() }.
 
@@ -95,8 +96,8 @@
 -type http_headers() :: cowboy:http_headers().
 -type response() ::
         #{ status_code := http_status(),
-           headers => http_headers(),
-           body => iodata() }.
+           headers := http_headers(),
+           body := iodata() }.
 
 -type call_result() ::
         ({success, term()} |
@@ -107,29 +108,39 @@
 %% ------------------------------------------------------------------
 
 -spec init(req(), [backwater_opts(), ...]) -> {ok, req(), state()}.
-init(Req, [BackwaterOpts]) ->
+init(Req1, [BackwaterOpts]) ->
     %% initialize
-    UnvalidatedVersion = cowboy_req:binding(version, Req),
-    UnvalidatedModule = cowboy_req:binding(module, Req),
-    UnvalidatedFunction = cowboy_req:binding(function, Req),
-    UnvalidatedArity = cowboy_req:binding(arity, Req),
-    State1 = #{ backwater_opts => BackwaterOpts,
-               unvalidated_version => UnvalidatedVersion,
-               unvalidated_module => UnvalidatedModule,
-               unvalidated_function => UnvalidatedFunction,
-               unvalidated_arity => UnvalidatedArity
+    UnvalidatedVersion = cowboy_req:binding(version, Req1),
+    UnvalidatedModule = cowboy_req:binding(module, Req1),
+    UnvalidatedFunction = cowboy_req:binding(function, Req1),
+    UnvalidatedArity = cowboy_req:binding(arity, Req1),
+    State1 = #{ req => Req1,
+                backwater_opts => BackwaterOpts,
+                unvalidated_version => UnvalidatedVersion,
+                unvalidated_module => UnvalidatedModule,
+                unvalidated_function => UnvalidatedFunction,
+                unvalidated_arity => UnvalidatedArity
              },
 
-    %% handle request
-    {Response, Req2, State2} = handle_method(Req, State1),
+    State2 =
+        execute_pipeline(
+          [fun check_method/1,
+           fun check_authentication/1,
+           fun check_form/1,
+           fun check_authorization/1,
+           fun check_existence/1,
+           fun check_args_content_type/1,
+           fun check_args_content_encoding/1,
+           fun check_accepted_result_content_types/1,
+           fun negotiate_args_content_type/1,
+           fun negotiate_args_content_encoding/1,
+           fun negotiate_result_content_type/1,
+           fun read_and_decode_args/1,
+           fun execute_call/1],
+          State1),
 
-    %% reply
-    StatusCode = maps:get(status_code, Response),
-    ResponseHeaders = maps:get(headers, Response, []),
-    ResponseBody = maps:get(body, Response, <<>>),
-    ResponseHeadersWithNoCache = maps:merge(nocache_headers(), ResponseHeaders),
-    Req3 = cowboy_req:reply(StatusCode, ResponseHeadersWithNoCache, ResponseBody, Req2),
-    {ok, Req3, State2}.
+    {Req2, State3} = maps:take(req, State2),
+    {ok, Req2, State3}.
 
 -spec terminate(term(), req(), state()) -> ok.
 terminate({crash, Class, Reason}, _Req, _State) ->
@@ -140,67 +151,84 @@ terminate(_Reason, _Req, _State) ->
     ok.
 
 %% ------------------------------------------------------------------
+%% Internal Function Definitions - Pipeline
+%% ------------------------------------------------------------------
+
+-spec execute_pipeline([fun ((state()) -> {continue | stop, state()}), ...], state())
+        -> state().
+execute_pipeline([Handler | NextHandlers], State1) ->
+    case Handler(State1) of
+        {continue, State2} ->
+            execute_pipeline(NextHandlers, State2);
+        {stop, State2} ->
+            send_response(State2)
+    end;
+execute_pipeline([], State) ->
+    send_response(State).
+
+%% ------------------------------------------------------------------
 %% Internal Function Definitions - Check Method
 %% ------------------------------------------------------------------
 
--spec handle_method(req(), state()) -> {response(), req(), state()}.
-handle_method(Req, State) ->
+-spec check_method(state()) -> {continue | stop, state()}.
+check_method(#{ req := Req } = State) ->
     case cowboy_req:method(Req) =:= <<"POST">> of
         true ->
-            check_authentication(Req, State);
+            {continue, State};
         false ->
-            {response(405), Req, State}
+            {stop, bodyless_response(405, State)}
     end.
 
 %% ------------------------------------------------------------------
 %% Internal Function Definitions - Check Authentication
 %% ------------------------------------------------------------------
 
--spec check_authentication(req(), state()) -> {response(), req(), state()}.
-check_authentication(Req, State) ->
+-spec check_authentication(state()) -> {continue | stop, state()}.
+check_authentication(#{ req := Req } = State) ->
     ParseResult = cowboy_req:parse_header(<<"authorization">>, Req),
     case handle_parsed_authentication(ParseResult, State) of
-        {valid, State2} ->
-            check_form(Req, State2);
-        {invalid, State2} ->
-            {response(401, failed_auth_prompt_headers()), Req, State2};
-        {bad_header, State2} ->
-            set_result(400, {bad_header, authorization}, Req, State2)
+        {valid, AccessConf} ->
+            {continue, State#{ access_conf => AccessConf }};
+        invalid ->
+            {stop, bodyless_response(401, failed_auth_prompt_headers(), State)}
     end.
 
 -spec handle_parsed_authentication(ParseResult, state())
-        -> {valid | bad_header | invalid, state()}
+        -> {valid, access_conf()} | invalid
              when ParseResult :: Valid | Invalid,
                   Valid :: {basic, username(), password()},
                   Invalid :: tuple() | undefined.
 handle_parsed_authentication({basic, Username, Password}, State) ->
     #{ backwater_opts := BackwaterOpts } = State,
     AuthenticatedAccessConfs = maps:get(authenticated_access, BackwaterOpts, #{}),
-    validate_authentication(maps:find(Username, AuthenticatedAccessConfs), Password, State);
+    AuthenticatedAccessConfLookup = maps:find(Username, AuthenticatedAccessConfs),
+    validate_authentication(AuthenticatedAccessConfLookup, Password);
 handle_parsed_authentication(undefined, State) ->
     #{ backwater_opts := BackwaterOpts } = State,
     ExplicitAccessConf = maps:get(unauthenticated_access, BackwaterOpts, #{}),
     DefaultAccessConf = default_access_conf(unauthenticated_access),
     AccessConf = maps:merge(DefaultAccessConf, ExplicitAccessConf),
-    State2 = State#{ access_conf => AccessConf },
-    {valid, State2};
-handle_parsed_authentication(_Other, State) ->
-    {bad_header, State}.
+    {valid, AccessConf};
+handle_parsed_authentication(ParseResult, _State) when is_tuple(ParseResult) ->
+    % other authentication method
+    invalid.
 
--spec validate_authentication({ok, access_conf()} | error, password(), state())
-        -> {valid | invalid, state()}.
+-spec validate_authentication(AuthenticatedAccessConfLookup :: {ok, access_conf()} | error,
+                              GivenPassword :: password())
+        -> {valid, access_conf()} | invalid.
 validate_authentication({ok, #{ authentication := {basic, Password} } = ExplicitAccessConf},
-                        GivenPassword, State)
+                        GivenPassword)
   when Password =:= GivenPassword ->
     DefaultAccessConf = default_access_conf(authenticated_access),
     AccessConf = maps:merge(DefaultAccessConf, ExplicitAccessConf),
-    State2 = State#{ access_conf => AccessConf },
-    {valid, State2};
+    {valid, AccessConf};
 validate_authentication({ok, #{ authentication := {basic, _Password} }},
-                        _GivenPassword, State) ->
-    {invalid, State};
-validate_authentication(error, _GivenPassword, State) ->
-    {invalid, State}.
+                        _GivenPassword) ->
+    % wrong password
+    invalid;
+validate_authentication(error, _GivenPassword) ->
+    % username not found
+    invalid.
 
 %-spec default_access_conf(unauthenticated_access | authenticated_access) -> access_conf().
 default_access_conf(unauthenticated_access) ->
@@ -220,20 +248,20 @@ failed_auth_prompt_headers() ->
 %% Internal Function Definitions - Check Request Form
 %% ------------------------------------------------------------------
 
--spec check_form(req(), state()) -> {response(), req(), state()}.
-check_form(Req, State) ->
-    case validate_form(Req, State) of
-        {valid, Req2, State2} ->
-            check_authorization(Req2, State2);
-        {InvalidReason, Req2, State2} ->
-            set_result(400, InvalidReason, Req2, State2)
+-spec check_form(state()) -> {continue | stop, state()}.
+check_form(State) ->
+    case validate_form(State) of
+        {valid, State2} ->
+            {continue, State2};
+        Error ->
+            {stop, response(400, Error, State)}
     end.
 
--spec validate_form(req(), state())
-        -> {valid | Error, req(), state()}
+-spec validate_form(state())
+        -> {valid, state()} | Error
              when Error :: (invalid_api_version | invalid_module_name |
                             invalid_function_name | invalid_function_arity).
-validate_form(Req, State) ->
+validate_form(State) ->
     #{ unvalidated_version := UnvalidatedVersion,
        unvalidated_module := UnvalidatedModule,
        unvalidated_function := UnvalidatedFunction,
@@ -245,28 +273,28 @@ validate_form(Req, State) ->
     Arity = backwater_util:fast_catch(fun binary_to_integer/1, [UnvalidatedArity]),
 
     if not is_binary(Version) ->
-           {invalid_api_version, Req, State};
+           invalid_api_version;
        not is_binary(BinModule) orelse byte_size(BinModule) < 1 orelse byte_size(BinModule) > 255 ->
-           {invalid_module_name, Req, State};
+           invalid_module_name;
        not is_binary(BinFunction) orelse byte_size(BinFunction) < 1 orelse byte_size(BinFunction) > 255 ->
-           {invalid_function_name, Req, State};
+           invalid_function_name;
        not is_integer(Arity) orelse Arity < 0 orelse Arity > 255 ->
-           {invalid_function_arity, Req, State};
+           invalid_function_arity;
        true ->
            NewState =
                 State#{ version => Version,
                         bin_module => BinModule,
                         bin_function => BinFunction,
                         arity => Arity },
-           {valid, Req, NewState}
+           {valid, NewState}
     end.
 
 %% ------------------------------------------------------------------
 %% Internal Function Definitions - Check Request Authorization
 %% ------------------------------------------------------------------
 
--spec check_authorization(req(), state()) -> {response(), req(), state()}.
-check_authorization(Req, State) ->
+-spec check_authorization(state()) -> {continue | stop, state()}.
+check_authorization(State) ->
     #{ bin_module := BinModule,
        access_conf := AccessConf } = State,
     #{ exposed_modules := ExposedModules } = AccessConf,
@@ -280,32 +308,29 @@ check_authorization(Req, State) ->
           ExposedModules),
 
     case SearchResult of
-        true ->
-            check_existence(Req, State);
-        false ->
-            %Req2 = set_resp_body({error, module_not_exposed}, Req),
-            {response(403), Req, State}
+        true -> {continue, State};
+        false -> {stop, bodyless_response(403, State)}
     end.
 
 %% ------------------------------------------------------------------
 %% Internal Function Definitions - Check Resource Existence
 %% ------------------------------------------------------------------
 
--spec check_existence(req(), state()) -> {response(), req(), state()}.
-check_existence(Req, State) ->
-    case find_resource(Req, State) of
-        {found, Req2, State2} ->
-            check_args_content_type(Req2, State2);
-        {NotFound, Req2, State2} ->
-            set_result(404, NotFound, Req2, State2)
+-spec check_existence(state()) -> {continue | stop, state()}.
+check_existence(State) ->
+    case find_resource(State) of
+        {found, State2} ->
+            {continue, State2};
+        Error ->
+            {stop, response(404, Error, State)}
     end.
 
--spec find_resource(req(), state())
-        -> {found | Error, req(), state()}
+-spec find_resource(state())
+        -> {found, state()} | Error
              when Error :: (module_version_not_found |
                             function_not_exported |
                             module_not_found).
-find_resource(Req, State) ->
+find_resource(State) ->
     #{ access_conf := AccessConf,
        version := BinVersion,
        bin_module := BinModule,
@@ -326,65 +351,65 @@ find_resource(Req, State) ->
 
     case maps:find(BinModule, InfoPerExposedModule) of
         {ok, #{ version := Version }} when Version =/= BinVersion ->
-            {module_version_not_found, Req, State};
+            module_version_not_found;
         {ok, #{ exports := Exports } = ModuleInfo} ->
             case maps:find({BinFunction, Arity}, Exports) of
                 {ok, Resource} ->
                     State2 = State#{ module_info => ModuleInfo, function_properties => Resource },
-                    {found, Req, State2};
+                    {found, State2};
                 error ->
-                    {function_not_exported, Req, State}
+                    function_not_exported
             end;
         error ->
-            {module_not_found, Req, State}
+            module_not_found
     end.
 
 %% ------------------------------------------------------------------
 %% Internal Function Definitions - Validate Arguments Content Type
 %% ------------------------------------------------------------------
 
--spec check_args_content_type(req(), state()) -> {response(), req(), state()}.
-check_args_content_type(Req, State) ->
+-spec check_args_content_type(state()) -> {continue | stop, state()}.
+check_args_content_type(#{ req := Req } = State) ->
     case cowboy_req:parse_header(<<"content-type">>, Req) of
         {_, _, _} = ContentType ->
             State2 = State#{ args_content_type => ContentType },
-            check_args_content_encoding(Req, State2);
+            {continue, State2};
         undefined ->
-            set_result(400, {bad_header, 'content-type'}, Req, State)
+            {stop, response(400, {bad_header, 'content-type'}, State)}
     end.
 
 %% ------------------------------------------------------------------
 %% Internal Function Definitions - Validate Arguments Content Encoding
 %% ------------------------------------------------------------------
 
--spec check_args_content_encoding(req(), state()) -> {response(), req(), state()}.
-check_args_content_encoding(Req, State) ->
+-spec check_args_content_encoding(state()) -> {continue, state()}.
+check_args_content_encoding(#{ req := Req} = State) ->
     case cowboy_req:header(<<"content-encoding">>, Req) of
         <<ContentEncoding/binary>> ->
             State2 = State#{ args_content_encoding => ContentEncoding },
-            check_accepted_result_content_types(Req, State2);
+            {continue, State2};
         undefined ->
             State2 = State#{ args_content_encoding => <<"identity">> },
-            check_accepted_result_content_types(Req, State2)
+            {continue, State2}
     end.
 
 %% ------------------------------------------------------------------
 %% Internal Function Definitions - Validate Accepted Content Types
 %% ------------------------------------------------------------------
 
--spec check_accepted_result_content_types(req(), state()) -> {response(), req(), state()}.
-check_accepted_result_content_types(Req, State) ->
+-spec check_accepted_result_content_types(state()) -> {continue, state()}.
+check_accepted_result_content_types(#{ req := Req } = State) ->
     AcceptedContentTypes = cowboy_req:parse_header(<<"accept">>, Req, []),
     SortedAcceptedContentTypes = lists:reverse( lists:keysort(2, AcceptedContentTypes) ),
     State2 = State#{ accepted_result_content_types => SortedAcceptedContentTypes },
-    negotiate_args_content_type(Req, State2).
+    {continue, State2}.
 
 %% ------------------------------------------------------------------
 %% Internal Function Definitions - Negotiate Arguments Content Type
 %% ------------------------------------------------------------------
 
--spec negotiate_args_content_type(req(), state()) -> {response(), req(), state()}.
-negotiate_args_content_type(Req, State) ->
+-spec negotiate_args_content_type(state()) -> {continue | stop, state()}.
+negotiate_args_content_type(State) ->
     #{ function_properties := FunctionProperties,
        args_content_type := ArgsContentType } = State,
     #{ known_content_types := KnownContentTypes } = FunctionProperties,
@@ -393,28 +418,32 @@ negotiate_args_content_type(Req, State) ->
     SearchResult = lists:member({Type, SubType}, KnownContentTypes),
 
     case SearchResult of
-        true -> negotiate_args_content_encoding(Req, State);
-        false -> set_result(415, unsupported_content_type, Req, State)
+        true ->
+            {continue, State};
+        false ->
+            {stop, response(415, unsupported_content_type, State)}
     end.
 
 %% ------------------------------------------------------------------
 %% Internal Function Definitions - Negotiate Arguments Content Encoding
 %% ------------------------------------------------------------------
 
--spec negotiate_args_content_encoding(req(), state()) -> {response(), req(), state()}.
-negotiate_args_content_encoding(Req, State) ->
+-spec negotiate_args_content_encoding(state()) -> {continue | stop, state()}.
+negotiate_args_content_encoding(State) ->
     #{ args_content_encoding := ArgsContentEncoding } = State,
     case lists:member(ArgsContentEncoding, [<<"identity">>, <<"gzip">>]) of
-        true -> negotiate_result_content_type(Req, State);
-        false -> set_result(415, unsupported_content_encoding, Req, State)
+        true ->
+            {continue, State};
+        false ->
+            {stop, response(415, unsupported_content_encoding, State)}
     end.
 
 %% ------------------------------------------------------------------
 %% Internal Function Definitions - Negotiate Result Content Type
 %% ------------------------------------------------------------------
 
--spec negotiate_result_content_type(req(), state()) -> {response(), req(), state()}.
-negotiate_result_content_type(Req, State) ->
+-spec negotiate_result_content_type(state()) -> {continue | stop, state()}.
+negotiate_result_content_type(State) ->
     #{ function_properties := FunctionProperties,
        accepted_result_content_types := AcceptedContentTypes } = State,
     #{ known_content_types := KnownContentTypes } = FunctionProperties,
@@ -430,75 +459,79 @@ negotiate_result_content_type(Req, State) ->
     case SearchResult of
         {true, ContentType} ->
             State2 = State#{ result_content_type => ContentType },
-            read_and_decode_args(Req, State2);
+            {continue, State2};
         false ->
-            {response(406), Req, State}
+            {stop, bodyless_response(406, State)}
     end.
 
 %% ------------------------------------------------------------------
 %% Internal Function Definitions - Read and Decode Arguments
 %% ------------------------------------------------------------------
 
--spec read_and_decode_args(req(), state()) -> {response(), req(), state()}.
-read_and_decode_args(Req, State) ->
+-spec read_and_decode_args(state()) -> {continue | stop, state()}.
+read_and_decode_args(#{ req := Req } = State) ->
     case cowboy_req:read_body(Req) of
         {ok, Data, Req2} ->
-            decode_args_content_encoding(Data, Req2, State);
+            State2 = State#{ req := Req2 },
+            decode_args_content_encoding(Data, State2);
         {more, _Data, Req2} ->
-            {response(413), Req2, State}
+            State2 = State#{ req := Req2 },
+            {stop, bodyless_response(413, State2)}
     end.
 
--spec decode_args_content_encoding(binary(), req(), state()) -> {response(), req(), state()}.
-decode_args_content_encoding(Data, Req, #{ args_content_encoding := <<"identity">> } = State) ->
-    decode_args_content_type(Data, Req, State);
-decode_args_content_encoding(Data, Req, #{ args_content_encoding := <<"gzip">> } = State) ->
+-spec decode_args_content_encoding(binary(), state()) -> {continue | stop, state()}.
+decode_args_content_encoding(Data, #{ args_content_encoding := <<"identity">> } = State) ->
+    decode_args_content_type(Data, State);
+decode_args_content_encoding(Data, #{ args_content_encoding := <<"gzip">> } = State) ->
     case backwater_encoding_gzip:decode(Data) of
         {ok, UncompressedData} ->
-            decode_args_content_type(UncompressedData, Req, State);
+            decode_args_content_type(UncompressedData, State);
         {error, _} ->
-            set_result(400, unable_to_uncompress_body, Req, State)
+            {stop, response(400, unable_to_uncompress_body, State)}
     end.
 
--spec decode_args_content_type(binary(), req(), state()) -> {response(), req(), state()}.
-decode_args_content_type(Data, Req, State) ->
+-spec decode_args_content_type(binary(), state()) -> {continue | stop, state()}.
+decode_args_content_type(Data, State) ->
     #{ args_content_type := ArgsContentType } = State,
     case ArgsContentType of
         {<<"application">>, <<"x-erlang-etf">>, _Params} ->
-            decode_etf_args(Data, Req, State)
+            decode_etf_args(Data, State)
     end.
 
--spec decode_etf_args(binary(), req(), state()) -> {response(), req(), state()}.
-decode_etf_args(Data, Req, State) ->
+-spec decode_etf_args(binary(), state()) -> {continue | stop, state()}.
+decode_etf_args(Data, State) ->
     #{ access_conf := AccessConf } = State,
     #{ decode_unsafe_terms := DecodeUnsafeTerms } = AccessConf,
     case backwater_media_etf:decode(Data, DecodeUnsafeTerms) of
         error ->
-            %Req3 = set_resp_body({error, undecodable_payload}, Req2),
-            set_result(400, unable_to_decode_arguments, Req, State);
+            {stop, response(400, unable_to_decode_arguments, State)};
         {ok, UnvalidatedArgs} ->
-            validate_args(UnvalidatedArgs, Req, State)
+            validate_args(UnvalidatedArgs, State)
     end.
 
--spec validate_args(term(), req(), state()) -> {response(), req(), state()}.
-validate_args(UnvalidatedArgs, Req, State)
+-spec validate_args(term(), state()) -> {continue | stop, state()}.
+validate_args(UnvalidatedArgs, State)
   when not is_list(UnvalidatedArgs) ->
-    set_result(400, arguments_not_a_list, Req, State);
-validate_args(UnvalidatedArgs, Req, #{ arity := Arity } = State)
+    {stop, response(400, arguments_not_a_list, State)};
+validate_args(UnvalidatedArgs, #{ arity := Arity } = State)
   when length(UnvalidatedArgs) =/= Arity ->
-    set_result(400, inconsistent_arguments_arity, Req, State);
-validate_args(Args, Req, State) ->
-    handle_call(Args, Req, State).
+    {stop, response(400, inconsistent_arguments_arity, State)};
+validate_args(Args, State) ->
+    %handle_call(Args, Req, State).
+    {continue, State#{ args => Args }}.
 
 %% ------------------------------------------------------------------
 %% Internal Function Definitions - Execute Call
 %% ------------------------------------------------------------------
 
--spec handle_call([term()], req(), state()) -> {response(), req(), state()}.
-handle_call(Args, Req, State) ->
-    #{ access_conf := AccessConf, function_properties := FunctionProperties } = State,
+-spec execute_call(state()) -> {continue, state()}.
+execute_call(State) ->
+    #{ access_conf := AccessConf,
+       function_properties := FunctionProperties,
+       args := Args } = State,
     #{ function_ref := FunctionRef } = FunctionProperties,
     Result = call_function(FunctionRef, Args, AccessConf),
-    set_result(200, Result, Req, State).
+    {continue, response(200, Result, State)}.
 
 -spec call_function(fun(), [term()], access_conf()) -> call_result().
 call_function(MF, Args, #{ return_exception_stacktraces := ReturnExceptionStacktraces }) ->
@@ -517,38 +550,52 @@ call_function(MF, Args, #{ return_exception_stacktraces := ReturnExceptionStackt
     end.
 
 %% ------------------------------------------------------------------
-%% Internal Function Definitions - Encode Result
+%% Internal Function Definitions - Send Response
 %% ------------------------------------------------------------------
 
--spec set_result(http_status(), term(), req(), state()) -> {response(), req(), state()}.
-set_result(StatusCode, Result, Req, #{ result_content_type := ResultContentType } = State) ->
+-spec send_response(state()) -> state().
+send_response(State1) ->
+    #{ req := Req1, response := Response } = State1,
+    #{ status_code := ResponseStatusCode, headers := ResponseHeaders, body := ResponseBody } = Response,
+    Req2 = cowboy_req:reply(ResponseStatusCode, ResponseHeaders, ResponseBody, Req1),
+    State1#{ req := Req2 }.
+
+%% ------------------------------------------------------------------
+%% Internal Function Definitions - Set Response
+%% ------------------------------------------------------------------
+
+-spec bodyless_response(http_status(), state()) -> state().
+bodyless_response(StatusCode, State) ->
+    Response = #{ status_code => StatusCode, headers => nocache_headers(), body => <<>> },
+    maps:put(response, Response, State).
+
+-spec bodyless_response(http_status(), http_headers(), state()) -> state().
+bodyless_response(StatusCode, BaseHeaders, State) ->
+    Headers = maps:merge(nocache_headers(), BaseHeaders),
+    Response = #{ status_code => StatusCode, headers => Headers, body => <<>> },
+    maps:put(response, Response, State).
+
+-spec response(http_status(), term(), state()) -> state().
+response(StatusCode, Value, State) ->
+    response(StatusCode, #{}, Value, State).
+
+-spec response(http_status(), http_headers(), term(), state()) -> state().
+response(StatusCode, BaseHeaders, Value, #{ result_content_type := ResultContentType } = State) ->
     {Type, SubType, _Params} = ResultContentType,
     ContentTypeHeaders = #{ <<"content-type">> => [Type, "/", SubType] },
-    Data = encode_result_body(Result, ResultContentType),
-    {response(StatusCode, ContentTypeHeaders, Data), Req, State};
-set_result(StatusCode, Result, Req, State) ->
-    Data = io_lib:format("~p", [Result]),
-    {response(StatusCode, #{}, Data), Req, State}.
-
--spec encode_result_body(term(), content_type()) -> binary().
-encode_result_body(Result, {<<"application">>, <<"x-erlang-etf">>, _Params}) ->
-    backwater_media_etf:encode(Result).
-
-%% ------------------------------------------------------------------
-%% Internal Function Definitions - Utilities
-%% ------------------------------------------------------------------
-
--spec response(http_status()) -> response().
-response(StatusCode) ->
-    #{ status_code => StatusCode }.
-
--spec response(http_status(), http_headers()) -> response().
-response(StatusCode, Headers) ->
-    (response(StatusCode))#{ headers => Headers }.
-
--spec response(http_status(), http_headers(), iodata()) -> response().
-response(StatusCode, Headers, Body) ->
-    (response(StatusCode, Headers))#{ body => Body }.
+    Headers = backwater_util:maps_merge([nocache_headers(), BaseHeaders, ContentTypeHeaders]),
+    Body =
+        case {Type, SubType} of
+            {<<"application">>, <<"x-erlang-etf">>} ->
+                backwater_media_etf:encode(Value)
+        end,
+    Response = #{ status_code => StatusCode, headers => Headers, body => Body },
+    maps:put(response, Response, State);
+response(StatusCode, BaseHeaders, Value, State) ->
+    Headers = maps:merge(nocache_headers(), BaseHeaders),
+    Body = io_lib:format("~p", [Value]),
+    Response = #{ status_code => StatusCode, headers => Headers, body => Body },
+    maps:put(response, Response, State).
 
 -spec nocache_headers() -> http_headers().
 nocache_headers() ->
