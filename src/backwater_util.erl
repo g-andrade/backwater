@@ -9,7 +9,6 @@
 -export([lists_anymap/2]).
 -export([lists_enumerate/1]).
 -export([lists_intersect/1]).
--export([lists_keyupdate_with/5]).
 -export([maps_mapfold/3]).
 -export([proplists_sort_and_merge/2]).
 -export([purge_stacktrace_below/2]).
@@ -49,17 +48,6 @@ lists_enumerate(List) ->
 lists_intersect(Lists) ->
     Ordsets = lists:map(fun ordsets:from_list/1, Lists),
     ordsets:to_list( ordsets:intersection(Ordsets) ).
-
--spec lists_keyupdate_with(term(), pos_integer(), [tuple()], fun ((tuple()) -> tuple()), tuple())
-        -> [tuple()].
-lists_keyupdate_with(Key, N, TupleList, Fun, Initial) ->
-    case lists:keyfind(Key, N, TupleList) of
-        Tuple when is_tuple(Tuple) ->
-            NewTuple = Fun(Tuple),
-            lists:keystore(Key, N, TupleList, NewTuple);
-        false ->
-            lists:keystore(Key, N, TupleList, Initial)
-    end.
 
 maps_mapfold(Fun, Acc0, Map) ->
     List = maps:to_list(Map),

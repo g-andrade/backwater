@@ -132,7 +132,7 @@ encode_request_with_auth(Method, Url, Headers, Body, ClientConfig) ->
 
 -spec http_basic_auth_header_value(binary(), binary()) -> nonempty_binary().
 http_basic_auth_header_value(Username, Password) ->
-    <<"basic ", (base64:encode( iolist_to_binary([Username, ":", Password]) ))/binary>>.
+    <<"Basic ", (base64:encode( iolist_to_binary([Username, ":", Password]) ))/binary>>.
 
 %% ------------------------------------------------------------------
 %% Internal Function Definitions - Responses

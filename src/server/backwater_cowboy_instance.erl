@@ -127,42 +127,42 @@ server_name(Ref) ->
 
 -spec start_cowboy(term(), config()) -> {ok, pid()}.
 start_cowboy(Ref, ServerConfig) ->
-    {StartFunction, NbAcceptors, TransOpts, BaseProtoOpts,
-     BackwaterOpts} = parse_config(ServerConfig),
+    {StartFunction, TransportOpts, BaseProtoOpts, BackwaterOpts} =
+        parse_config(ServerConfig),
 
     Dispatch = cowboy_router:compile([cowboy_route_rule(BackwaterOpts)]),
     ProtoOpts =
-        backwater_util:lists_keyupdate_with(
-          env, 1, BaseProtoOpts,
-          fun ({env, EnvOpts}) ->
-                  {env, lists:keystore(dispatch, 1, EnvOpts, {dispatch, Dispatch})}
-          end,
-          {env, [{dispatch, Dispatch}]}),
+        maps:update_with(
+          env,
+          fun (EnvOpts) -> maps:put(dispatch, Dispatch, EnvOpts) end,
+          #{ dispatch => Dispatch },
+          BaseProtoOpts),
 
-    cowboy:StartFunction(Ref, NbAcceptors, TransOpts, ProtoOpts).
+    cowboy:StartFunction(Ref, TransportOpts, ProtoOpts).
 
 -spec stop_cowboy(term()) -> ok | {error, not_found}.
 stop_cowboy(Ref) ->
     cowboy:stop_listener(Ref).
 
 -spec parse_config(config())
-        -> {start_http | start_https,
-            pos_integer(),
+        -> {start_clear | start_tls,
             backwater_cowboy_handler:backwater_transport_opts(),
             backwater_cowboy_handler:backwater_protocol_opts(),
             backwater_cowboy_handler:backwater_opts()}.
 parse_config(ServerConfig) ->
     CowboyOptions = maps:get(cowboy, ServerConfig, #{}),
     StartFunction =
-        case maps:get(protocol, CowboyOptions, http) of
-            http -> start_http;
-            https -> start_https
-            %spdy -> start_spdy % this would make things confusing for now - hackney doesn't support it
+        case maps:get(transport, CowboyOptions, clear) of
+            clear -> start_clear;
+            tcp   -> start_clear;
+            http  -> start_clear;
+            tls   -> start_tls;
+            ssl   -> start_tls;
+            https -> start_tls
         end,
-    NbAcceptors = maps:get(number_of_acceptors, CowboyOptions, 100),
-    TransOpts = maps:get(transport_options, CowboyOptions, []),
-    DefaultProtoOpts = [{compress, true}],
-    ExtraProtoOpts = lists:keysort(1, maps:get(protocol_options, CowboyOptions, [])),
-    ProtoOpts = lists:keymerge(1, ExtraProtoOpts, DefaultProtoOpts),
+    TransportOpts = maps:get(transport_options, CowboyOptions, []),
+    DefaultProtoOpts = #{ compress => true },
+    ExtraProtoOpts = maps:get(protocol_options, CowboyOptions, #{}),
+    ProtoOpts = maps:merge(ExtraProtoOpts, DefaultProtoOpts),
     BackwaterOpts = maps:with([unauthenticated_access, authenticated_access], ServerConfig),
-    {StartFunction, NbAcceptors, TransOpts, ProtoOpts, BackwaterOpts}.
+    {StartFunction, TransportOpts, ProtoOpts, BackwaterOpts}.

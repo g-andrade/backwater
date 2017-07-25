@@ -6,8 +6,7 @@
 %% cowboy_http_handler Function Exports
 %% ------------------------------------------------------------------
 
--export([init/3]).
--export([handle/2]).
+-export([init/2]).
 -export([terminate/3]).
 
 %% ------------------------------------------------------------------
@@ -22,7 +21,7 @@
 
 -export_type([backwater_opts/0]).
 -export_type([backwater_cowboy_opts/0]).
--export_type([backwater_cowboy_protocol/0]).
+-export_type([backwater_cowboy_transport/0]).
 -export_type([backwater_transport_opts/0]).
 -export_type([backwater_protocol_opts/0]).
 -export_type([access_conf/0]).
@@ -60,12 +59,15 @@
            authenticated_access => #{ username() => access_conf() } }.
 
 -type backwater_cowboy_opts() ::
-        #{ protocol => backwater_cowboy_protocol(),
-           number_of_acceptors => pos_integer(),
+        #{ transport => backwater_cowboy_transport(),
            transport_options => backwater_transport_opts(),
            protocol_options => backwater_protocol_opts() }.
 
--type backwater_cowboy_protocol() :: http | https.
+-type backwater_cowboy_transport() ::
+        clear | tls |
+        tcp | ssl |    % aliases #1
+        http | https.  % aliases #2
+
 
 -type backwater_transport_opts() :: ranch_tcp:opts() | ranch_ssl:opts().
 
@@ -96,11 +98,6 @@
            headers => http_headers(),
            body => iodata() }.
 
--type parse_header_result(T) ::
-        ({ok, T, req()} |
-         {undefined, binary(), req()} |
-         {error, badarg}).
-
 -type call_result() ::
         ({success, term()} |
          {exception, Class :: term(), Exception :: term(), [erlang:stack_item()]}).
@@ -109,31 +106,36 @@
 %% cowboy_http_handler Function Definitions
 %% ------------------------------------------------------------------
 
--spec init(module(), req(), [backwater_opts(), ...]) -> {ok, req(), state()}.
-init(_Transport, Req, [BackwaterOpts]) ->
-    {BinVersion, Req2} = cowboy_req:binding(version, Req),
-    {BinModule, Req3} = cowboy_req:binding(module, Req2),
-    {BinFunction, Req4} = cowboy_req:binding(function, Req3),
-    {BinArity, Req5} = cowboy_req:binding(arity, Req4),
-    State = #{ backwater_opts => BackwaterOpts,
-               unvalidated_version => BinVersion,
-               unvalidated_module => BinModule,
-               unvalidated_function => BinFunction,
-               unvalidated_arity => BinArity
+-spec init(req(), [backwater_opts(), ...]) -> {ok, req(), state()}.
+init(Req, [BackwaterOpts]) ->
+    %% initialize
+    UnvalidatedVersion = cowboy_req:binding(version, Req),
+    UnvalidatedModule = cowboy_req:binding(module, Req),
+    UnvalidatedFunction = cowboy_req:binding(function, Req),
+    UnvalidatedArity = cowboy_req:binding(arity, Req),
+    State1 = #{ backwater_opts => BackwaterOpts,
+               unvalidated_version => UnvalidatedVersion,
+               unvalidated_module => UnvalidatedModule,
+               unvalidated_function => UnvalidatedFunction,
+               unvalidated_arity => UnvalidatedArity
              },
-    {ok, Req5, State}.
 
--spec handle(req(), state()) -> {ok, req(), state()}.
-handle(Req, State) ->
-    {Response, Req2, State2} = handle_method(Req, State),
+    %% handle request
+    {Response, Req2, State2} = handle_method(Req, State1),
+
+    %% reply
     StatusCode = maps:get(status_code, Response),
     ResponseHeaders = maps:get(headers, Response, []),
     ResponseBody = maps:get(body, Response, <<>>),
-    ResponseHeadersWithNoCache = nocache_headers() ++ ResponseHeaders,
-    {ok, Req3} = cowboy_req:reply(StatusCode, ResponseHeadersWithNoCache, ResponseBody, Req2),
+    ResponseHeadersWithNoCache = maps:merge(nocache_headers(), ResponseHeaders),
+    Req3 = cowboy_req:reply(StatusCode, ResponseHeadersWithNoCache, ResponseBody, Req2),
     {ok, Req3, State2}.
 
 -spec terminate(term(), req(), state()) -> ok.
+terminate({crash, Class, Reason}, _Req, _State) ->
+    Stacktrace = erlang:get_stacktrace(),
+    io:format("Crash! ~p:~p, ~p~n", [Class, Reason, Stacktrace]),
+    ok;
 terminate(_Reason, _Req, _State) ->
     ok.
 
@@ -143,11 +145,11 @@ terminate(_Reason, _Req, _State) ->
 
 -spec handle_method(req(), state()) -> {response(), req(), state()}.
 handle_method(Req, State) ->
-    case cowboy_req:method(Req) of
-        {<<"POST">>, Req2} ->
-            check_authentication(Req2, State);
-        {_, Req2} ->
-            {response(405), Req2, State}
+    case cowboy_req:method(Req) =:= <<"POST">> of
+        true ->
+            check_authentication(Req, State);
+        false ->
+            {response(405), Req, State}
     end.
 
 %% ------------------------------------------------------------------
@@ -157,50 +159,48 @@ handle_method(Req, State) ->
 -spec check_authentication(req(), state()) -> {response(), req(), state()}.
 check_authentication(Req, State) ->
     ParseResult = cowboy_req:parse_header(<<"authorization">>, Req),
-    case handle_parsed_authentication(ParseResult, Req, State) of
-        {valid, Req2, State2} ->
-            check_form(Req2, State2);
-        {invalid, Req2, State2} ->
-            {response(401, [failed_auth_prompt_header()]), Req2, State2};
-        {bad_header, Req2, State2} ->
-            set_result(400, {bad_header, authorization}, Req2, State2)
+    case handle_parsed_authentication(ParseResult, State) of
+        {valid, State2} ->
+            check_form(Req, State2);
+        {invalid, State2} ->
+            {response(401, failed_auth_prompt_headers()), Req, State2};
+        {bad_header, State2} ->
+            set_result(400, {bad_header, authorization}, Req, State2)
     end.
 
--spec handle_parsed_authentication(ParseResult, req(), state())
-        -> {valid | bad_header | invalid, req(), state()}
-             when ParseResult :: parse_header_result(Valid | Invalid),
-                  Valid :: {binary(), {username(), password()}},
-                  Invalid :: {binary(), term()}.
-handle_parsed_authentication({ok, {<<"basic">>, {Username, Password}}, Req}, _PrevReq, State) ->
+-spec handle_parsed_authentication(ParseResult, state())
+        -> {valid | bad_header | invalid, state()}
+             when ParseResult :: Valid | Invalid,
+                  Valid :: {basic, username(), password()},
+                  Invalid :: tuple() | undefined.
+handle_parsed_authentication({basic, Username, Password}, State) ->
     #{ backwater_opts := BackwaterOpts } = State,
     AuthenticatedAccessConfs = maps:get(authenticated_access, BackwaterOpts, #{}),
-    validate_authentication(maps:find(Username, AuthenticatedAccessConfs), Password, Req, State);
-handle_parsed_authentication({ok, _, Req}, _PrevReq, State) ->
+    validate_authentication(maps:find(Username, AuthenticatedAccessConfs), Password, State);
+handle_parsed_authentication(undefined, State) ->
     #{ backwater_opts := BackwaterOpts } = State,
     ExplicitAccessConf = maps:get(unauthenticated_access, BackwaterOpts, #{}),
     DefaultAccessConf = default_access_conf(unauthenticated_access),
     AccessConf = maps:merge(DefaultAccessConf, ExplicitAccessConf),
     State2 = State#{ access_conf => AccessConf },
-    {valid, Req, State2};
-handle_parsed_authentication({undefined, _Unparsable, Req}, _PrevReq, State) ->
-    {bad_header, Req, State};
-handle_parsed_authentication({error, badarg}, PrevReq, State) ->
-    {bad_header, PrevReq, State}.
+    {valid, State2};
+handle_parsed_authentication(_Other, State) ->
+    {bad_header, State}.
 
--spec validate_authentication({ok, access_conf()} | error, password(), req(), state())
-        -> {valid | invalid, req(), state()}.
+-spec validate_authentication({ok, access_conf()} | error, password(), state())
+        -> {valid | invalid, state()}.
 validate_authentication({ok, #{ authentication := {basic, Password} } = ExplicitAccessConf},
-                        GivenPassword, Req, State)
+                        GivenPassword, State)
   when Password =:= GivenPassword ->
     DefaultAccessConf = default_access_conf(authenticated_access),
     AccessConf = maps:merge(DefaultAccessConf, ExplicitAccessConf),
     State2 = State#{ access_conf => AccessConf },
-    {valid, Req, State2};
+    {valid, State2};
 validate_authentication({ok, #{ authentication := {basic, _Password} }},
-                      _GivenPassword, Req, State) ->
-    {invalid, Req, State};
-validate_authentication(error, _GivenPassword, Req, State) ->
-    {invalid, Req, State}.
+                        _GivenPassword, State) ->
+    {invalid, State};
+validate_authentication(error, _GivenPassword, State) ->
+    {invalid, State}.
 
 %-spec default_access_conf(unauthenticated_access | authenticated_access) -> access_conf().
 default_access_conf(unauthenticated_access) ->
@@ -213,8 +213,8 @@ default_access_conf(authenticated_access) ->
        return_exception_stacktraces => true }.
 
 %-spec failed_auth_prompt_header() -> {nonempty_binary(), nonempty_binary()}.
-failed_auth_prompt_header() ->
-    {<<"www-authenticate">>, <<"Basic realm=\"backwater\"">>}.
+failed_auth_prompt_headers() ->
+    #{ <<"www-authenticate">> => <<"Basic realm=\"backwater\"">> }.
 
 %% ------------------------------------------------------------------
 %% Internal Function Definitions - Check Request Form
@@ -345,25 +345,13 @@ find_resource(Req, State) ->
 
 -spec check_args_content_type(req(), state()) -> {response(), req(), state()}.
 check_args_content_type(Req, State) ->
-    ParseResult = cowboy_req:parse_header(<<"content-type">>, Req),
-    case handle_parsed_content_type(ParseResult, Req) of
-        {{valid, ContentType}, Req2} ->
+    case cowboy_req:parse_header(<<"content-type">>, Req) of
+        {_, _, _} = ContentType ->
             State2 = State#{ args_content_type => ContentType },
-            check_args_content_encoding(Req2, State2);
-        {bad_header, Req2} ->
-            set_result(400, {bad_header, 'content-type'}, Req2, State)
+            check_args_content_encoding(Req, State2);
+        undefined ->
+            set_result(400, {bad_header, 'content-type'}, Req, State)
     end.
-
--spec handle_parsed_content_type(parse_header_result(content_type()), req())
-        -> {{valid, content_type()} | bad_header, req()}.
-handle_parsed_content_type({ok, {_, _, _} = ContentType, Req}, _PrevReq) ->
-    {{valid, ContentType}, Req};
-handle_parsed_content_type({ok, _, Req}, _PrevReq) ->
-    {bad_header, Req};
-handle_parsed_content_type({undefined, _Unparsable, Req}, _PrevReq) ->
-    {bad_header, Req};
-handle_parsed_content_type({error, badarg}, Req) ->
-    {bad_header, Req}.
 
 %% ------------------------------------------------------------------
 %% Internal Function Definitions - Validate Arguments Content Encoding
@@ -372,12 +360,12 @@ handle_parsed_content_type({error, badarg}, Req) ->
 -spec check_args_content_encoding(req(), state()) -> {response(), req(), state()}.
 check_args_content_encoding(Req, State) ->
     case cowboy_req:header(<<"content-encoding">>, Req) of
-        {<<ContentEncoding/binary>>, Req2} ->
+        <<ContentEncoding/binary>> ->
             State2 = State#{ args_content_encoding => ContentEncoding },
-            check_accepted_result_content_types(Req2, State2);
-        {undefined, Req2} ->
+            check_accepted_result_content_types(Req, State2);
+        undefined ->
             State2 = State#{ args_content_encoding => <<"identity">> },
-            check_accepted_result_content_types(Req2, State2)
+            check_accepted_result_content_types(Req, State2)
     end.
 
 %% ------------------------------------------------------------------
@@ -386,24 +374,10 @@ check_args_content_encoding(Req, State) ->
 
 -spec check_accepted_result_content_types(req(), state()) -> {response(), req(), state()}.
 check_accepted_result_content_types(Req, State) ->
-    ParseResult = cowboy_req:parse_header(<<"accept">>, Req, []),
-    case handle_parsed_accept(ParseResult, Req) of
-        {{valid, AcceptedContentTypes}, Req2} ->
-            State2 = State#{ accepted_result_content_types => AcceptedContentTypes },
-            negotiate_args_content_type(Req2, State2);
-        {bad_header, Req2} ->
-            set_result(400, {bad_header, accept}, Req2, State)
-    end.
-
--spec handle_parsed_accept(parse_header_result([accepted_content_type()]), req())
-        -> {{valid, [accepted_content_type()]} | bad_header, req()}.
-handle_parsed_accept({ok, AcceptedContentTypes, Req}, _PrevReq) when is_list(AcceptedContentTypes) > 0 ->
+    AcceptedContentTypes = cowboy_req:parse_header(<<"accept">>, Req, []),
     SortedAcceptedContentTypes = lists:reverse( lists:keysort(2, AcceptedContentTypes) ),
-    {{valid, SortedAcceptedContentTypes}, Req};
-handle_parsed_accept({undefined, _Unparsable, Req}, _PrevReq) ->
-    {bad_header, Req};
-handle_parsed_accept({error, badarg}, Req) ->
-    {bad_header, Req}.
+    State2 = State#{ accepted_result_content_types => SortedAcceptedContentTypes },
+    negotiate_args_content_type(Req, State2).
 
 %% ------------------------------------------------------------------
 %% Internal Function Definitions - Negotiate Arguments Content Type
@@ -467,13 +441,11 @@ negotiate_result_content_type(Req, State) ->
 
 -spec read_and_decode_args(req(), state()) -> {response(), req(), state()}.
 read_and_decode_args(Req, State) ->
-    case cowboy_req:body(Req) of
+    case cowboy_req:read_body(Req) of
         {ok, Data, Req2} ->
             decode_args_content_encoding(Data, Req2, State);
         {more, _Data, Req2} ->
-            {response(413), Req2, State};
-        {error, _Error} ->
-            set_result(400, unable_to_read_body, Req, State)
+            {response(413), Req2, State}
     end.
 
 -spec decode_args_content_encoding(binary(), req(), state()) -> {response(), req(), state()}.
@@ -551,12 +523,12 @@ call_function(MF, Args, #{ return_exception_stacktraces := ReturnExceptionStackt
 -spec set_result(http_status(), term(), req(), state()) -> {response(), req(), state()}.
 set_result(StatusCode, Result, Req, #{ result_content_type := ResultContentType } = State) ->
     {Type, SubType, _Params} = ResultContentType,
-    ContentTypeHeader = {<<"content-type">>, <<Type/binary, "/", SubType/binary>>},
+    ContentTypeHeaders = #{ <<"content-type">> => [Type, "/", SubType] },
     Data = encode_result_body(Result, ResultContentType),
-    {response(StatusCode, [ContentTypeHeader], Data), Req, State};
+    {response(StatusCode, ContentTypeHeaders, Data), Req, State};
 set_result(StatusCode, Result, Req, State) ->
     Data = io_lib:format("~p", [Result]),
-    {response(StatusCode, [], Data), Req, State}.
+    {response(StatusCode, #{}, Data), Req, State}.
 
 -spec encode_result_body(term(), content_type()) -> binary().
 encode_result_body(Result, {<<"application">>, <<"x-erlang-etf">>, _Params}) ->
@@ -580,6 +552,6 @@ response(StatusCode, Headers, Body) ->
 
 -spec nocache_headers() -> http_headers().
 nocache_headers() ->
-    [{<<"cache-control">>, <<"private, no-cache, no-store, must-revalidate">>},
-     {<<"pragma">>, <<"no-cache">>},
-     {<<"expires">>, <<"0">>}].
+    #{ <<"cache-control">> => <<"private, no-cache, no-store, must-revalidate">>,
+       <<"pragma">> => <<"no-cache">>,
+       <<"expires">> => <<"0">> }.
