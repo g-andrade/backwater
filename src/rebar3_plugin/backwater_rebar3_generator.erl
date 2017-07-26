@@ -8,7 +8,7 @@
 -define(DEFAULT_PARAM_NAME_PREFIX, "rpc_").
 -define(DEFAULT_PARAM_OUTPUT_DIRECTORY__SUBDIR, "rpc").
 -define(DEFAULT_BACKWATER_MODULE_VERSION, "1").
--define(DUMMY_LINE_NUMBER, 1).
+-define(DUMMY_LINE_NUMBER, (erl_anno:from_term(1))).
 
 -spec generate(State :: rebar_state:t()) -> ok.
 generate(State) ->
@@ -30,7 +30,7 @@ generate(State) ->
           dict:new(),
           AppInfos ++ rebar_state:all_deps(State)),
 
-    lists:map(
+    lists:foreach(
       fun (AppInfo) ->
               generate(AppInfo, SourceDirectoriesPerApp)
       end,
@@ -500,7 +500,7 @@ generate_module_source(ClientRef, ModuleInfo) ->
 
 generate_module_source_header(ModuleInfo) ->
     #{ module := Module } = ModuleInfo,
-    erl_pp:attribute({attribute, 0, module, Module}).
+    erl_pp:attribute({attribute, ?DUMMY_LINE_NUMBER, module, Module}).
 
 generate_module_source_exports(ModuleInfo) ->
     #{ exports := Exports } = ModuleInfo,
