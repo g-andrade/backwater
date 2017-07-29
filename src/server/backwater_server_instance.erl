@@ -36,6 +36,7 @@
           ref :: term(),
           monitor :: reference()
          }).
+-type state() :: unstarted | #state{}.
 
 %% ------------------------------------------------------------------
 %% Type Definitions
@@ -64,7 +65,7 @@
 
 -type child_spec(Id) ::
         #{ id := Id,
-           start := {?MODULE, start_link, [term() | config, ...]},
+           start := {?MODULE, start_link, [term() | config(), ...]},
            restart := transient,
            shutdown := 5000,
            type := worker,
@@ -119,30 +120,36 @@ cowboy_route_path(Config) ->
 %% gen_server Function Definitions
 %% ------------------------------------------------------------------
 
+-spec init([term() | config(), ...]) -> {ok, unstarted}.
 init([Ref, Config]) ->
     process_flag(trap_exit, true), % in order for 'terminate/2' to be called (condition II)
     gen_server:cast(self(), {start, Ref, Config}),
     {ok, unstarted}.
 
+-spec handle_call(term(), {pid(), reference()}, state()) -> {noreply, state()}.
 handle_call(_Request, _From, State) ->
     {noreply, State}.
 
+-spec handle_cast(term(), state()) -> {noreply, state()}.
 handle_cast({start, Ref, Config}, unstarted) ->
     {ok, Pid} = start_cowboy(Ref, Config),
     {noreply, #state{ ref = Ref, monitor = monitor(process, Pid) }};
 handle_cast(_Msg, State) ->
     {noreply, State}.
 
+-spec handle_info(term(), state()) -> {noreply, state()}.
 handle_info({'DOWN', Ref, process, _Pid, Reason}, #state{ ref = Ref } = State) ->
     {stop, Reason, State};
 handle_info(_Info, State) ->
     {noreply, State}.
 
+-spec terminate(term(), state()) -> ok.
 terminate(_Reason, #state{ ref = Ref }) ->
     ok = stop_cowboy(Ref);
 terminate(_Reason, _State) ->
     ok.
 
+-spec code_change(term(), state(), term()) -> {ok, state()}.
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
 

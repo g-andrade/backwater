@@ -18,7 +18,7 @@
         when ChildId :: term(),
              Ref :: term(),
              Config :: backwater_server_instance:config(),
-             ChildSpec :: backwater_server_sup:child_spec().
+             ChildSpec :: backwater_server_sup:child_spec(ChildId).
 
 child_spec(ChildId, Ref, Config) ->
     backwater_server_sup:child_spec(ChildId, Ref, Config).
@@ -27,11 +27,15 @@ child_spec(ChildId, Ref, Config) ->
 -spec start(Ref, Config) -> Result
         when Ref :: term(),
              Config :: backwater_server_instance:config(),
-             Result :: supervisor:startlink_ret().
+             Result :: backwater_sup_util:start_link_ret().
 
 start(Ref, Config) ->
     backwater_sup:start_server(Ref, Config).
 
+
+-spec stop(Ref) -> Result
+        when Ref :: term(),
+             Result :: backwater_sup_util:stop_child_ret().
 
 stop(Ref) ->
     backwater_sup:stop_server(Ref).

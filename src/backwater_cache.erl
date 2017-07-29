@@ -47,14 +47,25 @@
 %% Type Definitions
 %% ------------------------------------------------------------------
 
+-type child_spec(Id) ::
+        #{ id := Id,
+           start := {?MODULE, start_link, []},
+           restart := permanent,
+           type := worker,
+           modules := [?MODULE, ...] }.
+-export_type([child_spec/1]).
+
+-type state() :: no_state.
 
 %% ------------------------------------------------------------------
 %% API Function Definitions
 %% ------------------------------------------------------------------
 
+-spec start_link() -> backwater_sup_util:start_link_ret().
 start_link() ->
     gen_server:start_link({local, ?SERVER}, ?CB_MODULE, [], []).
 
+-spec child_spec(term()) -> child_spec(term()).
 child_spec(Id) ->
     #{ id => Id,
        start => {?MODULE, start_link, []},
@@ -79,6 +90,7 @@ put(Key, Value, TTL) ->
 %% gen_server Function Definitions
 %% ------------------------------------------------------------------
 
+-spec init([]) -> {ok, state()}.
 init([]) ->
     _ = ets:new(
           ?TABLE,
@@ -89,12 +101,15 @@ init([]) ->
     erlang:send_after(?PURGE_EXPIRED_ENTRIES_INTERVAL, self(), purge_expired_entries),
     {ok, no_state}.
 
+-spec handle_call(term(), {pid(), reference()}, state()) -> {noreply, state()}.
 handle_call(_Request, _From, State) ->
     {noreply, State}.
 
+-spec handle_cast(term(), state()) -> {noreply, state()}.
 handle_cast(_Msg, State) ->
     {noreply, State}.
 
+-spec handle_info(term(), state()) -> {noreply, state()}.
 handle_info(purge_expired_entries, State) ->
     Now = now_milliseconds(),
     MatchSpec = ets:fun2ms(fun (#cache_entry{ expiry = Expiry }) -> Expiry =< Now end),
@@ -104,9 +119,11 @@ handle_info(purge_expired_entries, State) ->
 handle_info(_Info, State) ->
     {noreply, State}.
 
+-spec terminate(term(), state()) -> ok.
 terminate(_Reason, _State) ->
     ok.
 
+-spec code_change(term(), state(), term()) -> {ok, state()}.
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
 

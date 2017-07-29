@@ -1,3 +1,4 @@
+%% @private
 -module(backwater_util).
 
 %% ------------------------------------------------------------------
@@ -15,9 +16,17 @@
 -export([purge_stacktrace_below/2]).
 
 %% ------------------------------------------------------------------
+%% Type Definitions
+%% ------------------------------------------------------------------
+
+-type proplist() :: [proplists:property()].
+-export_type([proplist/0]).
+
+%% ------------------------------------------------------------------
 %% API Function Definitions
 %% ------------------------------------------------------------------
 
+-spec copies(term(), non_neg_integer()) -> [term()].
 copies(_Value, 0) ->
     [];
 copies(Value, Count) ->
@@ -43,13 +52,17 @@ lists_anymap(Fun, [H|T]) ->
         false -> lists_anymap(Fun, T)
     end.
 
+-spec lists_enumerate([term()]) -> [{pos_integer(), term()}].
 lists_enumerate(List) ->
     lists:zip(lists:seq(1, length(List)), List).
 
+-spec lists_intersect([[term()]]) -> [term()].
 lists_intersect(Lists) ->
     Ordsets = lists:map(fun ordsets:from_list/1, Lists),
     ordsets:to_list( ordsets:intersection(Ordsets) ).
 
+-spec maps_mapfold(fun ((term(), term(), term()) -> {term(), term()}),
+                   term(), map()) -> {map(), term()}.
 maps_mapfold(Fun, Acc0, Map) ->
     List = maps:to_list(Map),
     {MappedList, AccN} =
@@ -63,9 +76,11 @@ maps_mapfold(Fun, Acc0, Map) ->
     MappedMap = maps:from_list(MappedList),
     {MappedMap, AccN}.
 
+-spec maps_merge([map()]) -> map().
 maps_merge(Maps) ->
     lists:foldl(fun (Map2, Map1) -> maps:merge(Map1, Map2) end, #{}, Maps).
 
+-spec proplists_sort_and_merge(proplist(), proplist()) -> proplist().
 proplists_sort_and_merge(List1, List2) ->
     SortedList1 = lists:usort(fun proplists_element_cmp/2, lists:reverse(List1)),
     SortedList2 = lists:usort(fun proplists_element_cmp/2, lists:reverse(List2)),
@@ -82,15 +97,18 @@ purge_stacktrace_below(MarkerMFA, Stacktrace) ->
 %% Internal Function Definitions
 %% ------------------------------------------------------------------
 
+-spec copies_recur([term(), ...], pos_integer()) -> [term(), ...].
 copies_recur(Acc, Count) when Count < 2 ->
     Acc;
 copies_recur([Value | _] = Acc, Count) ->
     copies_recur([Value | Acc], Count - 1).
 
+-spec proplists_element_cmp(proplists:property(), proplists:property()) -> boolean().
 proplists_element_cmp(A, B) ->
     proplists_element_key(A) =< proplists_element_key(B).
 
+-spec proplists_element_key(proplists:property()) -> atom().
 proplists_element_key(Atom) when is_atom(Atom) ->
     Atom;
-proplists_element_key({Key, _Value}) ->
-    Key.
+proplists_element_key({Atom, _Value}) when is_atom(Atom) ->
+    Atom.

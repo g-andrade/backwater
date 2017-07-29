@@ -1,3 +1,4 @@
+%% @private
 -module(backwater_sup).
 -behaviour(supervisor).
 
@@ -26,26 +27,48 @@
 -define(CB_MODULE, ?MODULE).
 
 %% ------------------------------------------------------------------
+%% Type Definitions
+%% ------------------------------------------------------------------
+
+-type clients() :: #{ (Ref :: term()) => backwater_client_config:t() }.
+-export_type([clients/0]).
+
+-type servers() :: #{ (Ref :: term()) => backwater_server_instance:config() }.
+-export_type([servers/0]).
+
+-type child_spec() ::
+        backwater_cache:child_spec(cache) |
+        backwater_client_sup:child_spec({client, Ret :: term()}) |
+        backwater_server_sup:child_spec({server, Ret :: term()}).
+-export_type([child_spec/0]).
+
+%% ------------------------------------------------------------------
 %% API Function Definitions
 %% ------------------------------------------------------------------
 
+-spec start_link(clients(), servers()) -> backwater_sup_util:start_link_ret().
 start_link(Clients, Servers) ->
     supervisor:start_link({local, ?SERVER}, ?CB_MODULE, [Clients, Servers]).
 
+-spec start_client(term(), backwater_client_config:t()) -> backwater_sup_util:start_child_ret().
 start_client(Ref, Config) ->
     Child = client_child_spec(Ref, Config),
     start_child(Child).
 
+-spec stop_client(term()) -> backwater_sup_util:stop_child_ret().
 stop_client(Ref) ->
     stop_child({client, Ref}).
 
+-spec start_server(term(), backwater_server_instance:config()) -> backwater_sup_util:start_child_ret().
 start_server(Ref, Config) ->
     Child = server_child_spec(Ref, Config),
     start_child(Child).
 
+-spec stop_server(term()) -> backwater_sup_util:stop_child_ret().
 stop_server(Ref) ->
     stop_child({server, Ref}).
 
+-spec app_config_changed(clients(), servers()) -> ok.
 app_config_changed(Clients, Servers) ->
     UpdatedChildren =
         maps:values(maps:map(fun client_child_spec/2, Clients)) ++
@@ -84,14 +107,9 @@ app_config_changed(Clients, Servers) ->
 %% supervisor Function Definitions
 %% ------------------------------------------------------------------
 
+-spec init([clients() | servers(), ...]) -> {ok, {#{}, [child_spec(), ...]}}.
 init([Clients, Servers]) ->
-    CacheChildSpec =
-        #{ id => cache,
-           start => {backwater_cache, start_link, []},
-           restart => permanent,
-           type => worker,
-           modules => [backwater_cache] },
-
+    CacheChildSpec = backwater_cache:child_spec(cache),
     Children =
         [CacheChildSpec] ++
         maps:values(maps:map(fun client_child_spec/2, Clients)) ++
@@ -102,15 +120,21 @@ init([Clients, Servers]) ->
 %% Internal Function Definitions
 %% ------------------------------------------------------------------
 
+-spec client_child_spec(term(), backwater_client_config:t())
+        -> backwater_client_sup:child_spec({client, term()}).
 client_child_spec(Ref, Config) ->
     backwater_client_sup:child_spec({client, Ref}, Ref, Config).
 
+-spec server_child_spec(term(), backwater_server_instance:config())
+        -> backwater_server_sup:child_spec({server, term()}).
 server_child_spec(Ref, Config) ->
     backwater_server_sup:child_spec({server, Ref}, Ref, Config).
 
-start_child(Child) ->
-    supervisor:start_child(?SERVER, Child).
+-spec start_child(child_spec()) -> backwater_sup_util:start_child_ret().
+start_child(ChildSpec) ->
+    supervisor:start_child(?SERVER, ChildSpec).
 
+-spec stop_child(term()) -> backwater_sup_util:stop_child_ret().
 stop_child(ChildId) ->
     case supervisor:terminate_child(?SERVER, ChildId) of
         ok ->
@@ -119,6 +143,7 @@ stop_child(ChildId) ->
             Error
     end.
 
+-spec update_child(child_spec()) -> ok | {error, not_found}.
 update_child(#{ id := Id } = NewChild) ->
     case supervisor:get_childspec(?SERVER, Id) of
         {ok, ExistingChild} when ExistingChild =:= NewChild ->

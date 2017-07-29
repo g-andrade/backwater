@@ -1,6 +1,14 @@
 -module(backwater_rebar3_generator).
 
+%% ------------------------------------------------------------------
+%% API Function Exports
+%% ------------------------------------------------------------------
+
 -export([generate/1]).
+
+%% ------------------------------------------------------------------
+%% Macro Definitions
+%% ------------------------------------------------------------------
 
 -define(DEFAULT_PARAM_CLIENT_REF, default).
 -define(DEFAULT_PARAM_EXPORTS, use_backwater_attributes).
@@ -9,6 +17,10 @@
 -define(DEFAULT_PARAM_OUTPUT_DIRECTORY__SUBDIR, "rpc").
 -define(DEFAULT_BACKWATER_MODULE_VERSION, "1").
 -define(DUMMY_LINE_NUMBER, (erl_anno:from_term(1))).
+
+%% ------------------------------------------------------------------
+%% API Function Definitions
+%% ------------------------------------------------------------------
 
 -spec generate(State :: rebar_state:t()) -> ok.
 generate(State) ->
@@ -35,6 +47,10 @@ generate(State) ->
               generate(AppInfo, SourceDirectoriesPerApp)
       end,
       AppInfos).
+
+%% ------------------------------------------------------------------
+%% Internal Function Definitions
+%% ------------------------------------------------------------------
 
 generate(CurrentAppInfo, SourceDirectoriesPerApp) ->
     RebarOpts = rebar_app_info:opts(CurrentAppInfo),
@@ -74,6 +90,17 @@ generate(CurrentAppInfo, SourceDirectoriesPerApp) ->
               ok = generate_backwater_code(GenerationParams2)
       end,
       Targets).
+
+generate_backwater_code(GenerationParams) ->
+    {ok, ModulePath, Forms} = read_forms(GenerationParams),
+    ParseResult = lists:foldl(fun parse_module/2, dict:new(), Forms),
+    ModuleInfo = generate_module_info(ModulePath, ParseResult),
+    TransformedModuleInfo = transform_module(GenerationParams, ModuleInfo),
+    write_module(GenerationParams, TransformedModuleInfo).
+
+%% ------------------------------------------------------------------
+%% Internal Function Definitions - Finding the Code
+%% ------------------------------------------------------------------
 
 app_info_src_directories(AppInfo) ->
     BaseDir = rebar_app_info:dir(AppInfo),
@@ -119,7 +146,6 @@ find_module_path(Module, SourceDirectories) ->
             {error, module_not_found}
     end.
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 directory_source_files(SrcDir) ->
     case file:list_dir(SrcDir) of
         {ok, Filenames} ->
@@ -147,14 +173,6 @@ full_paths(Dir, Names) ->
 filename_to_lower(Filename) ->
     % FIXME unistring no longer needed in OTP 20 (I think)
     unistring:to_lower(Filename).
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-generate_backwater_code(GenerationParams) ->
-    {ok, ModulePath, Forms} = read_forms(GenerationParams),
-    ParseResult = lists:foldl(fun parse_module/2, dict:new(), Forms),
-    ModuleInfo = generate_module_info(ModulePath, ParseResult),
-    TransformedModuleInfo = transform_module(GenerationParams, ModuleInfo),
-    write_module(GenerationParams, TransformedModuleInfo).
 
 %% ------------------------------------------------------------------
 %% Internal Function Definitions - Parsing the Original Code

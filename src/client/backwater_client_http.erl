@@ -39,6 +39,9 @@
 -type response() :: {ok, Value :: term()} | {error, response_error()} | no_return().
 -export_type([response/0]).
 
+-type response(OtherError) :: {ok, Value :: term()} | {error, response_error() | OtherError} | no_return().
+-export_type([response/1]).
+
 -type response_error() ::
         {bad_request, Body :: binary()} |
         {forbidden, Body :: binary()} |
@@ -60,7 +63,7 @@
 %% ------------------------------------------------------------------
 
 -spec encode_request(Version, Module, Function, Args, Config) -> Request
-            when Version :: nonempty_string(),
+            when Version :: unicode:chardata(),
                  Module :: module(),
                  Function :: atom(),
                  Args :: [term()],
@@ -95,7 +98,7 @@ decode_response(StatusCode, Headers, Body, Config) ->
 %% Internal Function Definitions - Requests
 %% ------------------------------------------------------------------
 
--spec request_url(nonempty_string(), module(), atom(), arity(),
+-spec request_url(unicode:chardata(), module(), atom(), arity(),
                   backwater_client_config:t()) -> nonempty_binary().
 request_url(Version, Module, Function, Arity, Config) ->
     #{ endpoint := Endpoint } = Config,
@@ -103,7 +106,7 @@ request_url(Version, Module, Function, Arity, Config) ->
       lists:join(
         "/",
         [Endpoint,
-         edoc_lib:escape_uri(Version),
+         edoc_lib:escape_uri(unicode:characters_to_list(Version)),
          edoc_lib:escape_uri(atom_to_list(Module)),
          edoc_lib:escape_uri(atom_to_list(Function)),
          integer_to_list(Arity)])).
