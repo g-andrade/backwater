@@ -69,12 +69,12 @@
 %% API Function Definitions
 %% ------------------------------------------------------------------
 
--spec initial_state(backwater_cowboy_instance:backwater_opts()) -> state().
-initial_state(BackwaterOpts) ->
-    #{ authentication => maps:get(authentication, BackwaterOpts),
-       decode_unsafe_terms => maps:get(decode_unsafe_terms, BackwaterOpts, true),
-       return_exception_stacktraces => maps:get(return_exception_stacktraces, BackwaterOpts, true),
-       exposed_modules => maps:get(exposed_modules, BackwaterOpts, []) }.
+-spec initial_state(backwater_cowboy_instance:config()) -> state().
+initial_state(Config) ->
+    #{ authentication => maps:get(authentication, Config),
+       decode_unsafe_terms => maps:get(decode_unsafe_terms, Config, true),
+       return_exception_stacktraces => maps:get(return_exception_stacktraces, Config, true),
+       exposed_modules => maps:get(exposed_modules, Config, []) }.
 
 %% ------------------------------------------------------------------
 %% cowboy_http_handler Function Definitions

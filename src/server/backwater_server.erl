@@ -14,40 +14,40 @@
 %% API Function Definitions
 %% ------------------------------------------------------------------
 
--spec child_spec(ChildId, Ref, ServerConfig) -> ChildSpec
+-spec child_spec(ChildId, Ref, Config) -> ChildSpec
         when ChildId :: term(),
              Ref :: term(),
-             ServerConfig :: backwater_cowboy_instance:config(),
+             Config :: backwater_cowboy_instance:config(),
              ChildSpec :: backwater_server_sup:child_spec().
 
-child_spec(ChildId, Ref, ServerConfig) ->
-    backwater_server_sup:child_spec(ChildId, Ref, ServerConfig).
+child_spec(ChildId, Ref, Config) ->
+    backwater_server_sup:child_spec(ChildId, Ref, Config).
 
 
--spec start(Ref, ServerConfig) -> Result
+-spec start(Ref, Config) -> Result
         when Ref :: term(),
-             ServerConfig :: backwater_cowboy_instance:config(),
+             Config :: backwater_cowboy_instance:config(),
              Result :: supervisor:startlink_ret().
 
-start(Ref, ServerConfig) ->
-    backwater_sup:start_server(Ref, ServerConfig).
+start(Ref, Config) ->
+    backwater_sup:start_server(Ref, Config).
 
 
 stop(Ref) ->
     backwater_sup:stop_server(Ref).
 
 
--spec cowboy_route_rule(BackwaterOpts) -> RouteRule
-        when BackwaterOpts :: backwater_cowboy_handler:backwater_opts(),
+-spec cowboy_route_rule(Config) -> RouteRule
+        when Config :: backwater_cowboy_instance:config(),
              RouteRule :: backwater_cowboy_instance:route_rule().
 
-cowboy_route_rule(BackwaterOpts) ->
-    backwater_cowboy_instance:cowboy_route_rule(BackwaterOpts).
+cowboy_route_rule(Config) ->
+    backwater_cowboy_instance:cowboy_route_rule(Config).
 
 
--spec cowboy_route_path(BackwaterOpts) -> RoutePath
-        when BackwaterOpts :: backwater_cowboy_handler:backwater_opts(),
+-spec cowboy_route_path(Config) -> RoutePath
+        when Config :: backwater_cowboy_instance:config(),
              RoutePath :: backwater_cowboy_instance:route_path().
 
-cowboy_route_path(BackwaterOpts) ->
-    backwater_cowboy_instance:cowboy_route_path(BackwaterOpts).
+cowboy_route_path(Config) ->
+    backwater_cowboy_instance:cowboy_route_path(Config).

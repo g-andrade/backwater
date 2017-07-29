@@ -42,15 +42,14 @@
 %% ------------------------------------------------------------------
 
 -type config() ::
-        #{ backwater := backwater_opts(),
-           cowboy => cowboy_opts() }.
--export_type([config/0]).
-
--type cowboy_opts() ::
-        #{ transport => cowboy_transport(),
+        #{ authentication := {basic, binary(), binary()},
+           decode_unsafe_terms => boolean(),
+           return_exception_stacktraces => boolean(),
+           % cowboy opts
+           transport => cowboy_transport(),
            transport_options => transport_opts(),
            protocol_options => protocol_opts() }.
--export_type([cowboy_opts/0]).
+-export_type([config/0]).
 
 -type cowboy_transport() ::
         clear | tls |
@@ -62,13 +61,6 @@
 
 -type protocol_opts() :: cowboy_protocol:opts().
 -export_type([protocol_opts/0]).
-
--type backwater_opts() ::
-        #{ authentication := {basic, binary(), binary()},
-           decode_unsafe_terms => boolean(),
-           return_exception_stacktraces => boolean(),
-           exposed_modules => [backwater_module_info:exposed_module()] }.
--export_type([backwater_opts/0]).
 
 -type child_spec(Id) ::
         #{ id := Id,
@@ -106,20 +98,20 @@ child_spec(Id, Ref, Config) ->
        type => worker,
        modules => [?MODULE] }.
 
--spec cowboy_route_rule(backwater_opts()) -> route_rule().
-cowboy_route_rule(BackwaterOpts) ->
-    Host = maps:get(host, BackwaterOpts, '_'),
-    {Host, [cowboy_route_path(BackwaterOpts)]}.
+-spec cowboy_route_rule(config()) -> route_rule().
+cowboy_route_rule(Config) ->
+    Host = maps:get(host, Config, '_'), % TODO document?
+    {Host, [cowboy_route_path(Config)]}.
 
--spec cowboy_route_path(backwater_opts()) -> route_path().
-cowboy_route_path(BackwaterOpts) ->
-    BasePath = maps:get(base_path, BackwaterOpts, "/rpcall/"), % TODO document?
+-spec cowboy_route_path(config()) -> route_path().
+cowboy_route_path(Config) ->
+    BasePath = maps:get(base_path, Config, "/rpcall/"), % TODO document?
     Constraints =
         [{version, nonempty},
          {module, fun encoded_atom_constraint/2},
          {function, fun encoded_atom_constraint/2},
          {arity, fun arity_constraint/2}],
-    InitialHandlerState = backwater_cowboy_handler:initial_state(BackwaterOpts),
+    InitialHandlerState = backwater_cowboy_handler:initial_state(Config),
     {BasePath ++ ":version/:module/:function/:arity",
      Constraints, backwater_cowboy_handler, InitialHandlerState}.
 
@@ -162,8 +154,7 @@ server_name(Ref) ->
 -spec start_cowboy(term(), config()) -> {ok, pid()}.
 start_cowboy(Ref, Config) ->
     {StartFunction, TransportOpts, BaseProtoOpts} = parse_cowboy_opts(Config),
-    BackwaterOpts = parse_backwater_opts(Config),
-    Dispatch = cowboy_router:compile([cowboy_route_rule(BackwaterOpts)]),
+    Dispatch = cowboy_router:compile([cowboy_route_rule(Config)]),
     ProtoOpts =
         maps:update_with(
           env,
@@ -196,10 +187,6 @@ parse_cowboy_opts(Config) ->
     ExtraProtoOpts = maps:get(protocol_options, CowboyOptions, #{}),
     ProtoOpts = maps:merge(ExtraProtoOpts, DefaultProtoOpts),
     {StartFunction, TransportOpts, ProtoOpts}.
-
--spec parse_backwater_opts(config()) -> backwater_opts().
-parse_backwater_opts(#{ backwater := BackwaterOpts }) ->
-    BackwaterOpts.
 
 -spec encoded_atom_constraint(forward | reverse | format_error, binary())
         -> {ok, binary()} | {error, cant_convert_to_atom} | iolist().
