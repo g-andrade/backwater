@@ -41,8 +41,34 @@
 %% Type Definitions
 %% ------------------------------------------------------------------
 
--type config() :: backwater_cowboy_handler:backwater_opts().
+-type config() ::
+        #{ backwater := backwater_opts(),
+           cowboy => cowboy_opts() }.
 -export_type([config/0]).
+
+-type cowboy_opts() ::
+        #{ transport => cowboy_transport(),
+           transport_options => transport_opts(),
+           protocol_options => protocol_opts() }.
+-export_type([cowboy_opts/0]).
+
+-type cowboy_transport() ::
+        clear | tls |
+        tcp | ssl |    % aliases #1
+        http | https.  % aliases #2
+
+-type transport_opts() :: ranch_tcp:opts() | ranch_ssl:opts().
+-export_type([transport_opts/0]).
+
+-type protocol_opts() :: cowboy_protocol:opts().
+-export_type([protocol_opts/0]).
+
+-type backwater_opts() ::
+        #{ authentication := {basic, binary(), binary()},
+           decode_unsafe_terms => boolean(),
+           return_exception_stacktraces => boolean(),
+           exposed_modules => [backwater_module_info:exposed_module()] }.
+-export_type([backwater_opts/0]).
 
 -type child_spec(Id) ::
         #{ id := Id,
@@ -51,14 +77,13 @@
            shutdown := 5000,
            type := worker,
            modules := [?MODULE, ...] }.
-
 -export_type([child_spec/1]).
 
 -type route_rule() :: {'_' | nonempty_string(), [route_path(), ...]}.
 -export_type([route_rule/0]).
 
--type route_path() :: {nonempty_string(), route_constraints(), backwater_cowboy_handler,
-                       [backwater_cowboy_handler:backwater_opts(), ...]}.
+-type route_path() :: {nonempty_string(), route_constraints(),
+                       backwater_cowboy_handler, backwater_cowboy_handler:state()}.
 -export_type([route_path/0]).
 
 -type route_constraints() :: [{version, nonempty} | {module | function | arity, fun ()}, ...].
@@ -69,41 +94,42 @@
 %% ------------------------------------------------------------------
 
 -spec start_link(term(), config()) -> {ok, pid()} | ignore | {error, term()}.
-start_link(Ref, ServerConfig) ->
-    gen_server:start_link({local, server_name(Ref)}, ?CB_MODULE, [Ref, ServerConfig], []).
+start_link(Ref, Config) ->
+    gen_server:start_link({local, server_name(Ref)}, ?CB_MODULE, [Ref, Config], []).
 
 -spec child_spec(term(), term(), config()) -> child_spec(term()).
-child_spec(Id, Ref, ServerConfig) ->
+child_spec(Id, Ref, Config) ->
     #{ id => Id,
-       start => {?MODULE, start_link, [Ref, ServerConfig]},
+       start => {?MODULE, start_link, [Ref, Config]},
        restart => transient,
        shutdown => 5000, % in order of 'terminate/2' to be called (condition I)
        type => worker,
        modules => [?MODULE] }.
 
--spec cowboy_route_rule(backwater_cowboy_handler:backwater_opts()) -> route_rule().
+-spec cowboy_route_rule(backwater_opts()) -> route_rule().
 cowboy_route_rule(BackwaterOpts) ->
     Host = maps:get(host, BackwaterOpts, '_'),
     {Host, [cowboy_route_path(BackwaterOpts)]}.
 
--spec cowboy_route_path(backwater_cowboy_handler:backwater_opts()) -> route_path().
+-spec cowboy_route_path(backwater_opts()) -> route_path().
 cowboy_route_path(BackwaterOpts) ->
-    BasePath = maps:get(base_path, BackwaterOpts, "/rpcall/"),
+    BasePath = maps:get(base_path, BackwaterOpts, "/rpcall/"), % TODO document?
     Constraints =
         [{version, nonempty},
          {module, fun encoded_atom_constraint/2},
          {function, fun encoded_atom_constraint/2},
          {arity, fun arity_constraint/2}],
+    InitialHandlerState = backwater_cowboy_handler:initial_state(BackwaterOpts),
     {BasePath ++ ":version/:module/:function/:arity",
-     Constraints, backwater_cowboy_handler, [BackwaterOpts]}.
+     Constraints, backwater_cowboy_handler, InitialHandlerState}.
 
 %% ------------------------------------------------------------------
 %% gen_server Function Definitions
 %% ------------------------------------------------------------------
 
-init([Ref, ServerConfig]) ->
+init([Ref, Config]) ->
     process_flag(trap_exit, true), % in order for 'terminate/2' to be called (condition II)
-    {ok, Pid} = start_cowboy(Ref, ServerConfig),
+    {ok, Pid} = start_cowboy(Ref, Config),
     {ok, #state{ ref = Ref, monitor = monitor(process, Pid) }}.
 
 handle_call(_Request, _From, State) ->
@@ -134,10 +160,9 @@ server_name(Ref) ->
     list_to_atom("backwater_" ++ backwater_ref:to_unicode_string(Ref) ++ "_cowboy_instance").
 
 -spec start_cowboy(term(), config()) -> {ok, pid()}.
-start_cowboy(Ref, ServerConfig) ->
-    {StartFunction, TransportOpts, BaseProtoOpts, BackwaterOpts} =
-        parse_config(ServerConfig),
-
+start_cowboy(Ref, Config) ->
+    {StartFunction, TransportOpts, BaseProtoOpts} = parse_cowboy_opts(Config),
+    BackwaterOpts = parse_backwater_opts(Config),
     Dispatch = cowboy_router:compile([cowboy_route_rule(BackwaterOpts)]),
     ProtoOpts =
         maps:update_with(
@@ -145,20 +170,18 @@ start_cowboy(Ref, ServerConfig) ->
           fun (EnvOpts) -> maps:put(dispatch, Dispatch, EnvOpts) end,
           #{ dispatch => Dispatch },
           BaseProtoOpts),
-
     cowboy:StartFunction(Ref, TransportOpts, ProtoOpts).
 
 -spec stop_cowboy(term()) -> ok | {error, not_found}.
 stop_cowboy(Ref) ->
     cowboy:stop_listener(Ref).
 
--spec parse_config(config())
+-spec parse_cowboy_opts(config())
         -> {start_clear | start_tls,
             backwater_cowboy_handler:backwater_transport_opts(),
-            backwater_cowboy_handler:backwater_protocol_opts(),
-            backwater_cowboy_handler:backwater_opts()}.
-parse_config(ServerConfig) ->
-    CowboyOptions = maps:get(cowboy, ServerConfig, #{}),
+            backwater_cowboy_handler:backwater_protocol_opts()}.
+parse_cowboy_opts(Config) ->
+    CowboyOptions = maps:get(cowboy, Config, #{}),
     StartFunction =
         case maps:get(transport, CowboyOptions, clear) of
             clear -> start_clear;
@@ -172,10 +195,11 @@ parse_config(ServerConfig) ->
     DefaultProtoOpts = #{ stream_handlers => [cowboy_compress_h, cowboy_stream_h] },
     ExtraProtoOpts = maps:get(protocol_options, CowboyOptions, #{}),
     ProtoOpts = maps:merge(ExtraProtoOpts, DefaultProtoOpts),
-    BackwaterOpts = maps:with([authentication, decode_unsafe_terms,
-                               return_exception_stacktraces,
-                               exposed_modules], ServerConfig),
-    {StartFunction, TransportOpts, ProtoOpts, BackwaterOpts}.
+    {StartFunction, TransportOpts, ProtoOpts}.
+
+-spec parse_backwater_opts(config()) -> backwater_opts().
+parse_backwater_opts(#{ backwater := BackwaterOpts }) ->
+    BackwaterOpts.
 
 -spec encoded_atom_constraint(forward | reverse | format_error, binary())
         -> {ok, binary()} | {error, cant_convert_to_atom} | iolist().

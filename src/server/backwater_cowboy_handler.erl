@@ -3,6 +3,12 @@
 -include("../backwater_common.hrl").
 
 %% ------------------------------------------------------------------
+%% API Function Exports
+%% ------------------------------------------------------------------
+
+-export([initial_state/1]).
+
+%% ------------------------------------------------------------------
 %% cowboy_http_handler Function Exports
 %% ------------------------------------------------------------------
 
@@ -16,28 +22,16 @@
 -define(MODULE_INFO_TTL, (timer:seconds(5))).
 
 %% ------------------------------------------------------------------
-%% Type exports
-%% ------------------------------------------------------------------
-
--export_type([backwater_opts/0]).
--export_type([backwater_cowboy_opts/0]).
--export_type([backwater_cowboy_transport/0]).
--export_type([backwater_transport_opts/0]).
--export_type([backwater_protocol_opts/0]).
--export_type([username/0]).
--export_type([password/0]).
-
-%% ------------------------------------------------------------------
 %% Type Definitions
 %% ------------------------------------------------------------------
 
--type state() ::
-        #{ req := req(),
-           authentication := {basic, username(), password()},
+-opaque state() ::
+        #{ authentication := {basic, binary(), binary()},
            decode_unsafe_terms := boolean(),
            return_exception_stacktraces := boolean(),
            exposed_modules := [backwater_module_info:exposed_module()],
 
+           req => req(),
            version => backwater_module_info:version(),
            bin_module => binary(),
            bin_function => binary(),
@@ -50,33 +44,7 @@
            response => response(),
            accepted_result_content_types => [accepted_content_type()],
            result_content_type => content_type() }.
-
-
--type backwater_opts() ::
-        #{ cowboy => backwater_cowboy_opts(),
-           authentication := {basic, username(), password()},
-           decode_unsafe_terms := boolean(),
-           return_exception_stacktraces := boolean(),
-           exposed_modules := [backwater_module_info:exposed_module()] }.
-
--type backwater_cowboy_opts() ::
-        #{ transport => backwater_cowboy_transport(),
-           transport_options => backwater_transport_opts(),
-           protocol_options => backwater_protocol_opts() }.
-
--type backwater_cowboy_transport() ::
-        clear | tls |
-        tcp | ssl |    % aliases #1
-        http | https.  % aliases #2
-
-
--type backwater_transport_opts() :: ranch_tcp:opts() | ranch_ssl:opts().
-
--type backwater_protocol_opts() :: cowboy_protocol:opts().
-
--type username() :: binary().
--type password() :: binary().
-
+-export_type([state/0]).
 
 -type content_type() :: {Type :: binary(), SubType :: binary(), content_type_params()}.
 -type content_type_params() :: [{binary(), binary()}].
@@ -98,32 +66,36 @@
          {exception, Class :: term(), Exception :: term(), [erlang:stack_item()]}).
 
 %% ------------------------------------------------------------------
+%% API Function Definitions
+%% ------------------------------------------------------------------
+
+-spec initial_state(backwater_cowboy_instance:backwater_opts()) -> state().
+initial_state(BackwaterOpts) ->
+    #{ authentication => maps:get(authentication, BackwaterOpts),
+       decode_unsafe_terms => maps:get(decode_unsafe_terms, BackwaterOpts, true),
+       return_exception_stacktraces => maps:get(return_exception_stacktraces, BackwaterOpts, true),
+       exposed_modules => maps:get(exposed_modules, BackwaterOpts, []) }.
+
+%% ------------------------------------------------------------------
 %% cowboy_http_handler Function Definitions
 %% ------------------------------------------------------------------
 
--spec init(req(), [backwater_opts(), ...]) -> {ok, req(), state()}.
-init(Req1, [BackwaterOpts]) ->
+-spec init(req(), state()) -> {ok, req(), state()}.
+init(Req1, State1) ->
     %% initialize
-    Authentication = maps:get(authentication, BackwaterOpts),
-    DecodeUnsafeTerms = maps:get(decode_unsafe_terms, BackwaterOpts, true),
-    ReturnExceptionStacktraces = maps:get(return_exception_stacktraces, BackwaterOpts, true),
-    ExposedModules = maps:get(exposed_modules, BackwaterOpts, []),
     Version = cowboy_req:binding(version, Req1),
     BinModule = cowboy_req:binding(module, Req1),
     BinFunction = cowboy_req:binding(function, Req1),
     Arity = cowboy_req:binding(arity, Req1),
-    State1 = #{ req => Req1,
-                authentication => Authentication,
-                decode_unsafe_terms => DecodeUnsafeTerms,
-                return_exception_stacktraces => ReturnExceptionStacktraces,
-                exposed_modules => ExposedModules,
-                version => Version,
-                bin_module => BinModule,
-                bin_function => BinFunction,
-                arity => Arity
-             },
-
     State2 =
+        State1#{ req => Req1,
+                 version => Version,
+                 bin_module => BinModule,
+                 bin_function => BinFunction,
+                 arity => Arity
+               },
+
+    State3 =
         execute_pipeline(
           [fun check_method/1,
            fun check_authentication/1,
@@ -137,10 +109,10 @@ init(Req1, [BackwaterOpts]) ->
            fun negotiate_result_content_type/1,
            fun read_and_decode_args/1,
            fun execute_call/1],
-          State1),
+          State2),
 
-    {Req2, State3} = maps:take(req, State2),
-    {ok, Req2, State3}.
+    {Req2, State4} = maps:take(req, State3),
+    {ok, Req2, State4}.
 
 -spec terminate(term(), req(), state()) -> ok.
 terminate({crash, Class, Reason}, _Req, _State) ->
@@ -195,7 +167,7 @@ check_authentication(#{ req := Req } = State) ->
 
 -spec handle_parsed_authentication(ParseResult, state()) -> valid | invalid
              when ParseResult :: Valid | Invalid,
-                  Valid :: {basic, username(), password()},
+                  Valid :: {basic, binary(), binary()},
                   Invalid :: tuple() | undefined.
 handle_parsed_authentication(Authentication, #{ authentication := Authentication }) ->
     valid;
@@ -437,7 +409,6 @@ validate_args(UnvalidatedArgs, #{ arity := Arity } = State)
   when length(UnvalidatedArgs) =/= Arity ->
     {stop, response(400, inconsistent_arguments_arity, State)};
 validate_args(Args, State) ->
-    %handle_call(Args, Req, State).
     {continue, State#{ args => Args }}.
 
 %% ------------------------------------------------------------------
