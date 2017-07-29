@@ -121,12 +121,15 @@ cowboy_route_path(Config) ->
 
 init([Ref, Config]) ->
     process_flag(trap_exit, true), % in order for 'terminate/2' to be called (condition II)
-    {ok, Pid} = start_cowboy(Ref, Config),
-    {ok, #state{ ref = Ref, monitor = monitor(process, Pid) }}.
+    gen_server:cast(self(), {start, Ref, Config}),
+    {ok, unstarted}.
 
 handle_call(_Request, _From, State) ->
     {noreply, State}.
 
+handle_cast({start, Ref, Config}, unstarted) ->
+    {ok, Pid} = start_cowboy(Ref, Config),
+    {noreply, #state{ ref = Ref, monitor = monitor(process, Pid) }};
 handle_cast(_Msg, State) ->
     {noreply, State}.
 
@@ -172,9 +175,8 @@ stop_cowboy(Ref) ->
             backwater_cowboy_handler:backwater_transport_opts(),
             backwater_cowboy_handler:backwater_protocol_opts()}.
 parse_cowboy_opts(Config) ->
-    CowboyOptions = maps:get(cowboy, Config, #{}),
     StartFunction =
-        case maps:get(transport, CowboyOptions, clear) of
+        case maps:get(transport, Config, clear) of
             clear -> start_clear;
             tcp   -> start_clear;
             http  -> start_clear;
@@ -182,10 +184,15 @@ parse_cowboy_opts(Config) ->
             ssl   -> start_tls;
             https -> start_tls
         end,
-    TransportOpts = maps:get(transport_options, CowboyOptions, []),
+
+    DefaultTransportOpts = [{port,8080}],
+    ExtraTransportOpts = maps:get(transport_options, Config, []),
+    TransportOpts = backwater_util:kvlists_merge(DefaultTransportOpts, ExtraTransportOpts),
+
     DefaultProtoOpts = #{ stream_handlers => [cowboy_compress_h, cowboy_stream_h] },
-    ExtraProtoOpts = maps:get(protocol_options, CowboyOptions, #{}),
+    ExtraProtoOpts = maps:get(protocol_options, Config, #{}),
     ProtoOpts = maps:merge(ExtraProtoOpts, DefaultProtoOpts),
+
     {StartFunction, TransportOpts, ProtoOpts}.
 
 -spec encoded_atom_constraint(forward | reverse | format_error, binary())
