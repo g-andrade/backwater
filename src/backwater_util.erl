@@ -9,7 +9,6 @@
 -export([lists_anymap/2]).
 -export([lists_enumerate/1]).
 -export([lists_intersect/1]).
--export([kvlists_merge/2]).
 -export([maps_mapfold/3]).
 -export([maps_merge/1]).
 -export([proplists_sort_and_merge/2]).
@@ -50,14 +49,6 @@ lists_enumerate(List) ->
 lists_intersect(Lists) ->
     Ordsets = lists:map(fun ordsets:from_list/1, Lists),
     ordsets:to_list( ordsets:intersection(Ordsets) ).
-
-kvlists_merge(List1, List2) ->
-    lists:foldl(
-      fun ({Key, _Value} = Pair, Acc) ->
-              lists:keystore(Key, 1, Acc, Pair)
-      end,
-      List1,
-      List2).
 
 maps_mapfold(Fun, Acc0, Map) ->
     List = maps:to_list(Map),

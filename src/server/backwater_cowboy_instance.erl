@@ -187,7 +187,7 @@ parse_cowboy_opts(Config) ->
 
     DefaultTransportOpts = [{port,8080}],
     ExtraTransportOpts = maps:get(transport_options, Config, []),
-    TransportOpts = backwater_util:kvlists_merge(DefaultTransportOpts, ExtraTransportOpts),
+    TransportOpts = backwater_util:proplists_sort_and_merge(DefaultTransportOpts, ExtraTransportOpts),
 
     DefaultProtoOpts = #{ stream_handlers => [cowboy_compress_h, cowboy_stream_h] },
     ExtraProtoOpts = maps:get(protocol_options, Config, #{}),
