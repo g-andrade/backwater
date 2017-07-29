@@ -14,11 +14,11 @@
 %% API Function Definitions
 %% ------------------------------------------------------------------
 
-child_spec(Id, Ref, ClientConfig) ->
-    backwater_client_sup:child_spec(Id, Ref, ClientConfig).
+child_spec(Id, Ref, Config) ->
+    backwater_client_sup:child_spec(Id, Ref, Config).
 
-start(Ref, ClientConfig) ->
-    backwater_sup:start_client(Ref, ClientConfig).
+start(Ref, Config) ->
+    backwater_sup:start_client(Ref, Config).
 
 stop(Ref) ->
     backwater_sup:stop_client(Ref).
@@ -27,11 +27,11 @@ call(Ref, Version, Module, Function, Args) ->
     call(Ref, Version, Module, Function, Args, #{}).
 
 call(Ref, Version, Module, Function, Args, ConfigOverride) ->
-    ClientConfig = backwater_client_config:get_config(Ref, ConfigOverride),
+    Config = backwater_client_config:get_config(Ref, ConfigOverride),
     #{ connect_timeout := ConnectTimeout,
-       receive_timeout := ReceiveTimeout } = ClientConfig,
+       receive_timeout := ReceiveTimeout } = Config,
     {RequestMethod, RequestUrl, RequestHeaders, RequestBody} =
-        backwater_client_http:encode_request(Version, Module, Function, Args, ClientConfig),
+        backwater_client_http:encode_request(Version, Module, Function, Args, Config),
 
     Options =
         [{pool, default}, % TODO
@@ -44,7 +44,7 @@ call(Ref, Version, Module, Function, Args, ConfigOverride) ->
         {ok, StatusCode, ResponseHeaders, ClientRef} ->
             case hackney:body(ClientRef) of
                 {ok, ResponseBody} ->
-                    backwater_client_http:decode_response(StatusCode, ResponseHeaders, ResponseBody, ClientConfig);
+                    backwater_client_http:decode_response(StatusCode, ResponseHeaders, ResponseBody, Config);
                 {error, BodyError} ->
                     backwater_error({response_body, BodyError})
             end;

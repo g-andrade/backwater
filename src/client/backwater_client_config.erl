@@ -72,13 +72,13 @@
 %% ------------------------------------------------------------------
 
 -spec start_link(term(), t()) -> {ok, pid()} | ignore | {error, term()}.
-start_link(Ref, ClientConfig) ->
-    gen_server:start_link({local, server_name(Ref)}, ?CB_MODULE, [Ref, ClientConfig], []).
+start_link(Ref, Config) ->
+    gen_server:start_link({local, server_name(Ref)}, ?CB_MODULE, [Ref, Config], []).
 
 -spec child_spec(term(), term(), t()) -> child_spec().
-child_spec(Id, Ref, ClientConfig) ->
+child_spec(Id, Ref, Config) ->
     #{ id => Id,
-       start => {?MODULE, start_link, [Ref, ClientConfig]},
+       start => {?MODULE, start_link, [Ref, Config]},
        restart => permanent,
        type => worker,
        modules => [?MODULE] }.
@@ -94,10 +94,10 @@ get_config(Ref, ConfigOverride) ->
 %% ------------------------------------------------------------------
 
 -spec init([term() | t(), ...]) -> {ok, state()}.
-init([Ref, ClientConfig]) ->
+init([Ref, Config]) ->
     ConfigTableName = config_table_name(Ref),
     _ = ets:new(ConfigTableName, [named_table, protected, {read_concurrency, true}]),
-    parse_and_save_config(ConfigTableName, ClientConfig),
+    parse_and_save_config(ConfigTableName, Config),
     {ok, no_state}.
 
 -spec handle_call(term(), {pid(), reference()}, state()) -> {noreply, state()}.
@@ -148,13 +148,13 @@ default_unsafe_term_decode() -> true.
 default_remote_exceptions_rethrow() -> false.
 
 -spec parse_and_save_config(atom(), t()) -> true.
-parse_and_save_config(ConfigTableName, ClientConfig) ->
-    Endpoint = maps:get(endpoint, ClientConfig),
-    Authentication = maps:get(authentication, ClientConfig, default_authentication()),
-    ConnectTimeout = maps:get(connect_timeout, ClientConfig, default_connect_timeout()),
-    ReceiveTimeout = maps:get(receive_timeout, ClientConfig, default_receive_timeout()),
-    DecodeUnsafeTerms = maps:get(decode_unsafe_terms, ClientConfig, default_unsafe_term_decode()),
-    RethrowRemoteExceptions = maps:get(rethrow_remote_exceptions, ClientConfig, default_remote_exceptions_rethrow()),
+parse_and_save_config(ConfigTableName, Config) ->
+    Endpoint = maps:get(endpoint, Config),
+    Authentication = maps:get(authentication, Config, default_authentication()),
+    ConnectTimeout = maps:get(connect_timeout, Config, default_connect_timeout()),
+    ReceiveTimeout = maps:get(receive_timeout, Config, default_receive_timeout()),
+    DecodeUnsafeTerms = maps:get(decode_unsafe_terms, Config, default_unsafe_term_decode()),
+    RethrowRemoteExceptions = maps:get(rethrow_remote_exceptions, Config, default_remote_exceptions_rethrow()),
     Settings =
         [{endpoint, Endpoint},
          {authentication, Authentication},

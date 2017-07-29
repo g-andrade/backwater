@@ -59,37 +59,37 @@
 %% API Function Definitions
 %% ------------------------------------------------------------------
 
--spec encode_request(Version, Module, Function, Args, ClientConfig) -> Request
+-spec encode_request(Version, Module, Function, Args, Config) -> Request
             when Version :: nonempty_string(),
                  Module :: module(),
                  Function :: atom(),
                  Args :: [term()],
-                 ClientConfig :: backwater_client_config:t(),
+                 Config :: backwater_client_config:t(),
                  Request :: request().
 
-encode_request(Version, Module, Function, Args, ClientConfig) ->
+encode_request(Version, Module, Function, Args, Config) ->
     Body = backwater_media_etf:encode(Args),
     Arity = length(Args),
     Method = ?OPAQUE_BINARY(<<"POST">>),
-    Url = request_url(Version, Module, Function, Arity, ClientConfig),
+    Url = request_url(Version, Module, Function, Arity, Config),
     MediaType = ?OPAQUE_BINARY(<<"application/x-erlang-etf">>),
     Headers =
         [{?OPAQUE_BINARY(<<"accept">>), ?OPAQUE_BINARY(<<MediaType/binary>>)},
          {?OPAQUE_BINARY(<<"accept-encoding">>), ?OPAQUE_BINARY(<<"gzip">>)},
          {?OPAQUE_BINARY(<<"content-type">>), ?OPAQUE_BINARY(<<MediaType/binary>>)}],
-    encode_request_with_compression(Method, Url, Headers, Body, ClientConfig).
+    encode_request_with_compression(Method, Url, Headers, Body, Config).
 
 
--spec decode_response(StatusCode, Headers, Body, ClientConfig) -> Response
+-spec decode_response(StatusCode, Headers, Body, Config) -> Response
             when StatusCode :: status_code(),
                  Headers :: headers(),
                  Body :: binary(),
-                 ClientConfig :: backwater_client_config:t(),
+                 Config :: backwater_client_config:t(),
                  Response :: response().
 
-decode_response(StatusCode, Headers, Body, ClientConfig) ->
+decode_response(StatusCode, Headers, Body, Config) ->
     CiHeaders = lists:keymap(fun latin1_binary_to_lower/1, 1, Headers),
-    decode_response_(StatusCode, CiHeaders, Body, ClientConfig).
+    decode_response_(StatusCode, CiHeaders, Body, Config).
 
 %% ------------------------------------------------------------------
 %% Internal Function Definitions - Requests
@@ -97,8 +97,8 @@ decode_response(StatusCode, Headers, Body, ClientConfig) ->
 
 -spec request_url(nonempty_string(), module(), atom(), arity(),
                   backwater_client_config:t()) -> nonempty_binary().
-request_url(Version, Module, Function, Arity, ClientConfig) ->
-    #{ endpoint := Endpoint } = ClientConfig,
+request_url(Version, Module, Function, Arity, Config) ->
+    #{ endpoint := Endpoint } = Config,
     iolist_to_binary(
       lists:join(
         "/",
@@ -111,19 +111,19 @@ request_url(Version, Module, Function, Arity, ClientConfig) ->
 -spec encode_request_with_compression(nonempty_binary(), nonempty_binary(),
                                       nonempty_headers(), binary(),
                                       backwater_client_config:t()) -> request().
-encode_request_with_compression(Method, Url, Headers, Body, ClientConfig)
+encode_request_with_compression(Method, Url, Headers, Body, Config)
   when byte_size(Body) > ?COMPRESSION_THRESHOLD ->
     CompressedBody = backwater_encoding_gzip:encode(Body),
     UpdatedHeaders = [{<<"content-encoding">>, <<"gzip">>} | Headers],
-    encode_request_with_auth(Method, Url, UpdatedHeaders, CompressedBody, ClientConfig);
-encode_request_with_compression(Method, Url, Headers, Body, ClientConfig) ->
-    encode_request_with_auth(Method, Url, Headers, Body, ClientConfig).
+    encode_request_with_auth(Method, Url, UpdatedHeaders, CompressedBody, Config);
+encode_request_with_compression(Method, Url, Headers, Body, Config) ->
+    encode_request_with_auth(Method, Url, Headers, Body, Config).
 
 -spec encode_request_with_auth(nonempty_binary(), nonempty_binary(),
                                nonempty_headers(), binary(),
                                backwater_client_config:t()) -> request().
-encode_request_with_auth(Method, Url, Headers, Body, ClientConfig) ->
-    #{ authentication := {basic, Username, Password} } = ClientConfig,
+encode_request_with_auth(Method, Url, Headers, Body, Config) ->
+    #{ authentication := {basic, Username, Password} } = Config,
     AuthHeader = {<<"authorization">>, http_basic_auth_header_value(Username, Password)},
     UpdatedHeaders = [AuthHeader | Headers],
     {Method, Url, UpdatedHeaders, Body}.
@@ -137,9 +137,9 @@ http_basic_auth_header_value(Username, Password) ->
 %% ------------------------------------------------------------------
 
 -spec decode_response_(status_code(), headers(), binary(), backwater_client_config:t()) -> response().
-decode_response_(200 = StatusCode, CiHeaders, Body, ClientConfig) ->
-    #{ rethrow_remote_exceptions := RethrowRemoteExceptions } = ClientConfig,
-    case decode_response_body(CiHeaders, Body, ClientConfig) of
+decode_response_(200 = StatusCode, CiHeaders, Body, Config) ->
+    #{ rethrow_remote_exceptions := RethrowRemoteExceptions } = Config,
+    case decode_response_body(CiHeaders, Body, Config) of
         {term, {success, ReturnValue}} ->
             {ok, ReturnValue};
         {term, {exception, Class, Exception, Stacktrace}} when RethrowRemoteExceptions ->
@@ -157,8 +157,8 @@ decode_response_(200 = StatusCode, CiHeaders, Body, ClientConfig) ->
         {error, {invalid_content_type, RawContentType}} ->
             {error, {invalid_content_type, StatusCode, RawContentType}}
     end;
-decode_response_(StatusCode, CiHeaders, Body, ClientConfig) ->
-    case decode_response_body(CiHeaders, Body, ClientConfig) of
+decode_response_(StatusCode, CiHeaders, Body, Config) ->
+    case decode_response_body(CiHeaders, Body, Config) of
         {term, Error} ->
             {error, Error};
         {raw, Binary} when StatusCode =:= 400 ->
@@ -196,10 +196,10 @@ decode_response_(StatusCode, CiHeaders, Body, ClientConfig) ->
            {error, {undecodable_response_body, binary()}} |
            {error, {unknown_content_encoding, binary()}} |
            {error, {unknown_content_type, nonempty_binary()}}.
-decode_response_body(CiHeaders, Body, ClientConfig) ->
+decode_response_body(CiHeaders, Body, Config) ->
     ContentEncodingLookup = find_content_encoding(CiHeaders),
     handle_response_body_content_encoding(
-      ContentEncodingLookup, CiHeaders, Body, ClientConfig).
+      ContentEncodingLookup, CiHeaders, Body, Config).
 
 %% encoding
 
@@ -211,20 +211,20 @@ decode_response_body(CiHeaders, Body, ClientConfig) ->
            {error, {undecodable_response_body, binary()}} |
            {error, {unknown_content_encoding, binary()}} |
            {error, {unknown_content_type, nonempty_binary()}}.
-handle_response_body_content_encoding({ok, <<"gzip">>}, CiHeaders, Body, ClientConfig) ->
+handle_response_body_content_encoding({ok, <<"gzip">>}, CiHeaders, Body, Config) ->
     case backwater_encoding_gzip:decode(Body) of
         {ok, UncompressedBody} ->
             ContentTypeLookup = find_content_type(CiHeaders),
-            handle_response_body_content_type(ContentTypeLookup, UncompressedBody, ClientConfig);
+            handle_response_body_content_type(ContentTypeLookup, UncompressedBody, Config);
         {error, _Error} ->
             {error, {undecodable_response_body, Body}}
     end;
-handle_response_body_content_encoding(Lookup, CiHeaders, Body, ClientConfig)
+handle_response_body_content_encoding(Lookup, CiHeaders, Body, Config)
   when Lookup =:= error;
        Lookup =:= {ok, <<"identity">>} ->
     ContentTypeLookup = find_content_type(CiHeaders),
-    handle_response_body_content_type(ContentTypeLookup, Body, ClientConfig);
-handle_response_body_content_encoding({ok, OtherEncoding}, _CiHeaders, _Body, _ClientConfig) ->
+    handle_response_body_content_type(ContentTypeLookup, Body, Config);
+handle_response_body_content_encoding({ok, OtherEncoding}, _CiHeaders, _Body, _Config) ->
     {error, {unknown_content_encoding, OtherEncoding}}.
 
 -spec find_content_encoding(headers()) -> {ok, binary()} | error.
@@ -243,20 +243,20 @@ find_content_encoding(CiHeaders) ->
            {error, {unknown_content_type, binary()}} |
            {error, {invalid_content_type, binary()}}.
 handle_response_body_content_type({ok, {<<"application/x-erlang-etf">>, _Params}},
-                                   Body, ClientConfig) ->
-    #{ decode_unsafe_terms := DecodeUnsafeTerms } = ClientConfig,
+                                   Body, Config) ->
+    #{ decode_unsafe_terms := DecodeUnsafeTerms } = Config,
     case backwater_media_etf:decode(Body, DecodeUnsafeTerms) of
         {ok, Decoded} -> {term, Decoded};
         error -> {error, {undecodable_response_body, Body}}
     end;
 handle_response_body_content_type({ok, {OtherContentType, _Params}},
-                                   _Body, _ClientConfig) ->
+                                   _Body, _Config) ->
     {error, {unknown_content_type, OtherContentType}};
 handle_response_body_content_type({error, {invalid_content_type, RawContentType}},
-                                   _Body, _ClientConfig) ->
+                                   _Body, _Config) ->
     {error, {invalid_content_type, RawContentType}};
 handle_response_body_content_type({error, content_type_missing},
-                                   Body, _ClientConfig) ->
+                                   Body, _Config) ->
     {raw, Body}.
 
 -spec find_content_type(headers()) ->

@@ -24,12 +24,12 @@
 %% API Function Definitions
 %% ------------------------------------------------------------------
 
-start_link(Ref, ClientConfig) ->
-    supervisor:start_link({local, server_name(Ref)}, ?CB_MODULE, [Ref, ClientConfig]).
+start_link(Ref, Config) ->
+    supervisor:start_link({local, server_name(Ref)}, ?CB_MODULE, [Ref, Config]).
 
-child_spec(Id, Ref, ClientConfig) ->
+child_spec(Id, Ref, Config) ->
     #{ id => Id,
-       start => {?MODULE, start_link, [Ref, ClientConfig]},
+       start => {?MODULE, start_link, [Ref, Config]},
        restart => transient,
        type => supervisor,
        modules => [?MODULE] }.
@@ -38,8 +38,8 @@ child_spec(Id, Ref, ClientConfig) ->
 %% supervisor Function Definitions
 %% ------------------------------------------------------------------
 
-init([Ref, ClientConfig]) ->
-    Children = [backwater_client_config:child_spec(config, Ref, ClientConfig)],
+init([Ref, Config]) ->
+    Children = [backwater_client_config:child_spec(config, Ref, Config)],
     {ok, {#{}, Children}}.
 
 %% ------------------------------------------------------------------
