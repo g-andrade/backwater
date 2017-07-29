@@ -39,7 +39,7 @@ child_spec(Id, Ref, Config) ->
 %% ------------------------------------------------------------------
 
 init([Ref, Config]) ->
-    Children = [backwater_cowboy_instance:child_spec(cowboy_instance, Ref, Config)],
+    Children = [backwater_server_instance:child_spec(server_instance, Ref, Config)],
     {ok, {#{}, Children}}.
 
 %% ------------------------------------------------------------------

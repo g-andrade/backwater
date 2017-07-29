@@ -1,4 +1,4 @@
--module(backwater_cowboy_instance).
+-module(backwater_server_instance).
 -behaviour(gen_server).
 
 %% ------------------------------------------------------------------
@@ -152,7 +152,7 @@ code_change(_OldVsn, State, _Extra) ->
 
 -spec server_name(term()) -> atom().
 server_name(Ref) ->
-    list_to_atom("backwater_" ++ backwater_ref:to_unicode_string(Ref) ++ "_cowboy_instance").
+    list_to_atom("backwater_" ++ backwater_ref:to_unicode_string(Ref) ++ "_server_instance").
 
 -spec start_cowboy(term(), config()) -> {ok, pid()}.
 start_cowboy(Ref, Config) ->

@@ -69,7 +69,7 @@
 %% API Function Definitions
 %% ------------------------------------------------------------------
 
--spec initial_state(backwater_cowboy_instance:config()) -> state().
+-spec initial_state(backwater_server_instance:config()) -> state().
 initial_state(Config) ->
     #{ authentication => maps:get(authentication, Config),
        decode_unsafe_terms => maps:get(decode_unsafe_terms, Config, true),
