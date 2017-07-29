@@ -46,12 +46,8 @@ call(Ref, Version, Module, Function, Args, ConfigOverride) ->
                 {ok, ResponseBody} ->
                     backwater_client_http:decode_response(StatusCode, ResponseHeaders, ResponseBody, Config);
                 {error, BodyError} ->
-                    backwater_error({response_body, BodyError})
+                    {error, {response_body, BodyError}}
             end;
         {error, SocketError} ->
-            backwater_error({socket, SocketError})
+            {error, {socket, SocketError}}
     end.
-
-% FIXME: duplicate in backwater_client_http, reconsider whole thing
-backwater_error(Error) ->
-    {error, Error}.
