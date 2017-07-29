@@ -24,7 +24,6 @@
 -export_type([backwater_cowboy_transport/0]).
 -export_type([backwater_transport_opts/0]).
 -export_type([backwater_protocol_opts/0]).
--export_type([access_conf/0]).
 -export_type([username/0]).
 -export_type([password/0]).
 
@@ -34,12 +33,15 @@
 
 -type state() ::
         #{ req := req(),
-           backwater_opts := backwater_opts(),
+           authentication := {basic, username(), password()},
+           decode_unsafe_terms := boolean(),
+           return_exception_stacktraces := boolean(),
+           exposed_modules := [backwater_module_info:exposed_module()],
+
            version => backwater_module_info:version(),
            bin_module => binary(),
            bin_function => binary(),
            arity => arity(),
-           access_conf => access_conf(),
            module_info => backwater_module_info:module_info(),
            function_properties => backwater_module_info:fun_properties(),
            args_content_type => content_type(),
@@ -52,8 +54,10 @@
 
 -type backwater_opts() ::
         #{ cowboy => backwater_cowboy_opts(),
-           unauthenticated_access => access_conf(),
-           authenticated_access => #{ username() => access_conf() } }.
+           authentication := {basic, username(), password()},
+           decode_unsafe_terms := boolean(),
+           return_exception_stacktraces := boolean(),
+           exposed_modules := [backwater_module_info:exposed_module()] }.
 
 -type backwater_cowboy_opts() ::
         #{ transport => backwater_cowboy_transport(),
@@ -69,12 +73,6 @@
 -type backwater_transport_opts() :: ranch_tcp:opts() | ranch_ssl:opts().
 
 -type backwater_protocol_opts() :: cowboy_protocol:opts().
-
--type access_conf() ::
-        #{ decode_unsafe_terms := boolean(),
-           exposed_modules := [backwater_module_info:exposed_module()],
-           return_exception_stacktraces := boolean(),
-           authentication => {basic, password()} }.
 
 -type username() :: binary().
 -type password() :: binary().
@@ -106,12 +104,19 @@
 -spec init(req(), [backwater_opts(), ...]) -> {ok, req(), state()}.
 init(Req1, [BackwaterOpts]) ->
     %% initialize
+    Authentication = maps:get(authentication, BackwaterOpts),
+    DecodeUnsafeTerms = maps:get(decode_unsafe_terms, BackwaterOpts, true),
+    ReturnExceptionStacktraces = maps:get(return_exception_stacktraces, BackwaterOpts, true),
+    ExposedModules = maps:get(exposed_modules, BackwaterOpts, []),
     Version = cowboy_req:binding(version, Req1),
     BinModule = cowboy_req:binding(module, Req1),
     BinFunction = cowboy_req:binding(function, Req1),
     Arity = cowboy_req:binding(arity, Req1),
     State1 = #{ req => Req1,
-                backwater_opts => BackwaterOpts,
+                authentication => Authentication,
+                decode_unsafe_terms => DecodeUnsafeTerms,
+                return_exception_stacktraces => ReturnExceptionStacktraces,
+                exposed_modules => ExposedModules,
                 version => Version,
                 bin_module => BinModule,
                 bin_function => BinFunction,
@@ -182,58 +187,26 @@ check_method(#{ req := Req } = State) ->
 check_authentication(#{ req := Req } = State) ->
     ParseResult = cowboy_req:parse_header(<<"authorization">>, Req),
     case handle_parsed_authentication(ParseResult, State) of
-        {valid, AccessConf} ->
-            {continue, State#{ access_conf => AccessConf }};
+        valid ->
+            {continue, State};
         invalid ->
             {stop, bodyless_response(401, failed_auth_prompt_headers(), State)}
     end.
 
--spec handle_parsed_authentication(ParseResult, state())
-        -> {valid, access_conf()} | invalid
+-spec handle_parsed_authentication(ParseResult, state()) -> valid | invalid
              when ParseResult :: Valid | Invalid,
                   Valid :: {basic, username(), password()},
                   Invalid :: tuple() | undefined.
-handle_parsed_authentication({basic, Username, Password}, State) ->
-    #{ backwater_opts := BackwaterOpts } = State,
-    AuthenticatedAccessConfs = maps:get(authenticated_access, BackwaterOpts, #{}),
-    AuthenticatedAccessConfLookup = maps:find(Username, AuthenticatedAccessConfs),
-    validate_authentication(AuthenticatedAccessConfLookup, Password);
-handle_parsed_authentication(undefined, State) ->
-    #{ backwater_opts := BackwaterOpts } = State,
-    ExplicitAccessConf = maps:get(unauthenticated_access, BackwaterOpts, #{}),
-    DefaultAccessConf = default_access_conf(unauthenticated_access),
-    AccessConf = maps:merge(DefaultAccessConf, ExplicitAccessConf),
-    {valid, AccessConf};
-handle_parsed_authentication(ParseResult, _State) when is_tuple(ParseResult) ->
-    % other authentication method
-    invalid.
-
--spec validate_authentication(AuthenticatedAccessConfLookup :: {ok, access_conf()} | error,
-                              GivenPassword :: password())
-        -> {valid, access_conf()} | invalid.
-validate_authentication({ok, #{ authentication := {basic, Password} } = ExplicitAccessConf},
-                        GivenPassword)
-  when Password =:= GivenPassword ->
-    DefaultAccessConf = default_access_conf(authenticated_access),
-    AccessConf = maps:merge(DefaultAccessConf, ExplicitAccessConf),
-    {valid, AccessConf};
-validate_authentication({ok, #{ authentication := {basic, _Password} }},
-                        _GivenPassword) ->
-    % wrong password
+handle_parsed_authentication(Authentication, #{ authentication := Authentication }) ->
+    valid;
+handle_parsed_authentication(ParseResult, State) when is_tuple(ParseResult) ->
+    io:format("ParseResult ~p, authentication ~p~n",
+              [ParseResult, maps:get(authentication, State)]),
+    % other authentication method, or wrong credentials
     invalid;
-validate_authentication(error, _GivenPassword) ->
-    % username not found
+handle_parsed_authentication(undefined, _State) ->
+    % missing
     invalid.
-
-%-spec default_access_conf(unauthenticated_access | authenticated_access) -> access_conf().
-default_access_conf(unauthenticated_access) ->
-    #{ decode_unsafe_terms => false,
-       exposed_modules => [],
-       return_exception_stacktraces => false };
-default_access_conf(authenticated_access) ->
-    #{ decode_unsafe_terms => true,
-       exposed_modules => [],
-       return_exception_stacktraces => true }.
 
 %-spec failed_auth_prompt_header() -> {nonempty_binary(), nonempty_binary()}.
 failed_auth_prompt_headers() ->
@@ -246,8 +219,7 @@ failed_auth_prompt_headers() ->
 -spec check_authorization(state()) -> {continue | stop, state()}.
 check_authorization(State) ->
     #{ bin_module := BinModule,
-       access_conf := AccessConf } = State,
-    #{ exposed_modules := ExposedModules } = AccessConf,
+       exposed_modules := ExposedModules } = State,
 
     SearchResult =
         lists:any(
@@ -281,12 +253,11 @@ check_existence(State) ->
                             function_not_exported |
                             module_not_found).
 find_resource(State) ->
-    #{ access_conf := AccessConf,
+    #{ exposed_modules := ExposedModules,
        version := BinVersion,
        bin_module := BinModule,
        bin_function := BinFunction,
        arity := Arity } = State,
-    #{ exposed_modules := ExposedModules } = AccessConf,
 
     CacheKey = {exposed_modules, erlang:phash2(ExposedModules)},
     InfoPerExposedModule =
@@ -450,8 +421,7 @@ decode_args_content_type(Data, State) ->
 
 -spec decode_etf_args(binary(), state()) -> {continue | stop, state()}.
 decode_etf_args(Data, State) ->
-    #{ access_conf := AccessConf } = State,
-    #{ decode_unsafe_terms := DecodeUnsafeTerms } = AccessConf,
+    #{ decode_unsafe_terms := DecodeUnsafeTerms } = State,
     case backwater_media_etf:decode(Data, DecodeUnsafeTerms) of
         error ->
             {stop, response(400, unable_to_decode_arguments, State)};
@@ -476,24 +446,22 @@ validate_args(Args, State) ->
 
 -spec execute_call(state()) -> {continue, state()}.
 execute_call(State) ->
-    #{ access_conf := AccessConf,
-       function_properties := FunctionProperties,
-       args := Args } = State,
-    #{ function_ref := FunctionRef } = FunctionProperties,
-    Result = call_function(FunctionRef, Args, AccessConf),
+    Result = call_function(State),
     {continue, response(200, Result, State)}.
 
--spec call_function(fun(), [term()], access_conf()) -> call_result().
-call_function(MF, Args, #{ return_exception_stacktraces := ReturnExceptionStacktraces }) ->
+-spec call_function(state()) -> call_result().
+call_function(#{ function_properties := #{ function_ref := FunctionRef },
+                 args := Args,
+                 return_exception_stacktraces := ReturnExceptionStacktraces }) ->
     try
-        {success, apply(MF, Args)}
+        {success, apply(FunctionRef, Args)}
     catch
         Class:Exception when ReturnExceptionStacktraces ->
             Stacktrace = erlang:get_stacktrace(),
             % Hide all calls previous to the one made to the target function (cowboy stuff, etc.)
             % This works under the assumption that *no sensible call* would ever go through the
             % current function again.
-            PurgedStacktrace = backwater_util:purge_stacktrace_below({?MODULE,call_function,3}, Stacktrace),
+            PurgedStacktrace = backwater_util:purge_stacktrace_below({?MODULE,call_function,1}, Stacktrace),
             {exception, Class, Exception, PurgedStacktrace};
         Class:Exception ->
             {exception, Class, Exception, []}

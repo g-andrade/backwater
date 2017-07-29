@@ -122,17 +122,15 @@ encode_request_with_compression(Method, Url, Headers, Body, ClientConfig) ->
 -spec encode_request_with_auth(nonempty_binary(), nonempty_binary(),
                                nonempty_headers(), binary(),
                                backwater_client_config:t()) -> request().
-encode_request_with_auth(Method, Url, Headers, Body, #{ authentication := none }) ->
-    {Method, Url, Headers, Body};
 encode_request_with_auth(Method, Url, Headers, Body, ClientConfig) ->
-    #{ authentication := {basic, {Username, Password}} } = ClientConfig,
+    #{ authentication := {basic, Username, Password} } = ClientConfig,
     AuthHeader = {<<"authorization">>, http_basic_auth_header_value(Username, Password)},
     UpdatedHeaders = [AuthHeader | Headers],
     {Method, Url, UpdatedHeaders, Body}.
 
 -spec http_basic_auth_header_value(binary(), binary()) -> nonempty_binary().
 http_basic_auth_header_value(Username, Password) ->
-    <<"Basic ", (base64:encode( iolist_to_binary([Username, ":", Password]) ))/binary>>.
+    ?OPAQUE_BINARY(<<"Basic ", (base64:encode( iolist_to_binary([Username, ":", Password]) ))/binary>>).
 
 %% ------------------------------------------------------------------
 %% Internal Function Definitions - Responses

@@ -172,7 +172,9 @@ parse_config(ServerConfig) ->
     DefaultProtoOpts = #{ stream_handlers => [cowboy_compress_h, cowboy_stream_h] },
     ExtraProtoOpts = maps:get(protocol_options, CowboyOptions, #{}),
     ProtoOpts = maps:merge(ExtraProtoOpts, DefaultProtoOpts),
-    BackwaterOpts = maps:with([unauthenticated_access, authenticated_access], ServerConfig),
+    BackwaterOpts = maps:with([authentication, decode_unsafe_terms,
+                               return_exception_stacktraces,
+                               exposed_modules], ServerConfig),
     {StartFunction, TransportOpts, ProtoOpts, BackwaterOpts}.
 
 -spec encoded_atom_constraint(forward | reverse | format_error, binary())

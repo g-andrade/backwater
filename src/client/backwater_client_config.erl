@@ -1,7 +1,7 @@
 -module(backwater_client_config).
 -behaviour(gen_server).
 
--include("backwater_common.hrl").
+-include("../backwater_common.hrl").
 
 %% ------------------------------------------------------------------
 %% API Function Exports
@@ -43,7 +43,7 @@
 
 -type t() ::
         #{ endpoint := nonempty_binary(),
-           authentication => authentication(),
+           authentication := authentication(),
            connect_timeout => timeout(),
            receive_timeout => timeout(),
            decode_unsafe_terms => boolean(),
@@ -61,9 +61,7 @@
 
 -export_type([override/0]).
 
--type authentication() ::
-        none |
-        {basic, {backwater_cowboy_handler:username(), backwater_cowboy_handler:password()}}.
+-type authentication() :: {basic, binary(), binary()}.
 
 -export_type([authentication/0]).
 
@@ -143,15 +141,11 @@ default_connect_timeout() -> 5000.
 -spec default_receive_timeout() -> 5000.
 default_receive_timeout() -> 5000.
 
--spec default_unsafe_term_decode(authentication()) -> boolean().
-default_unsafe_term_decode(none) ->
-    false;
-default_unsafe_term_decode({basic, {_Username, _Password}}) ->
-    true.
+-spec default_unsafe_term_decode() -> true.
+default_unsafe_term_decode() -> true.
 
 -spec default_remote_exceptions_rethrow() -> false.
-default_remote_exceptions_rethrow() ->
-    false.
+default_remote_exceptions_rethrow() -> false.
 
 -spec parse_and_save_config(atom(), t()) -> true.
 parse_and_save_config(ConfigTableName, ClientConfig) ->
@@ -159,7 +153,7 @@ parse_and_save_config(ConfigTableName, ClientConfig) ->
     Authentication = maps:get(authentication, ClientConfig, default_authentication()),
     ConnectTimeout = maps:get(connect_timeout, ClientConfig, default_connect_timeout()),
     ReceiveTimeout = maps:get(receive_timeout, ClientConfig, default_receive_timeout()),
-    DecodeUnsafeTerms = maps:get(decode_unsafe_terms, ClientConfig, default_unsafe_term_decode(Authentication)),
+    DecodeUnsafeTerms = maps:get(decode_unsafe_terms, ClientConfig, default_unsafe_term_decode()),
     RethrowRemoteExceptions = maps:get(rethrow_remote_exceptions, ClientConfig, default_remote_exceptions_rethrow()),
     Settings =
         [{endpoint, Endpoint},
