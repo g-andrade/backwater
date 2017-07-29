@@ -198,6 +198,7 @@ parse_cowboy_opts(Config) ->
 -spec encoded_atom_constraint(forward | reverse | format_error, binary())
         -> {ok, binary()} | {error, cant_convert_to_atom} | iolist().
 encoded_atom_constraint(Operation, Binary) when Operation =:= forward; Operation =:= reverse ->
+    % TODO deal with UTF8?
     case byte_size(Binary) < 256 of
         true -> {ok, Binary};
         false -> {error, cant_convert_to_atom}
