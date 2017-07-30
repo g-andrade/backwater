@@ -132,9 +132,6 @@ server_name(Ref) ->
 config_table_name(Ref) ->
     server_name(Ref).
 
--spec default_authentication() -> none.
-default_authentication() -> none.
-
 -spec default_connect_timeout() -> 5000.
 default_connect_timeout() -> 5000.
 
@@ -150,7 +147,7 @@ default_remote_exceptions_rethrow() -> false.
 -spec parse_and_save_config(atom(), t()) -> true.
 parse_and_save_config(ConfigTableName, Config) ->
     Endpoint = maps:get(endpoint, Config),
-    Authentication = maps:get(authentication, Config, default_authentication()),
+    Authentication = maps:get(authentication, Config),
     ConnectTimeout = maps:get(connect_timeout, Config, default_connect_timeout()),
     ReceiveTimeout = maps:get(receive_timeout, Config, default_receive_timeout()),
     DecodeUnsafeTerms = maps:get(decode_unsafe_terms, Config, default_unsafe_term_decode()),
