@@ -23,7 +23,7 @@
 
 -define(MANDATORILY_SIGNED_HEADER_NAMES,
         [<<"accept">>,
-         <<"date">>,
+         %<<"date">>,
          <<"digest">>,
          <<"content-type">>,
          <<"content-encoding">>]).
@@ -178,7 +178,10 @@ check_authentication(#{ req := Req, authentication := Authentication } = State) 
             {continue, State#{ body_digest => BodyDigest }};
         false ->
             ResponseHeaders = failed_auth_prompt_headers(Authentication),
-            {stop, bodyless_response(401, ResponseHeaders, State)}
+            {stop, bodyless_response(401, ResponseHeaders, State)};
+        {false, Reason} ->
+            ResponseHeaders = failed_auth_prompt_headers(Authentication),
+            {stop, response(401, ResponseHeaders, Reason, State)}
     end.
 
 %%%
@@ -202,7 +205,7 @@ decode_signature_auth_params(Encoded) ->
 
 decode_signature_auth_pair(EncodedPair) ->
     [Key, <<_, _, _/binary>> = QuotedValue] = binary:split(EncodedPair, <<"=">>),
-    ValueLength = byte_size(QuotedValue),
+    ValueLength = byte_size(QuotedValue) - 2,
     <<"\"", EncodedValue:ValueLength/binary, "\"">> = QuotedValue,
     Value = decode_signature_auth_pair_value(Key, EncodedValue),
     {Key, Value}.
@@ -235,7 +238,7 @@ validate_signature_authentication(Key, {signature, SignatureParams}, Req) ->
             validate_signature(Key, KeyId, Algorithm, SignedHeaderNames, Signature, Req);
         _ ->
             % missing parameters
-            false
+            {false, missing_parameters}
     end;
 validate_signature_authentication(_ParsedAuthorization, _Authentication, _Req) ->
     % missing or mismatch
@@ -245,38 +248,58 @@ validate_signature(Key, <<"key">>, <<"hmac-sha256">>, SignedHeaderNames, Signatu
     validate_signature(Key, SignedHeaderNames, Signature, Req);
 validate_signature(_Key, _KeyId, _Algorithm, _SignedHeaderNames, _Signature, _Req) ->
     % unknown key or algorithm
-    false.
+    {false, unknown_key_or_algorithm}.
 
 validate_signature(Key, SignedHeaderNames, Signature, Req) ->
-    validate_signature_fake_header_present(SignedHeaderNames) andalso
-    validate_signature_header_presence(SignedHeaderNames, Req) andalso
-    validate_signature_value(Key, Signature, SignedHeaderNames, Req).
+    validate_pipeline(
+      [{fun validate_signature_fake_header_present/1, [SignedHeaderNames]},
+       {fun validate_signature_header_presence/2, [SignedHeaderNames, Req]},
+       {fun validate_signature_value/4, [Key, Signature, SignedHeaderNames, Req]}]).
+
+validate_pipeline([{Function, Args} | Next]) ->
+    case apply(Function, Args) of
+        true -> validate_pipeline(Next);
+        false -> false;
+        {false, Reason} -> {false, Reason}
+    end;
+validate_pipeline([]) ->
+    true.
 
 validate_signature_fake_header_present(SignedHeaderNames) ->
     lists:member(<<"(request-target)">>, SignedHeaderNames).
 
 validate_signature_header_presence(SignedHeaderNames, Req) ->
     AllHeaders = maps:to_list( cowboy_req:headers(Req) ),
-    lists:all(
-      fun ({Name, _Value}) ->
-              (not lists:member(Name, ?MANDATORILY_SIGNED_HEADER_NAMES))
-              orelse lists:member(Name, SignedHeaderNames)
-      end,
-      AllHeaders).
+    MissingMandatory =
+        backwater_util:lists_anymap(
+          fun ({Name, _Value}) ->
+                  lists:member(Name, ?MANDATORILY_SIGNED_HEADER_NAMES)
+                  andalso not lists:member(Name, SignedHeaderNames)
+                  andalso {true, Name}
+          end,
+          AllHeaders),
+
+    case MissingMandatory of
+        {true, Name} -> {false, {missing_mandatorily_signed_header, Name}};
+        false -> true
+    end.
 
 validate_signature_value(Key, Signature, SignedHeaderNames, Req) ->
     case build_signature_iodata(SignedHeaderNames, Req) of
-        false -> false;
+        false ->
+            {false, missing_signed_header};
         {true, IoData} ->
             ExpectedSignature = crypto:hmac(sha256, Key, IoData),
-            ExpectedSignature =:= Signature
+            ExpectedSignature =:= Signature orelse {false, invalid_signature}
     end.
 
 build_signature_iodata(SignedHeaderNames, Req) ->
     BuildPartsResult =
         backwater_util:lists_allmap(
           fun (<<"(request-target)">>) ->
-                  {true, req_path_with_qs(Req)};
+                  Method = cowboy_req:method(Req),
+                  PathWithQs = req_path_with_qs(Req),
+                  {true, [Method, " ", PathWithQs]};
               (Name) ->
                   CiName = backwater_util:latin1_binary_to_lower(Name),
                   case cowboy_req:header(CiName, Req) of
@@ -293,7 +316,8 @@ build_signature_iodata(SignedHeaderNames, Req) ->
     case BuildPartsResult of
         false -> false;
         {true, Parts} ->
-            {true, lists:join("\n", Parts)}
+            OnePerLine = lists:join("\n", Parts),
+            {true, OnePerLine}
     end.
 
 req_path_with_qs(Req) ->
@@ -327,7 +351,7 @@ encode_signature_auth_params(Params) ->
 encode_signature_auth_pair({Key, Value}) ->
     EncodedValue = encode_signature_auth_pair_value(Key, Value),
     QuotedValue = ["\"", EncodedValue, "\""],
-    [EncodedValue, "=", QuotedValue].
+    [Key, "=", QuotedValue].
 
 encode_signature_auth_pair_value(<<"headers">>, List) ->
     lists:join(" ", List);
