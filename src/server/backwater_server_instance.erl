@@ -43,7 +43,7 @@
 %% ------------------------------------------------------------------
 
 -type config() ::
-        #{ authentication := {basic, binary(), binary()},
+        #{ authentication := authentication(),
            decode_unsafe_terms => boolean(),
            return_exception_stacktraces => boolean(),
            exposed_modules := [backwater_module_info:exposed_module()],
@@ -52,6 +52,9 @@
            transport_options => transport_opts(),
            protocol_options => protocol_opts() }.
 -export_type([config/0]).
+
+-type authentication() :: {basic, binary(), binary()} | {signature, Key :: binary()}.
+-export_type([authentication/0]).
 
 -type cowboy_transport() ::
         clear | tls |

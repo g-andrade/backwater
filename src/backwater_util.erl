@@ -7,6 +7,9 @@
 
 -export([copies/2]).
 -export([fast_catch/2]).
+-export([latin1_binary_to_lower/1]).
+-export([latin1_binary_trim_whitespaces/1]).
+-export([lists_allmap/2]).
 -export([lists_anymap/2]).
 -export([lists_enumerate/1]).
 -export([lists_intersect/1]).
@@ -40,6 +43,17 @@ fast_catch(Function, Args) ->
         Class:Exception ->
             {error, {Class, Exception}}
     end.
+
+-spec latin1_binary_to_lower(binary()) -> binary().
+latin1_binary_to_lower(Bin) ->
+    % TODO: optimize
+    list_to_binary( string:to_lower( binary_to_list(Bin) ) ).
+
+latin1_binary_trim_whitespaces(Bin) ->
+    re:replace(Bin, <<"(^\\s+)|(\\s+$)">>, <<>>, [global, {return, binary}]).
+
+lists_allmap(Fun, List) ->
+    lists_allmap_recur(Fun, List, []).
 
 -spec lists_anymap(Fun :: fun((term()) -> {true, term()} | true | false), [term()])
         -> {true, term()} | false.
@@ -102,6 +116,15 @@ copies_recur(Acc, Count) when Count < 2 ->
     Acc;
 copies_recur([Value | _] = Acc, Count) ->
     copies_recur([Value | Acc], Count - 1).
+
+lists_allmap_recur(_Fun, [], Acc) ->
+    {true, lists:reverse(Acc)};
+lists_allmap_recur(Fun, [H|T], Acc) ->
+    case Fun(H) of
+        {true, MappedH} -> lists_allmap_recur(Fun, T, [MappedH | Acc]);
+        true -> lists_allmap_recur(Fun, T, [H | Acc]);
+        false -> false
+    end.
 
 -spec proplists_element_cmp(proplists:property(), proplists:property()) -> boolean().
 proplists_element_cmp(A, B) ->

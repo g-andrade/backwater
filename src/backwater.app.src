@@ -8,6 +8,7 @@
     stdlib,
     edoc,
     cowboy,
+    cowlib,
     hackney
    ]},
   {env,[]}, % Check config/sys.config example

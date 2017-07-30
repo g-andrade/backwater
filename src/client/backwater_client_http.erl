@@ -91,7 +91,7 @@ encode_request(Version, Module, Function, Args, Config) ->
                  Response :: response().
 
 decode_response(StatusCode, Headers, Body, Config) ->
-    CiHeaders = lists:keymap(fun latin1_binary_to_lower/1, 1, Headers),
+    CiHeaders = lists:keymap(fun backwater_util:latin1_binary_to_lower/1, 1, Headers),
     decode_response_(StatusCode, CiHeaders, Body, Config).
 
 %% ------------------------------------------------------------------
@@ -289,8 +289,3 @@ find_header_value(CiKey, CiHeaders) ->
         {CiKey, Value} -> {ok, Value};
         false -> error
     end.
-
--spec latin1_binary_to_lower(binary()) -> binary().
-latin1_binary_to_lower(Bin) ->
-    % TODO: optimize
-    list_to_binary( string:to_lower( binary_to_list(Bin) ) ).
