@@ -46,6 +46,7 @@
         #{ authentication := {basic, binary(), binary()},
            decode_unsafe_terms => boolean(),
            return_exception_stacktraces => boolean(),
+           exposed_modules := [backwater_module_info:exposed_module()],
            % cowboy opts
            transport => cowboy_transport(),
            transport_options => transport_opts(),
