@@ -20,11 +20,11 @@
 %% ------------------------------------------------------------------
 
 -define(VALIDATION_MANDATORILY_SIGNED_HEADER_NAMES,
-        [<<"digest">>]).
+        [<<"date">>,
+         <<"digest">>]).
 
 -define(VALIDATION_MANDATORILY_SIGNED_HEADER_NAMES_IF_PRESENT,
         [<<"accept">>,
-         %<<"date">>,
          <<"content-type">>,
          <<"content-encoding">>]).
 
@@ -89,17 +89,17 @@ validate_msg_body(Msg, Body) ->
 
 sign_request(Config, Msg1, Body) ->
     BodyDigest = body_digest(Body),
-    Msg2 = remove_real_msg_header(<<"authorization">>, Msg1),
-    Msg3 = add_real_msg_header(<<"digest">>, BodyDigest, Msg2),
+    Msg2 = remove_real_msg_headers([<<"authorization">>, <<"date">>], Msg1),
+    Msg3 = add_real_msg_headers(#{ <<"digest">> => BodyDigest, <<"date">> => rfc1123() }, Msg2),
     AuthorizationHeaderValue = generate_authorization_header_value(Config, Msg3),
-    add_real_msg_header(<<"authorization">>, AuthorizationHeaderValue, Msg3).
+    add_real_msg_headers(#{ <<"authorization">> => AuthorizationHeaderValue }, Msg3).
 
 sign_response(Config, Msg1, Body) ->
     BodyDigest = body_digest(Body),
-    Msg2 = remove_real_msg_header(<<"signature">>, Msg1),
-    Msg3 = add_real_msg_header(<<"digest">>, BodyDigest, Msg2),
+    Msg2 = remove_real_msg_headers([<<"date">>, <<"signature">>], Msg1),
+    Msg3 = add_real_msg_headers(#{ <<"digest">> => BodyDigest, <<"date">> => rfc1123() }, Msg2),
     SignatureHeaderValue = generate_signature_header_value(Config, Msg3),
-    add_real_msg_header(<<"signature">>, SignatureHeaderValue, Msg3).
+    add_real_msg_headers(#{ <<"signature">> => SignatureHeaderValue}, Msg3).
 
 get_real_msg_headers(Msg) ->
     #{ real_headers := Map } = Msg,
@@ -134,15 +134,15 @@ find_real_msg_header(CiName, Msg) ->
     #{ real_headers := Map } = Msg,
     maps:find(CiName, Map).
 
-remove_real_msg_header(CiName, Msg) ->
+remove_real_msg_headers(CiNames, Msg) ->
     #{ real_headers := Map1 } = Msg,
-    Map2 = maps:remove(CiName, Map1),
-    Msg#{ real_headers := Map2} .
+    Map2 = maps:without(CiNames, Map1),
+    Msg#{ real_headers := Map2 }.
 
-add_real_msg_header(CiName, Value, Msg) ->
+add_real_msg_headers(ExtraMap, Msg) ->
     #{ real_headers := Map1 } = Msg,
-    Map2 = Map1#{ CiName => Value },
-    Msg#{ real_headers := Map2} .
+    Map2 = maps:merge(Map1, ExtraMap),
+    Msg#{ real_headers := Map2 }.
 
 list_real_msg_header_names(Msg) ->
     #{ real_headers := Map } = Msg,
@@ -291,6 +291,10 @@ signed_header_names(Params, Msg) ->
 %% ------------------------------------------------------------------
 %% Internal Function Definitions - Signing
 %% ------------------------------------------------------------------
+
+rfc1123() ->
+    % dirty hack
+    cowboy_clock:rfc1123().
 
 generate_authorization_header_value(Config, Msg) ->
     EncodedParams = generate_signature_header_value(Config, Msg),
