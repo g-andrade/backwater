@@ -53,7 +53,7 @@
            protocol_options => protocol_opts() }.
 -export_type([config/0]).
 
--type authentication() :: {basic, binary(), binary()} | {signature, Key :: binary()}.
+-type authentication() :: {signature, Key :: binary()}.
 -export_type([authentication/0]).
 
 -type cowboy_transport() ::
@@ -200,9 +200,7 @@ parse_cowboy_opts(Config) ->
     ExtraTransportOpts = maps:get(transport_options, Config, []),
     TransportOpts = backwater_util:proplists_sort_and_merge(DefaultTransportOpts, ExtraTransportOpts),
 
-    DefaultProtoOpts = #{ stream_handlers => [cowboy_compress_h, cowboy_stream_h] },
-    ExtraProtoOpts = maps:get(protocol_options, Config, #{}),
-    ProtoOpts = maps:merge(ExtraProtoOpts, DefaultProtoOpts),
+    ProtoOpts = maps:get(protocol_options, Config, #{}),
 
     {StartFunction, TransportOpts, ProtoOpts}.
 

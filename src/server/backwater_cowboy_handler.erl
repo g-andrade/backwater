@@ -20,13 +20,8 @@
 %% ------------------------------------------------------------------
 
 -define(MODULE_INFO_TTL, (timer:seconds(5))).
-
--define(MANDATORILY_SIGNED_HEADER_NAMES,
-        [<<"accept">>,
-         %<<"date">>,
-         <<"digest">>,
-         <<"content-type">>,
-         <<"content-encoding">>]).
+-define(COMPRESSION_THRESHOLD, 300).
+-define(KNOWN_CONTENT_ENCODINGS, [<<"gzip">>, <<"identity">>]).
 
 %% ------------------------------------------------------------------
 %% Type Definitions
@@ -44,7 +39,8 @@
            bin_function => binary(),
            arity => arity(),
 
-           body_digest => digest(),
+           signed_msg => backwater_http_signatures:message(),
+           signed_header_names => [binary()],
 
            module_info => backwater_module_info:module_info(),
            function_properties => backwater_module_info:fun_properties(),
@@ -53,16 +49,18 @@
            args => [term()],
            response => response(),
            accepted_result_content_types => [accepted_content_type()],
-           result_content_type => content_type() }.
+           accepted_result_content_encodings => [accepted_content_encoding()],
+           result_content_type => content_type(),
+           result_content_encoding => binary() }.
 -export_type([state/0]).
-
--type digest() :: undefined | {Type :: sha256, Value :: binary()}.
 
 -type content_type() :: {Type :: binary(), SubType :: binary(), content_type_params()}.
 -type content_type_params() :: [{binary(), binary()}].
 
 -type accepted_content_type() :: {content_type(), Quality :: 0..1000, accepted_ext()}.
 -type accepted_ext() :: [{binary(), binary()} | binary()].
+
+-type accepted_content_encoding() :: {content_type(), Quality :: 0..1000}.
 
 -type req() :: cowboy_req:req().
 
@@ -116,9 +114,11 @@ init(Req1, State1) ->
            fun check_args_content_type/1,
            fun check_args_content_encoding/1,
            fun check_accepted_result_content_types/1,
+           fun check_accepted_result_content_encodings/1,
            fun negotiate_args_content_type/1,
            fun negotiate_args_content_encoding/1,
            fun negotiate_result_content_type/1,
+           fun negotiate_result_content_encoding/1,
            fun read_and_decode_args/1,
            fun execute_call/1],
           State2),
@@ -169,155 +169,21 @@ check_method(#{ req := Req } = State) ->
 
 -spec check_authentication(state()) -> {continue | stop, state()}.
 check_authentication(#{ req := Req, authentication := Authentication } = State) ->
-    EncodedAuthorization = cowboy_req:header(<<"authorization">>, Req),
-    AuthorizationParseResult = parse_authorization_header(EncodedAuthorization),
-    case validate_authentication(State, AuthorizationParseResult) of
-        true ->
-            EncodedBodyDigest = safe_req_header(<<"digest">>, State),
-            BodyDigest = parse_digest_header(EncodedBodyDigest),
-            {continue, State#{ body_digest => BodyDigest }};
-        false ->
-            ResponseHeaders = failed_auth_prompt_headers(Authentication),
-            {stop, bodyless_response(401, ResponseHeaders, State)};
-        {false, Reason} ->
-            ResponseHeaders = failed_auth_prompt_headers(Authentication),
-            {stop, response(401, ResponseHeaders, Reason, State)}
-    end.
+    {signature, Key} = Authentication,
+    SignaturesConfig = backwater_http_signatures:config(Key),
 
-%%%
-parse_authorization_header(undefined) ->
-    undefined;
-parse_authorization_header(<<"Basic ", _/binary>> = HeaderValue) ->
-    cow_http_hd:parse_authorization(HeaderValue);
-parse_authorization_header(<<"Signature ", R/binary>>) ->
-    {signature, decode_signature_auth_params(R)}.
+    Method = cowboy_req:method(Req),
+    PathWithQs = req_path_with_qs(Req),
+    Headers = cowboy_req:headers(Req),
+    SignedMsg = backwater_http_signatures:new_request_msg(Method, PathWithQs, {ci_headers, Headers}),
 
-parse_digest_header(undefined) ->
-    undefined;
-parse_digest_header(<<"SHA-256=", EncodedDigest/binary>>) ->
-    Digest = base64:decode(EncodedDigest),
-    {sha256, Digest}.
-
-%%%
-decode_signature_auth_params(Encoded) ->
-    EncodedPairs = binary:split(Encoded, <<",">>, [global, trim_all]),
-    maps:from_list( lists:map(fun decode_signature_auth_pair/1, EncodedPairs) ).
-
-decode_signature_auth_pair(EncodedPair) ->
-    [Key, <<_, _, _/binary>> = QuotedValue] = binary:split(EncodedPair, <<"=">>),
-    ValueLength = byte_size(QuotedValue) - 2,
-    <<"\"", EncodedValue:ValueLength/binary, "\"">> = QuotedValue,
-    Value = decode_signature_auth_pair_value(Key, EncodedValue),
-    {Key, Value}.
-
-decode_signature_auth_pair_value(<<"headers">>, EncodedList) ->
-    binary:split(EncodedList, <<" ">>, [global, trim_all]);
-decode_signature_auth_pair_value(<<"signature">>, EncodedSignature) ->
-    base64:decode(EncodedSignature);
-decode_signature_auth_pair_value(_Key, Value) ->
-    Value.
-
-%%%
-validate_authentication(#{ authentication := {basic, Username, Password} }, ParsedAuthorization) ->
-    validate_basic_authentication(Username, Password, ParsedAuthorization);
-validate_authentication(#{ authentication := {signature, Key}, req := Req }, ParsedAuthorization) ->
-    validate_signature_authentication(Key, ParsedAuthorization, Req).
-
-validate_basic_authentication(Username, Password, {basic, Username, Password}) ->
-    true;
-validate_basic_authentication(_Username, _Password, _ParsedAuthorization) ->
-    false.
-
-validate_signature_authentication(Key, {signature, SignatureParams}, Req) ->
-    %KeyId = maps:get(<<"keyId">>, SignatureParams),
-    case SignatureParams of
-        #{ <<"keyId">> := KeyId,
-           <<"algorithm">> := Algorithm,
-           <<"headers">> := SignedHeaderNames,
-           <<"signature">> := Signature } ->
-            validate_signature(Key, KeyId, Algorithm, SignedHeaderNames, Signature, Req);
-        _ ->
-            % missing parameters
-            {false, missing_parameters}
-    end;
-validate_signature_authentication(_ParsedAuthorization, _Authentication, _Req) ->
-    % missing or mismatch
-    false.
-
-validate_signature(Key, <<"key">>, <<"hmac-sha256">>, SignedHeaderNames, Signature, Req) ->
-    validate_signature(Key, SignedHeaderNames, Signature, Req);
-validate_signature(_Key, _KeyId, _Algorithm, _SignedHeaderNames, _Signature, _Req) ->
-    % unknown key or algorithm
-    {false, unknown_key_or_algorithm}.
-
-validate_signature(Key, SignedHeaderNames, Signature, Req) ->
-    validate_pipeline(
-      [{fun validate_signature_fake_header_present/1, [SignedHeaderNames]},
-       {fun validate_signature_header_presence/2, [SignedHeaderNames, Req]},
-       {fun validate_signature_value/4, [Key, Signature, SignedHeaderNames, Req]}]).
-
-validate_pipeline([{Function, Args} | Next]) ->
-    case apply(Function, Args) of
-        true -> validate_pipeline(Next);
-        false -> false;
-        {false, Reason} -> {false, Reason}
-    end;
-validate_pipeline([]) ->
-    true.
-
-validate_signature_fake_header_present(SignedHeaderNames) ->
-    lists:member(<<"(request-target)">>, SignedHeaderNames).
-
-validate_signature_header_presence(SignedHeaderNames, Req) ->
-    AllHeaders = maps:to_list( cowboy_req:headers(Req) ),
-    MissingMandatory =
-        backwater_util:lists_anymap(
-          fun ({Name, _Value}) ->
-                  lists:member(Name, ?MANDATORILY_SIGNED_HEADER_NAMES)
-                  andalso not lists:member(Name, SignedHeaderNames)
-                  andalso {true, Name}
-          end,
-          AllHeaders),
-
-    case MissingMandatory of
-        {true, Name} -> {false, {missing_mandatorily_signed_header, Name}};
-        false -> true
-    end.
-
-validate_signature_value(Key, Signature, SignedHeaderNames, Req) ->
-    case build_signature_iodata(SignedHeaderNames, Req) of
-        false ->
-            {false, missing_signed_header};
-        {true, IoData} ->
-            ExpectedSignature = crypto:hmac(sha256, Key, IoData),
-            ExpectedSignature =:= Signature orelse {false, invalid_signature}
-    end.
-
-build_signature_iodata(SignedHeaderNames, Req) ->
-    BuildPartsResult =
-        backwater_util:lists_allmap(
-          fun (<<"(request-target)">>) ->
-                  Method = cowboy_req:method(Req),
-                  PathWithQs = req_path_with_qs(Req),
-                  {true, [Method, " ", PathWithQs]};
-              (Name) ->
-                  CiName = backwater_util:latin1_binary_to_lower(Name),
-                  case cowboy_req:header(CiName, Req) of
-                      undefined ->
-                          % missing header
-                          false;
-                      Value ->
-                          TrimmedValue = backwater_util:latin1_binary_trim_whitespaces(Value),
-                          {true, [CiName, ": ", TrimmedValue]}
-                  end
-          end,
-          SignedHeaderNames),
-
-    case BuildPartsResult of
-        false -> false;
-        {true, Parts} ->
-            OnePerLine = lists:join("\n", Parts),
-            {true, OnePerLine}
+    case backwater_http_signatures:validate_request_signature(SignaturesConfig, SignedMsg) of
+        {ok, SignedHeaderNames} ->
+            {continue, State#{ signed_msg => SignedMsg,
+                               signed_header_names => SignedHeaderNames }};
+        {error, Reason} ->
+            %ResponseHeaders = backwater_http_signatures:failed_auth_prompt_headers(),
+            {stop, response(401, #{}, Reason, State)}
     end.
 
 req_path_with_qs(Req) ->
@@ -326,39 +192,6 @@ req_path_with_qs(Req) ->
         <<>> -> Path;
         QueryString -> [Path, "?", QueryString] % TODO do we actually need "?" ?
     end.
-
-
-%%%
-%-spec failed_auth_prompt_header() -> {nonempty_binary(), nonempty_binary()}.
-failed_auth_prompt_headers({basic, _Username, _Password}) ->
-    Params = #{ <<"realm">> => <<"backwater">> },
-    #{ <<"www-authenticate">> => www_authenticate_value(<<"Basic">>, Params) };
-failed_auth_prompt_headers({signature, _Key}) ->
-    Params = #{ <<"realm">> => <<"backwater">>,
-                <<"headers">> => [<<"(request-target">>, <<"date">>] },
-    #{ <<"www-authenticate">> => www_authenticate_value(<<"Signature">>, Params) }.
-
-www_authenticate_value(EncodedSignatureType, Params) ->
-    EncodedParams = encode_signature_auth_params(Params),
-    [EncodedSignatureType, " ", EncodedParams].
-
-%%%
-encode_signature_auth_params(Params) ->
-    Pairs = maps:to_list(Params),
-    EncodedPairs = lists:map(fun encode_signature_auth_pair/1, Pairs),
-    lists:join(",", EncodedPairs).
-
-encode_signature_auth_pair({Key, Value}) ->
-    EncodedValue = encode_signature_auth_pair_value(Key, Value),
-    QuotedValue = ["\"", EncodedValue, "\""],
-    [Key, "=", QuotedValue].
-
-encode_signature_auth_pair_value(<<"headers">>, List) ->
-    lists:join(" ", List);
-encode_signature_auth_pair_value(<<"signature">>, Signature) ->
-    base64:encode(Signature);
-encode_signature_auth_pair_value(_Key, Value) ->
-    Value.
 
 %%%
 safe_req_header(Name, #{ req := Req } = State) ->
@@ -380,11 +213,8 @@ safe_req_parse_header(Name, #{ req := Req } = State, Default) ->
             Value
     end.
 
-assert_header_safety(Name, #{ authentication := {signature, _Key} }) ->
-    lists:member(Name, ?MANDATORILY_SIGNED_HEADER_NAMES)
-    orelse error({unsafe_header, Name});
-assert_header_safety(_Name, #{ authentication := {basic, _Username, _Password} }) ->
-    true.
+assert_header_safety(Name, #{ signed_header_names := SignedHeaderNames }) ->
+    lists:member(Name, SignedHeaderNames) orelse error({unsafe_header, Name}).
 
 %% ------------------------------------------------------------------
 %% Internal Function Definitions - Check Request Authorization
@@ -500,6 +330,17 @@ check_accepted_result_content_types(State) ->
     {continue, State2}.
 
 %% ------------------------------------------------------------------
+%% Internal Function Definitions - Validate Accepted Content Encodings
+%% ------------------------------------------------------------------
+
+-spec check_accepted_result_content_encodings(state()) -> {continue, state()}.
+check_accepted_result_content_encodings(State) ->
+    AcceptedContentEncodings = safe_req_parse_header(<<"accept-encoding">>, State, []),
+    SortedAcceptedContentEncodings = lists:reverse( lists:keysort(2, AcceptedContentEncodings) ),
+    State2 = State#{ accepted_result_content_encodings => SortedAcceptedContentEncodings },
+    {continue, State2}.
+
+%% ------------------------------------------------------------------
 %% Internal Function Definitions - Negotiate Arguments Content Type
 %% ------------------------------------------------------------------
 
@@ -526,7 +367,7 @@ negotiate_args_content_type(State) ->
 -spec negotiate_args_content_encoding(state()) -> {continue | stop, state()}.
 negotiate_args_content_encoding(State) ->
     #{ args_content_encoding := ArgsContentEncoding } = State,
-    case lists:member(ArgsContentEncoding, [<<"identity">>, <<"gzip">>]) of
+    case lists:member(ArgsContentEncoding, ?KNOWN_CONTENT_ENCODINGS) of
         true ->
             {continue, State};
         false ->
@@ -560,6 +401,31 @@ negotiate_result_content_type(State) ->
     end.
 
 %% ------------------------------------------------------------------
+%% Internal Function Definitions - Negotiate Result Content Encoding
+%% ------------------------------------------------------------------
+
+-spec negotiate_result_content_encoding(state()) -> {continue | stop, state()}.
+negotiate_result_content_encoding(State) ->
+    #{ accepted_result_content_encodings := AcceptedContentEncodings } = State,
+
+    SearchResult =
+        backwater_util:lists_anymap(
+          fun ({Encoding, _Params}) ->
+                  (lists:member(Encoding, ?KNOWN_CONTENT_ENCODINGS)
+                   andalso {true, Encoding})
+          end,
+          AcceptedContentEncodings),
+
+    case SearchResult of
+        {true, ContentEncoding} ->
+            State2 = State#{ result_content_encoding => ContentEncoding },
+            {continue, State2};
+        false ->
+            State2 = State#{ result_content_encoding => <<"identity">> },
+            {continue, State2}
+    end.
+
+%% ------------------------------------------------------------------
 %% Internal Function Definitions - Read and Decode Arguments
 %% ------------------------------------------------------------------
 
@@ -574,15 +440,12 @@ read_and_decode_args(#{ req := Req } = State) ->
             {stop, bodyless_response(413, State2)}
     end.
 
-validate_body_digest(Data, #{ body_digest := undefined } = State) ->
-    decode_args_content_encoding(Data, State);
-validate_body_digest(Data, #{ body_digest := {Type, Digest} } = State) ->
-    ExpectedDigest = crypto:hash(Type, Data),
-    case ExpectedDigest =:= Digest of
-        true -> decode_args_content_encoding(Data, State);
-        false ->
-            % TODO specify reason?
-            {stop, bodyless_response(403, State)}
+validate_body_digest(Data, State) ->
+    #{ signed_msg := SignedMsg } = State,
+    case backwater_http_signatures:validate_msg_body(SignedMsg, Data) of
+        ok -> decode_args_content_encoding(Data, State);
+        {error, Reason} ->
+            {stop, response(403, Reason, State)}
     end.
 
 -spec decode_args_content_encoding(binary(), state()) -> {continue | stop, state()}.
@@ -658,8 +521,15 @@ call_function(#{ function_properties := #{ function_ref := FunctionRef },
 -spec send_response(state()) -> state().
 send_response(State1) ->
     #{ req := Req1, response := Response } = State1,
-    #{ status_code := ResponseStatusCode, headers := ResponseHeaders, body := ResponseBody } = Response,
-    Req2 = cowboy_req:reply(ResponseStatusCode, ResponseHeaders, ResponseBody, Req1),
+    #{ status_code := ResponseStatusCode, headers := ResponseHeaders1, body := ResponseBody } = Response,
+
+    #{ authentication := {signature, Key} } = State1,
+    Config = backwater_http_signatures:config(Key),
+    Msg = backwater_http_signatures:new_response_msg(ResponseStatusCode, {ci_headers, ResponseHeaders1}),
+    SignedMsg = backwater_http_signatures:sign_response(Config, Msg, ResponseBody),
+    ResponseHeaders2 = backwater_http_signatures:get_real_msg_headers(SignedMsg),
+
+    Req2 = cowboy_req:reply(ResponseStatusCode, ResponseHeaders2, ResponseBody, Req1),
     State1#{ req := Req2 }.
 
 %% ------------------------------------------------------------------
@@ -668,13 +538,7 @@ send_response(State1) ->
 
 -spec bodyless_response(http_status(), state()) -> state().
 bodyless_response(StatusCode, State) ->
-    Response = #{ status_code => StatusCode, headers => nocache_headers(), body => <<>> },
-    maps:put(response, Response, State).
-
--spec bodyless_response(http_status(), http_headers(), state()) -> state().
-bodyless_response(StatusCode, BaseHeaders, State) ->
-    Headers = maps:merge(nocache_headers(), BaseHeaders),
-    Response = #{ status_code => StatusCode, headers => Headers, body => <<>> },
+    Response = encode_response(StatusCode, nocache_headers(), <<>>, State),
     maps:put(response, Response, State).
 
 -spec response(http_status(), term(), state()) -> state().
@@ -691,13 +555,23 @@ response(StatusCode, BaseHeaders, Value, #{ result_content_type := ResultContent
             {<<"application">>, <<"x-erlang-etf">>} ->
                 backwater_media_etf:encode(Value)
         end,
-    Response = #{ status_code => StatusCode, headers => Headers, body => Body },
+    Response = encode_response(StatusCode, Headers, Body, State),
     maps:put(response, Response, State);
 response(StatusCode, BaseHeaders, Value, State) ->
     Headers = maps:merge(nocache_headers(), BaseHeaders),
     Body = io_lib:format("~p", [Value]),
-    Response = #{ status_code => StatusCode, headers => Headers, body => Body },
+    Response = encode_response(StatusCode, Headers, Body, State),
     maps:put(response, Response, State).
+
+encode_response(StatusCode, Headers, Body, #{ result_content_encoding := <<"identity">> }) ->
+    #{ status_code => StatusCode, headers => Headers, body => Body };
+encode_response(StatusCode, Headers, Body, #{ result_content_encoding := <<"gzip">> })
+  when byte_size(Body) < ?COMPRESSION_THRESHOLD ->
+    #{ status_code => StatusCode, headers => Headers, body => Body };
+encode_response(StatusCode, Headers1, Body1, #{ result_content_encoding := <<"gzip">> }) ->
+    Body2 = backwater_encoding_gzip:encode(Body1),
+    Headers2 = Headers1#{ <<"content-encoding">> => <<"gzip">> },
+    #{ status_code => StatusCode, headers => Headers2, body => Body2 }.
 
 -spec nocache_headers() -> http_headers().
 nocache_headers() ->

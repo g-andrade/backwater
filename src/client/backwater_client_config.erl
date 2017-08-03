@@ -61,7 +61,7 @@
 
 -export_type([override/0]).
 
--type authentication() :: {basic, binary(), binary()} | {signature, Key :: binary()}.
+-type authentication() :: {signature, Key :: binary()}.
 
 -export_type([authentication/0]).
 

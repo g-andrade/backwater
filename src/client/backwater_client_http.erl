@@ -92,7 +92,7 @@ encode_request(Version, Module, Function, Args, Config) ->
 
 decode_response(StatusCode, Headers, Body, Config) ->
     CiHeaders = lists:keymap(fun backwater_util:latin1_binary_to_lower/1, 1, Headers),
-    decode_response_(StatusCode, CiHeaders, Body, Config).
+    authenticate_response(StatusCode, CiHeaders, Body, Config).
 
 %% ------------------------------------------------------------------
 %% Internal Function Definitions - Requests
@@ -125,77 +125,37 @@ encode_request_with_compression(Method, Url, Headers, Body, Config) ->
 -spec encode_request_with_auth(nonempty_binary(), nonempty_binary(),
                                nonempty_headers(), binary(),
                                backwater_client_config:t()) -> request().
-encode_request_with_auth(Method, Url, Headers1, Body, #{ authentication := {basic, Username, Password} }) ->
-    AuthHeader = {<<"authorization">>, http_basic_auth_authorization(Username, Password)},
-    Headers2 = [AuthHeader | Headers1],
-    {Method, Url, Headers2, Body};
 encode_request_with_auth(Method, Url, Headers1, Body, #{ authentication := {signature, Key} }) ->
-    DigestHeader = {<<"digest">>, http_signature_auth_digest(Body)},
-    Headers2 = [DigestHeader | Headers1],
-    AuthHeader = {<<"authorization">>, http_signature_auth_authorization(Key, Method, Url, Headers2)},
-    Headers3 = [AuthHeader | Headers2],
-    {Method, Url, Headers3, Body}.
-
--spec http_basic_auth_authorization(binary(), binary()) -> nonempty_binary().
-http_basic_auth_authorization(Username, Password) ->
-    ?OPAQUE_BINARY(<<"Basic ", (base64:encode( iolist_to_binary([Username, ":", Password]) ))/binary>>).
-
-http_signature_auth_digest(Body) ->
-    Digest = crypto:hash(sha256, Body),
-    EncodedDigest = base64:encode(Digest),
-    <<"SHA-256=", EncodedDigest/binary>>.
-
-http_signature_auth_authorization(Key, Method, Url, Headers) ->
-    CiHeaders = lists:keymap(fun backwater_util:latin1_binary_to_lower/1, 1, Headers),
-    CiHeaderNames = [K || {K, _V} <- CiHeaders],
-    SignedHeaderNames = lists:usort([<<"(request-target)">> | CiHeaderNames]),
-    SignatureIoData = build_signature_iodata(SignedHeaderNames, Method, Url, CiHeaders),
-    Signature = crypto:hmac(sha256, Key, SignatureIoData),
-    SignatureParams =
-        #{ <<"keyId">> => <<"key">>,
-           <<"algorithm">> => <<"hmac-sha256">>,
-           <<"headers">> => SignedHeaderNames,
-           <<"signature">> => Signature },
-    EncodedsignatureParams = encode_signature_auth_params(SignatureParams),
-    iolist_to_binary(["Signature ", EncodedsignatureParams]).
-
-build_signature_iodata(SignedHeaderNames, Method, Url, CiHeaders) ->
-    Parts =
-        lists:map(
-          fun (<<"(request-target)">>) ->
-                  <<"http://localhost:8080", PathWithQs/binary>> = Url, % TODO
-                  [Method, " ", PathWithQs];
-              (Name) ->
-                  {Name, Value} = lists:keyfind(Name, 1, CiHeaders),
-                  TrimmedValue = backwater_util:latin1_binary_trim_whitespaces(Value),
-                  [Name, ": ", TrimmedValue]
-          end,
-          SignedHeaderNames),
-    lists:join("\n", Parts).
-
-% TODO deduplicate (also in backwater_cowboy_handler)
-encode_signature_auth_params(Params) ->
-    Pairs = maps:to_list(Params),
-    EncodedPairs = lists:map(fun encode_signature_auth_pair/1, Pairs),
-    lists:join(",", EncodedPairs).
-
-% TODO deduplicate (also in backwater_cowboy_handler)
-encode_signature_auth_pair({Key, Value}) ->
-    EncodedValue = encode_signature_auth_pair_value(Key, Value),
-    QuotedValue = ["\"", EncodedValue, "\""],
-    [Key, "=", QuotedValue].
-
-% TODO deduplicate (also in backwater_cowboy_handler)
-encode_signature_auth_pair_value(<<"headers">>, List) ->
-    lists:join(" ", List);
-encode_signature_auth_pair_value(<<"signature">>, Signature) ->
-    base64:encode(Signature);
-encode_signature_auth_pair_value(_Key, Value) ->
-    Value.
+    <<"http://localhost:8080", PathWithQs/binary>> = Url, % TODO
+    SignaturesConfig = backwater_http_signatures:config(Key),
+    SignaturesMsg = backwater_http_signatures:new_request_msg(Method, PathWithQs, Headers1),
+    SignedMsg = backwater_http_signatures:sign_request(SignaturesConfig, SignaturesMsg, Body),
+    Headers2 = backwater_http_signatures:list_real_msg_headers(SignedMsg),
+    {Method, Url, Headers2, Body}.
 
 %% ------------------------------------------------------------------
 %% Internal Function Definitions - Responses
 %% ------------------------------------------------------------------
+
+authenticate_response(StatusCode, CiHeaders, Body, Config) ->
+    #{ authentication := {signature, Key} } = Config,
+    SignaturesConfig = backwater_http_signatures:config(Key),
+    SignedMsg = backwater_http_signatures:new_response_msg(StatusCode, {ci_headers, CiHeaders}),
+    case backwater_http_signatures:validate_response_signature(SignaturesConfig, SignedMsg) of
+        {ok, _SignedHeaderNames} ->
+            % TODO deal with SignedHeaderNames
+            authenticate_response_body(StatusCode, CiHeaders, Body, Config, SignedMsg);
+        {error, Reason} ->
+            {error, {Reason, StatusCode}}
+    end.
+
+authenticate_response_body(StatusCode, CiHeaders, Body, Config, SignedMsg) ->
+    case backwater_http_signatures:validate_msg_body(SignedMsg, Body) of
+        ok ->
+            decode_response_(StatusCode, CiHeaders, Body, Config);
+        {error, Reason} ->
+            {error, {Reason, StatusCode}}
+    end.
 
 -spec decode_response_(status_code(), headers(), binary(), backwater_client_config:t()) -> response().
 decode_response_(200 = StatusCode, CiHeaders, Body, Config) ->

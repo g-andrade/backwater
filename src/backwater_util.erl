@@ -123,7 +123,8 @@ lists_allmap_recur(Fun, [H|T], Acc) ->
     case Fun(H) of
         {true, MappedH} -> lists_allmap_recur(Fun, T, [MappedH | Acc]);
         true -> lists_allmap_recur(Fun, T, [H | Acc]);
-        false -> false
+        {false, MappedH} -> {false, MappedH};
+        false -> {false, H}
     end.
 
 -spec proplists_element_cmp(proplists:property(), proplists:property()) -> boolean().
