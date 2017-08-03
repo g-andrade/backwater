@@ -563,15 +563,13 @@ response(StatusCode, BaseHeaders, Value, State) ->
     Response = encode_response(StatusCode, Headers, Body, State),
     maps:put(response, Response, State).
 
-encode_response(StatusCode, Headers, Body, #{ result_content_encoding := <<"identity">> }) ->
-    #{ status_code => StatusCode, headers => Headers, body => Body };
-encode_response(StatusCode, Headers, Body, #{ result_content_encoding := <<"gzip">> })
-  when byte_size(Body) < ?COMPRESSION_THRESHOLD ->
-    #{ status_code => StatusCode, headers => Headers, body => Body };
-encode_response(StatusCode, Headers1, Body1, #{ result_content_encoding := <<"gzip">> }) ->
+encode_response(StatusCode, Headers1, Body1, #{ result_content_encoding := <<"gzip">> })
+  when byte_size(Body1) >= ?COMPRESSION_THRESHOLD ->
     Body2 = backwater_encoding_gzip:encode(Body1),
     Headers2 = Headers1#{ <<"content-encoding">> => <<"gzip">> },
-    #{ status_code => StatusCode, headers => Headers2, body => Body2 }.
+    #{ status_code => StatusCode, headers => Headers2, body => Body2 };
+encode_response(StatusCode, Headers, Body, _State) ->
+    #{ status_code => StatusCode, headers => Headers, body => Body }.
 
 -spec nocache_headers() -> http_headers().
 nocache_headers() ->
