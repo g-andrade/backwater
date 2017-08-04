@@ -48,7 +48,7 @@ stop(Ref) ->
              Function :: atom(),
              Args :: [term()],
              Result :: backwater_client_http:response(OtherError),
-             OtherError :: {response_body, term()} | {socket, term()}.
+             OtherError :: {response_body, atom() | {closed, binary()}} | {socket, term()}.
 
 call(Ref, Version, Module, Function, Args) ->
     call(Ref, Version, Module, Function, Args, #{}).
@@ -62,7 +62,7 @@ call(Ref, Version, Module, Function, Args) ->
              Args :: [term()],
              ConfigOverride :: backwater_client_config:override(),
              Result :: backwater_client_http:response(OtherError),
-             OtherError :: {response_body, term()} | {socket, term()}.
+             OtherError :: {response_body, atom() | {closed, binary()}} | {socket, term()}.
 
 call(Ref, Version, Module, Function, Args, ConfigOverride) ->
     Config = backwater_client_config:get_config(Ref, ConfigOverride),

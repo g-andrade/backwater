@@ -171,14 +171,15 @@ check_authentication(#{ req := Req, authentication := Authentication } = State) 
             {stop, set_response(401, AuthChallengeHeaders, Reason, State)}
     end.
 
+-spec req_path_with_qs(req()) -> binary().
 req_path_with_qs(Req) ->
     Path = cowboy_req:path(Req),
     case cowboy_req:qs(Req) of
         <<>> -> Path;
-        QueryString -> [Path, "?", QueryString] % TODO do we actually need "?" ?
+        QueryString -> <<Path/binary, "?", QueryString/binary>>
     end.
 
-%%%
+-spec safe_req_header(binary(), state()) -> undefined | binary() | no_return().
 safe_req_header(Name, #{ req := Req } = State) ->
     case cowboy_req:header(Name, Req) of
         undefined -> undefined;
@@ -187,9 +188,11 @@ safe_req_header(Name, #{ req := Req } = State) ->
             Value
     end.
 
+-spec safe_req_parse_header(binary(), state()) -> term() | no_return().
 safe_req_parse_header(Name, State) ->
     safe_req_parse_header(Name, State, undefined).
 
+-spec safe_req_parse_header(binary(), state(), term()) -> term() | no_return().
 safe_req_parse_header(Name, #{ req := Req } = State, Default) ->
     case cowboy_req:parse_header(Name, Req) of
         undefined -> Default;
@@ -198,6 +201,7 @@ safe_req_parse_header(Name, #{ req := Req } = State, Default) ->
             Value
     end.
 
+-spec assert_header_safety(binary(), state()) -> true | no_return().
 assert_header_safety(Name, #{ signed_header_names := SignedHeaderNames }) ->
     lists:member(Name, SignedHeaderNames) orelse error({unsafe_header, Name}).
 
@@ -557,10 +561,11 @@ set_response(StatusCode, BaseHeaders, Value, #{ result_content_type := ResultCon
     maps:put(response, Response, State);
 set_response(StatusCode, BaseHeaders, Value, State) ->
     Headers = maps:merge(nocache_headers(), BaseHeaders),
-    Body = io_lib:format("~p", [Value]),
+    Body = iolist_to_binary(io_lib:format("~p", [Value])),
     Response = encode_response(StatusCode, Headers, Body, State),
     maps:put(response, Response, State).
 
+-spec encode_response(http_status(), http_headers(), binary(), state()) -> response().
 encode_response(StatusCode, Headers1, Body1, #{ result_content_encoding := <<"gzip">> })
   when byte_size(Body1) >= ?COMPRESSION_THRESHOLD ->
     Body2 = backwater_encoding_gzip:encode(Body1),

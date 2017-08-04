@@ -49,9 +49,12 @@ latin1_binary_to_lower(Bin) ->
     % TODO: optimize
     list_to_binary( string:to_lower( binary_to_list(Bin) ) ).
 
+-spec latin1_binary_trim_whitespaces(binary()) -> binary().
 latin1_binary_trim_whitespaces(Bin) ->
     re:replace(Bin, <<"(^\\s+)|(\\s+$)">>, <<>>, [global, {return, binary}]).
 
+-spec lists_allmap(Fun :: fun((term()) -> {boolean(), term()} | boolean()), [term()])
+        -> {true, [term()]} | {false, term()}.
 lists_allmap(Fun, List) ->
     lists_allmap_recur(Fun, List, []).
 
@@ -117,6 +120,8 @@ copies_recur(Acc, Count) when Count < 2 ->
 copies_recur([Value | _] = Acc, Count) ->
     copies_recur([Value | Acc], Count - 1).
 
+-spec lists_allmap_recur(Fun :: fun((term()) -> {boolean(), term()} | boolean()), [term()], [term()])
+        -> {true, [term()]} | {false, term()}.
 lists_allmap_recur(_Fun, [], Acc) ->
     {true, lists:reverse(Acc)};
 lists_allmap_recur(Fun, [H|T], Acc) ->

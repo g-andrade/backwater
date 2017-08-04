@@ -1,5 +1,6 @@
 -module(backwater_client_http).
 
+-include_lib("hackney/include/hackney_lib.hrl").
 -include("../backwater_common.hrl").
 
 %% ------------------------------------------------------------------
@@ -43,20 +44,27 @@
 -export_type([response/1]).
 
 -type response_error() ::
+        {response_authentication, status_code(), backwater_http_signatures:response_validation_failure()} |
+        {response_body_authentication, status_code(), backwater_http_signatures:body_validation_failure()} |
+        {remote, response_remote_error()} |
+        {undecodable_response_body, status_code(), Body :: binary()} |
+        {unknown_content_encoding, status_code(), ContentEncoding :: binary()} |
+        {unknown_content_type, status_code(), ContentType :: nonempty_binary()}.
+
+-export_type([response_error/0]).
+
+-type response_remote_error() ::
         {bad_request, Body :: binary()} |
         {forbidden, Body :: binary()} |
-        {http, status_code(), Body :: binary()} |
         {internal_error, Body :: binary()} |
-        {invalid_content_type, status_code(), ContentType :: binary()} |
         {not_found, Body :: binary()} |
         {payload_too_large, Body :: binary()} |
         {unauthorized, Body :: binary()} |
-        {undecodable_response_body, status_code(), Body :: binary()} |
-        {unknown_content_encoding, status_code(), ContentEncoding :: binary()} |
-        {unknown_content_type, status_code(), ContentType :: binary()} |
-        {unsupported_media_type, Body :: binary()}.
+        {unsupported_media_type, Body :: binary()} |
+        {http, status_code(), Body :: binary()} |
+        {invalid_content_type, status_code(), ContentType :: binary()}.
 
--export_type([response_error/0]).
+-export_type([response_remote_error/0]).
 
 %% ------------------------------------------------------------------
 %% API Function Definitions
@@ -126,17 +134,28 @@ encode_request_with_compression(Method, Url, Headers, Body, Config) ->
                                nonempty_headers(), binary(),
                                backwater_client_config:t()) -> request().
 encode_request_with_auth(Method, Url, Headers1, Body, #{ authentication := {signature, Key} }) ->
-    <<"http://localhost:8080", PathWithQs/binary>> = Url, % TODO
+    PathWithQs = url_path_with_qs(Url),
     SignaturesConfig = backwater_http_signatures:config(Key),
     SignaturesMsg = backwater_http_signatures:new_request_msg(Method, PathWithQs, Headers1),
     SignedMsg = backwater_http_signatures:sign_request(SignaturesConfig, SignaturesMsg, Body),
     Headers2 = backwater_http_signatures:list_real_msg_headers(SignedMsg),
-    {Method, Url, Headers2, Body}.
+    {?OPAQUE_BINARY(Method), ?OPAQUE_BINARY(Url), Headers2, Body}.
+
+-spec url_path_with_qs(nonempty_binary()) -> binary().
+url_path_with_qs(Url) ->
+    HackneyUrl = hackney_url:parse_url(Url),
+    #hackney_url{ path = Path, qs = Qs } = HackneyUrl,
+    case Qs =:= <<>> of
+        true -> Path;
+        false -> <<Path/binary, "?", Qs/binary>>
+    end.
 
 %% ------------------------------------------------------------------
 %% Internal Function Definitions - Responses
 %% ------------------------------------------------------------------
 
+-spec authenticate_response(status_code(), headers(), binary(), backwater_client_config:t())
+        -> response().
 authenticate_response(StatusCode, CiHeaders, Body, Config) ->
     #{ authentication := {signature, Key} } = Config,
     SignaturesConfig = backwater_http_signatures:config(Key),
@@ -146,15 +165,17 @@ authenticate_response(StatusCode, CiHeaders, Body, Config) ->
             % TODO deal with SignedHeaderNames
             authenticate_response_body(StatusCode, CiHeaders, Body, Config, SignedMsg);
         {error, Reason} ->
-            {error, {Reason, StatusCode}}
+            {error, {response_authentication, StatusCode, Reason}}
     end.
 
+-spec authenticate_response_body(status_code(), headers(), binary(), backwater_client_config:t(),
+                                 backwater_http_signatures:message()) -> response().
 authenticate_response_body(StatusCode, CiHeaders, Body, Config, SignedMsg) ->
     case backwater_http_signatures:validate_msg_body(SignedMsg, Body) of
         ok ->
             decode_response_(StatusCode, CiHeaders, Body, Config);
         {error, Reason} ->
-            {error, {Reason, StatusCode}}
+            {error, {response_body_authentication, StatusCode, Reason}}
     end.
 
 -spec decode_response_(status_code(), headers(), binary(), backwater_client_config:t()) -> response().
@@ -261,7 +282,7 @@ find_content_encoding(CiHeaders) ->
         -> {term, term()} |
            {raw, binary()} |
            {error, {undecodable_response_body, binary()}} |
-           {error, {unknown_content_type, binary()}} |
+           {error, {unknown_content_type, nonempty_binary()}} |
            {error, {invalid_content_type, binary()}}.
 handle_response_body_content_type({ok, {<<"application/x-erlang-etf">>, _Params}},
                                    Body, Config) ->
