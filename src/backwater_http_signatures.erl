@@ -293,8 +293,8 @@ signed_header_names(Params, Msg) ->
 %% ------------------------------------------------------------------
 
 rfc1123() ->
-    % dirty hack
-    cowboy_clock:rfc1123().
+    CurrTime = erlang:universaltime(),
+    httpd_util:rfc1123_date(CurrTime).
 
 generate_authorization_header_value(Config, Msg) ->
     EncodedParams = generate_signature_header_value(Config, Msg),
