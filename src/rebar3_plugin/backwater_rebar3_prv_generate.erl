@@ -1,3 +1,4 @@
+%% @private
 -module(backwater_rebar3_prv_generate).
 
 -export([init/1]).

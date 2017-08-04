@@ -72,10 +72,12 @@
 %% ------------------------------------------------------------------
 
 -spec start_link(term(), t()) -> {ok, pid()} | ignore | {error, term()}.
+%% @private
 start_link(Ref, Config) ->
     gen_server:start_link({local, server_name(Ref)}, ?CB_MODULE, [Ref, Config], []).
 
 -spec child_spec(term(), term(), t()) -> child_spec().
+%% @private
 child_spec(Id, Ref, Config) ->
     #{ id => Id,
        start => {?MODULE, start_link, [Ref, Config]},
@@ -84,6 +86,7 @@ child_spec(Id, Ref, Config) ->
        modules => [?MODULE] }.
 
 -spec get_config(term(), override()) -> t().
+%% @private
 get_config(Ref, ConfigOverride) ->
     ConfigTableName = config_table_name(Ref),
     BaseConfig = maps:from_list(ets:tab2list(ConfigTableName)),
@@ -94,6 +97,7 @@ get_config(Ref, ConfigOverride) ->
 %% ------------------------------------------------------------------
 
 -spec init([term() | t(), ...]) -> {ok, state()}.
+%% @private
 init([Ref, Config]) ->
     ConfigTableName = config_table_name(Ref),
     _ = ets:new(ConfigTableName, [named_table, protected, {read_concurrency, true}]),
@@ -101,22 +105,27 @@ init([Ref, Config]) ->
     {ok, no_state}.
 
 -spec handle_call(term(), {pid(), reference()}, state()) -> {noreply, state()}.
+%% @private
 handle_call(_Request, _From, State) ->
     {noreply, State}.
 
 -spec handle_cast(term(), state()) -> {noreply, state()}.
+%% @private
 handle_cast(_Msg, State) ->
     {noreply, State}.
 
 -spec handle_info(term(), state()) -> {noreply, state()}.
+%% @private
 handle_info(_Info, State) ->
     {noreply, State}.
 
 -spec terminate(term(), state()) -> ok.
+%% @private
 terminate(_Reason, _State) ->
     ok.
 
 -spec code_change(term(), state(), term()) -> {ok, state()}.
+%% @private
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
 

@@ -1,3 +1,4 @@
+%% @private
 -module(backwater_cache).
 -behaviour(gen_server).
 

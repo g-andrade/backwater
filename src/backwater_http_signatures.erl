@@ -109,16 +109,19 @@
 %% ------------------------------------------------------------------
 
 -spec config(binary()) -> config().
+%% @private
 config(Key) ->
     #{ key => Key }.
 
 -spec new_request_msg(binary(), binary(), maybe_uncanonical_headers()) -> message().
+%% @private
 new_request_msg(Method, PathWithQs, Headers) ->
     FakeHeaders = #{ ?OPAQUE_BINARY(<<"(request-target)">>) => request_target(Method, PathWithQs) },
     RealHeaders = canonical_headers(Headers),
     new_msg(FakeHeaders, RealHeaders).
 
 -spec new_response_msg(non_neg_integer(), maybe_uncanonical_headers()) -> message().
+%% @private
 new_response_msg(StatusCode, Headers) ->
     FakeHeaders = #{ ?OPAQUE_BINARY(<<"(response-status)">>) => response_status(StatusCode) },
     RealHeaders = canonical_headers(Headers),
@@ -128,6 +131,7 @@ new_response_msg(StatusCode, Headers) ->
         -> {ok, SignedHeaderNames :: [binary()]} |
            {error, {Reason :: request_validation_failure(),
                     ChallengeHeaders :: #{ binary() := binary() }}}.
+%% @private
 validate_request_signature(Config, Msg) ->
     AuthorizationHeaderLookup = find_real_msg_header(<<"authorization">>, Msg),
     Result =
@@ -142,6 +146,7 @@ validate_request_signature(Config, Msg) ->
 -spec validate_response_signature(config(), message())
         -> {ok, SignedHeaderNames :: [binary()]} |
            {error, Reason :: response_validation_failure()}.
+%% @private
 validate_response_signature(Config, Msg) ->
     SignatureHeaderLookup = find_real_msg_header(<<"signature">>, Msg),
     case parse_signature_header(SignatureHeaderLookup) of
@@ -152,6 +157,7 @@ validate_response_signature(Config, Msg) ->
     end.
 
 -spec validate_msg_body(message(), binary()) -> ok | {error, body_validation_failure()}.
+%% @private
 validate_msg_body(Msg, Body) ->
     DigestLookup = find_real_msg_header(<<"digest">>, Msg),
     case parse_digest(DigestLookup) of
@@ -166,6 +172,7 @@ validate_msg_body(Msg, Body) ->
     end.
 
 -spec sign_request(config(), message(), binary()) -> message().
+%% @private
 sign_request(Config, Msg1, Body) ->
     BodyDigest = body_digest(Body),
     Msg2 = remove_real_msg_headers([<<"authorization">>, <<"date">>], Msg1),
@@ -174,6 +181,7 @@ sign_request(Config, Msg1, Body) ->
     add_real_msg_headers(#{ ?OPAQUE_BINARY(<<"authorization">>) => AuthorizationHeaderValue }, Msg3).
 
 -spec sign_response(config(), message(), binary()) -> message().
+%% @private
 sign_response(Config, Msg1, Body) ->
     BodyDigest = body_digest(Body),
     Msg2 = remove_real_msg_headers([<<"date">>, <<"signature">>], Msg1),
@@ -182,11 +190,13 @@ sign_response(Config, Msg1, Body) ->
     add_real_msg_headers(#{ ?OPAQUE_BINARY(<<"signature">>) => SignatureHeaderValue}, Msg3).
 
 -spec get_real_msg_headers(message()) -> header_map().
+%% @private
 get_real_msg_headers(Msg) ->
     #{ real_headers := Map } = Msg,
     Map.
 
 -spec list_real_msg_headers(message()) -> header_list().
+%% @private
 list_real_msg_headers(Msg) ->
     maps:to_list( get_real_msg_headers(Msg) ).
 

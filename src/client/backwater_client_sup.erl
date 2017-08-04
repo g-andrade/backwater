@@ -1,3 +1,4 @@
+%% @private
 -module(backwater_client_sup).
 -behaviour(supervisor).
 
