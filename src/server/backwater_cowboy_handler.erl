@@ -19,7 +19,7 @@
 %% Macro Definitions
 %% ------------------------------------------------------------------
 
--define(MODULE_INFO_TTL, (timer:seconds(5))).
+-define(CACHED_FUNCTION_PROPERTIES_TTL, (timer:seconds(5))).
 -define(COMPRESSION_THRESHOLD, 300).
 -define(KNOWN_CONTENT_ENCODINGS, [<<"gzip">>, <<"identity">>]).
 
@@ -42,7 +42,6 @@
            signed_msg => backwater_http_signatures:message(),
            signed_header_names => [binary()],
 
-           module_info => backwater_module_info:module_info(),
            function_properties => backwater_module_info:fun_properties(),
            args_content_type => content_type(),
            args_content_encoding => binary(),
@@ -243,49 +242,48 @@ check_authorization(State) ->
 
 -spec check_existence(state()) -> {continue | stop, state()}.
 check_existence(State) ->
-    case find_resource(State) of
-        {found, State2} ->
-            {continue, State2};
+    case find_function_properties(State) of
+        {found, FunctionProperties} ->
+            {continue, State#{ function_properties => FunctionProperties }};
         Error ->
             {stop, set_response(404, Error, State)}
     end.
 
--spec find_resource(state())
-        -> {found, state()} | Error
+-spec find_function_properties(state())
+        -> {found, backwater_module_info:fun_properties()} | Error
              when Error :: (module_version_not_found |
                             function_not_exported |
                             module_not_found).
-find_resource(State) ->
+find_function_properties(State) ->
     #{ exposed_modules := ExposedModules,
        version := BinVersion,
        bin_module := BinModule,
        bin_function := BinFunction,
        arity := Arity } = State,
 
-    CacheKey = {exposed_modules, erlang:phash2(ExposedModules)},
-    InfoPerExposedModule =
-        case backwater_cache:find(CacheKey) of
-            {ok, Cached} ->
-                Cached;
-            error ->
-                Info = backwater_module_info:generate(ExposedModules),
-                backwater_cache:put(CacheKey, Info, ?MODULE_INFO_TTL),
-                Info
-        end,
-
-    case maps:find(BinModule, InfoPerExposedModule) of
-        {ok, #{ version := Version }} when Version =/= BinVersion ->
-            module_version_not_found;
-        {ok, #{ exports := Exports } = ModuleInfo} ->
-            case maps:find({BinFunction, Arity}, Exports) of
-                {ok, Resource} ->
-                    State2 = State#{ module_info => ModuleInfo, function_properties => Resource },
-                    {found, State2};
-                error ->
-                    function_not_exported
-            end;
+    CacheKey = {exposed_function_properties, BinModule, BinVersion, BinFunction, Arity},
+    case backwater_cache:find(CacheKey) of
+        {ok, FunctionProperties} ->
+            {found, FunctionProperties};
         error ->
-            module_not_found
+            InfoPerExposedModule = backwater_module_info:generate(ExposedModules),
+            case maps:find(BinModule, InfoPerExposedModule) of
+                {ok, #{ version := Version }} when Version =/= BinVersion ->
+                    module_version_not_found;
+                {ok, #{ exports := Exports }} ->
+                    case maps:find({BinFunction, Arity}, Exports) of
+                        {ok, FunctionProperties} ->
+                            % let's only fill successful lookups so that we don't risk
+                            % overloading the cache if attacked (the trade off is potentially
+                            % much higher CPU usage)
+                            backwater_cache:put(CacheKey, FunctionProperties, ?CACHED_FUNCTION_PROPERTIES_TTL),
+                            {found, FunctionProperties};
+                        error ->
+                            function_not_exported
+                    end;
+                error ->
+                    module_not_found
+            end
     end.
 
 %% ------------------------------------------------------------------
