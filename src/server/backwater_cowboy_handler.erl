@@ -107,8 +107,8 @@ init(Req1, State1) ->
 
     State3 =
         execute_pipeline(
-          [fun check_method/1,
-           fun check_authentication/1,
+          [fun check_authentication/1,
+           fun check_method/1,
            fun check_authorization/1,
            fun check_existence/1,
            fun check_args_content_type/1,
@@ -149,19 +149,6 @@ execute_pipeline([Handler | NextHandlers], State1) ->
     end;
 execute_pipeline([], State) ->
     send_response(State).
-
-%% ------------------------------------------------------------------
-%% Internal Function Definitions - Check Method
-%% ------------------------------------------------------------------
-
--spec check_method(state()) -> {continue | stop, state()}.
-check_method(#{ req := Req } = State) ->
-    case cowboy_req:method(Req) =:= <<"POST">> of
-        true ->
-            {continue, State};
-        false ->
-            {stop, bodyless_response(405, State)}
-    end.
 
 %% ------------------------------------------------------------------
 %% Internal Function Definitions - Check Authentication
@@ -215,6 +202,19 @@ safe_req_parse_header(Name, #{ req := Req } = State, Default) ->
 
 assert_header_safety(Name, #{ signed_header_names := SignedHeaderNames }) ->
     lists:member(Name, SignedHeaderNames) orelse error({unsafe_header, Name}).
+
+%% ------------------------------------------------------------------
+%% Internal Function Definitions - Check Method
+%% ------------------------------------------------------------------
+
+-spec check_method(state()) -> {continue | stop, state()}.
+check_method(#{ req := Req } = State) ->
+    case cowboy_req:method(Req) =:= <<"POST">> of
+        true ->
+            {continue, State};
+        false ->
+            {stop, bodyless_response(405, State)}
+    end.
 
 %% ------------------------------------------------------------------
 %% Internal Function Definitions - Check Request Authorization
