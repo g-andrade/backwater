@@ -19,6 +19,9 @@
 %% Macro Definitions
 %% ------------------------------------------------------------------
 
+-define(KEY_ID, <<"default">>).
+-define(ALGORITHM, <<"hmac-sha256">>).
+
 -define(VALIDATION_MANDATORILY_SIGNED_HEADER_NAMES,
         [<<"date">>,
          <<"digest">>]).
@@ -220,12 +223,12 @@ decode_signature_param_value(_Key, Value) ->
 validate_params(Config, Params, Msg) ->
     validate_key_id(Config, Params, Msg).
 
-validate_key_id(Config, #{ <<"keyId">> := <<"key">> } = Params, Msg) ->
+validate_key_id(Config, #{ <<"keyId">> := ?KEY_ID } = Params, Msg) ->
     validate_algorithm(Config, Params, Msg);
 validate_key_id(_Config, _Params, _Msg) ->
     {error, unknown_key}.
 
-validate_algorithm(Config, #{ <<"algorithm">> := <<"hmac-sha256">> } = Params, Msg) ->
+validate_algorithm(Config, #{ <<"algorithm">> := ?ALGORITHM } = Params, Msg) ->
     validate_signed_headers(Config, Params, Msg);
 validate_algorithm(_Config, _Params, _Msg) ->
     {error, unknown_algorithm}.
@@ -306,8 +309,8 @@ generate_signature_header_value(Config, Msg) ->
     {ok, SignatureIoData} = build_signature_iodata(SignedHeaderNames, Msg),
     Signature = crypto:hmac(sha256, Key, SignatureIoData),
     SignatureParams =
-        #{ <<"keyId">> => <<"key">>,
-           <<"algorithm">> => <<"hmac-sha256">>,
+        #{ <<"keyId">> => ?KEY_ID,
+           <<"algorithm">> => ?ALGORITHM,
            <<"headers">> => SignedHeaderNames,
            <<"signature">> => Signature },
     encode_signature_auth_params(SignatureParams).
