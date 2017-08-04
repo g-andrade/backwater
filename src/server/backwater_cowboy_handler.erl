@@ -168,9 +168,8 @@ check_authentication(#{ req := Req, authentication := Authentication } = State) 
         {ok, SignedHeaderNames} ->
             {continue, State#{ signed_msg => SignedMsg,
                                signed_header_names => SignedHeaderNames }};
-        {error, Reason} ->
-            %ResponseHeaders = backwater_http_signatures:failed_auth_prompt_headers(),
-            {stop, set_response(401, #{}, Reason, State)}
+        {error, {Reason, AuthChallengeHeaders}} ->
+            {stop, set_response(401, AuthChallengeHeaders, Reason, State)}
     end.
 
 req_path_with_qs(Req) ->

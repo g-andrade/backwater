@@ -60,12 +60,14 @@ new_response_msg(StatusCode, Headers) ->
 
 validate_request_signature(Config, Msg) ->
     AuthorizationHeaderLookup = find_real_msg_header(<<"authorization">>, Msg),
-    case parse_authorization_header(AuthorizationHeaderLookup) of
-        {ok, Params} ->
-            validate_params(Config, Params, Msg);
-        {error, Reason} ->
-            {error, Reason}
-    end.
+    Result =
+        case parse_authorization_header(AuthorizationHeaderLookup) of
+            {ok, Params} ->
+                validate_params(Config, Params, Msg);
+            {error, Reason} ->
+                {error, Reason}
+        end,
+    request_validation_result(Result, Msg).
 
 validate_response_signature(Config, Msg) ->
     SignatureHeaderLookup = find_real_msg_header(<<"signature">>, Msg),
@@ -146,6 +148,10 @@ add_real_msg_headers(ExtraMap, Msg) ->
     #{ real_headers := Map1 } = Msg,
     Map2 = maps:merge(Map1, ExtraMap),
     Msg#{ real_headers := Map2 }.
+
+list_fake_msg_header_names(Msg) ->
+    #{ fake_headers := Map } = Msg,
+    maps:keys(Map).
 
 list_real_msg_header_names(Msg) ->
     #{ real_headers := Map } = Msg,
@@ -290,6 +296,27 @@ signed_header_names(Params, Msg) ->
     RealHeaderNames = list_real_msg_header_names(Msg),
     #{ <<"headers">> := SignedHeaderNames } = Params,
     [Name || Name <- RealHeaderNames, lists:member(Name, SignedHeaderNames)].
+
+request_validation_result({ok, SignedHeaderNames}, _RequestMsg) ->
+    {ok, SignedHeaderNames};
+request_validation_result({error, Reason}, RequestMsg) ->
+    AuthChallengeHeaders = auth_challenge_headers(RequestMsg),
+    {error, {Reason, AuthChallengeHeaders}}.
+
+auth_challenge_headers(RequestMsg) ->
+    FakeHeaderNamesToSign = list_fake_msg_header_names(RequestMsg),
+    RealHeaderNames = list_real_msg_header_names(RequestMsg),
+    RealHeaderNamesToSign =
+            [Name || Name <- RealHeaderNames,
+                     lists:member(Name, ?VALIDATION_MANDATORILY_SIGNED_HEADER_NAMES) orelse
+                     lists:member(Name, ?VALIDATION_MANDATORILY_SIGNED_HEADER_NAMES_IF_PRESENT)],
+
+    HeaderNamesToSign = lists:usort(FakeHeaderNamesToSign ++ RealHeaderNamesToSign),
+    EncodedHeaderNamesToSign = iolist_to_binary(lists:join(" ", HeaderNamesToSign)),
+    Params = #{ <<"realm">> => <<"backwater">>,
+                <<"headers">> => EncodedHeaderNamesToSign },
+    BinParams = backwater_http_header_params:encode(Params),
+    #{ <<"www-authenticate">> => <<"Signature ", BinParams/binary>> }.
 
 %% ------------------------------------------------------------------
 %% Internal Function Definitions - Signing
