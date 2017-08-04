@@ -181,25 +181,25 @@ decode_response_(200 = StatusCode, CiHeaders, Body, Config) ->
 decode_response_(StatusCode, CiHeaders, Body, Config) ->
     case decode_response_body(CiHeaders, Body, Config) of
         {term, Error} ->
-            {error, Error};
+            {error, {remote, Error}};
         {raw, Binary} when StatusCode =:= 400 ->
-            {error, {bad_request, Binary}};
+            {error, {remote, {bad_request, Binary}}};
         {raw, Binary} when StatusCode =:= 401 ->
-            {error, {unauthorized, Binary}};
+            {error, {remote, {unauthorized, Binary}}};
         {raw, Binary} when StatusCode =:= 403 ->
-            {error, {forbidden, Binary}};
+            {error, {remote, {forbidden, Binary}}};
         {raw, Binary} when StatusCode =:= 404 ->
-            {error, {not_found, Binary}};
+            {error, {remote, {not_found, Binary}}};
         {raw, Binary} when StatusCode =:= 406 ->
-            {error, {not_acceptable, Binary}};
+            {error, {remote, {not_acceptable, Binary}}};
         {raw, Binary} when StatusCode =:= 413 ->
-            {error, {payload_too_large, Binary}};
+            {error, {remote, {payload_too_large, Binary}}};
         {raw, Binary} when StatusCode =:= 415 ->
-            {error, {unsupported_media_type, Binary}};
+            {error, {remote, {unsupported_media_type, Binary}}};
         {raw, Binary} when StatusCode =:= 500 ->
-            {error, {internal_error, Binary}};
+            {error, {remote, {internal_error, Binary}}};
         {raw, Binary} ->
-            {error, {http, StatusCode, Binary}};
+            {error, {remote, {http, StatusCode, Binary}}};
         {error, {unknown_content_encoding, ContentEncoding}} ->
             {error, {unknown_content_encoding, StatusCode, ContentEncoding}};
         {error, {undecodable_response_body, Binary}} ->
