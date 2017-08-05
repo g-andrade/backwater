@@ -45,12 +45,12 @@
 -export_type([unsigned_message/0]).
 
 -opaque unsigned_message() ::
-    #{ fake_headers := #{ binary() => binary() },
+    #{ pseudo_headers := #{ binary() => binary() },
        real_headers := #{ binary() => binary() }  }.
 -export_type([message/0]).
 
 -opaque signed_message() ::
-    #{ fake_headers := #{ binary() => binary() },
+    #{ pseudo_headers := #{ binary() => binary() },
        real_headers := #{ binary() => binary() },
        request_id := binary(),
        signed_header_names := [binary()],
@@ -129,16 +129,16 @@ config(Key) ->
 -spec new_request_msg(binary(), binary(), maybe_uncanonical_headers()) -> unsigned_message().
 %% @private
 new_request_msg(Method, PathWithQs, Headers) ->
-    FakeHeaders = #{ ?OPAQUE_BINARY(<<"(request-target)">>) => request_target(Method, PathWithQs) },
+    PseudoHeaders = #{ ?OPAQUE_BINARY(<<"(request-target)">>) => request_target(Method, PathWithQs) },
     RealHeaders = canonical_headers(Headers),
-    new_unsigned_msg(FakeHeaders, RealHeaders).
+    new_unsigned_msg(PseudoHeaders, RealHeaders).
 
 -spec new_response_msg(non_neg_integer(), maybe_uncanonical_headers()) -> unsigned_message().
 %% @private
 new_response_msg(StatusCode, Headers) ->
-    FakeHeaders = #{ ?OPAQUE_BINARY(<<"(response-status)">>) => response_status(StatusCode) },
+    PseudoHeaders = #{ ?OPAQUE_BINARY(<<"(response-status)">>) => response_status(StatusCode) },
     RealHeaders = canonical_headers(Headers),
-    new_unsigned_msg(FakeHeaders, RealHeaders).
+    new_unsigned_msg(PseudoHeaders, RealHeaders).
 
 -spec validate_request_signature(config(), message())
         -> message_validation_success() |
@@ -238,13 +238,13 @@ response_status(StatusCode) ->
     integer_to_binary(StatusCode).
 
 -spec new_unsigned_msg(header_map(), header_map()) -> unsigned_message().
-new_unsigned_msg(FakeHeaders, RealHeaders) ->
-    #{ fake_headers => FakeHeaders,
+new_unsigned_msg(PseudoHeaders, RealHeaders) ->
+    #{ pseudo_headers => PseudoHeaders,
        real_headers => RealHeaders }.
 
 -spec find_msg_header(binary(), message()) -> {ok, binary()} | error.
 find_msg_header(CiName, Msg) ->
-    #{ fake_headers := Map } = Msg,
+    #{ pseudo_headers := Map } = Msg,
     case maps:find(CiName, Map) of
         {ok, Value} -> {ok, Value};
         error -> find_real_msg_header(CiName, Msg)
@@ -267,9 +267,9 @@ add_real_msg_headers(ExtraMap, Msg) ->
     Map2 = maps:merge(Map1, ExtraMap),
     Msg#{ real_headers := Map2 }.
 
--spec list_fake_msg_header_names(message()) -> [binary()].
-list_fake_msg_header_names(Msg) ->
-    #{ fake_headers := Map } = Msg,
+-spec list_pseudo_msg_header_names(message()) -> [binary()].
+list_pseudo_msg_header_names(Msg) ->
+    #{ pseudo_headers := Map } = Msg,
     maps:keys(Map).
 
 -spec list_real_msg_header_names(message()) -> [binary()].
@@ -279,14 +279,14 @@ list_real_msg_header_names(Msg) ->
 
 -spec list_msg_headers(message()) -> header_list().
 list_msg_headers(Msg) ->
-    #{ fake_headers := MapA,
+    #{ pseudo_headers := MapA,
        real_headers := MapB } = Msg,
     Merged = maps:merge(MapB, MapA),
     maps:to_list(Merged).
 
 -spec list_msg_header_names(message()) -> [binary()].
 list_msg_header_names(Msg) ->
-    #{ fake_headers := MapA,
+    #{ pseudo_headers := MapA,
        real_headers := MapB } = Msg,
     lists:usort(maps:keys(MapA) ++ maps:keys(MapB)).
 
@@ -463,14 +463,14 @@ request_validation_result({error, Reason}, RequestMsg) ->
 
 -spec auth_challenge_headers(message()) -> header_map().
 auth_challenge_headers(RequestMsg) ->
-    FakeHeaderNamesToSign = list_fake_msg_header_names(RequestMsg),
+    PseudoHeaderNamesToSign = list_pseudo_msg_header_names(RequestMsg),
     RealHeaderNames = list_real_msg_header_names(RequestMsg),
     RealHeaderNamesToSign =
             [Name || Name <- RealHeaderNames,
                      lists:member(Name, ?VALIDATION_MANDATORILY_SIGNED_HEADER_NAMES) orelse
                      lists:member(Name, ?VALIDATION_MANDATORILY_SIGNED_HEADER_NAMES_IF_PRESENT)],
 
-    HeaderNamesToSign = lists:usort(FakeHeaderNamesToSign ++ RealHeaderNamesToSign),
+    HeaderNamesToSign = lists:usort(PseudoHeaderNamesToSign ++ RealHeaderNamesToSign),
     EncodedHeaderNamesToSign = iolist_to_binary(lists:join(" ", HeaderNamesToSign)),
     Params = #{ <<"realm">> => <<"backwater">>,
                 <<"headers">> => EncodedHeaderNamesToSign },
