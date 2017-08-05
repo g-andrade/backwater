@@ -16,7 +16,7 @@
 
 -spec child_spec(ChildId, Ref, Config) -> ChildSpec
         when ChildId :: term(),
-             Ref :: term(),
+             Ref :: atom(),
              Config :: backwater_client_config:t(),
              ChildSpec :: backwater_client_sup:child_spec(ChildId).
 
@@ -25,7 +25,7 @@ child_spec(ChildId, Ref, Config) ->
 
 
 -spec start(Ref, Config) -> Result
-        when Ref :: term(),
+        when Ref :: atom(),
              Config :: backwater_client_config:t(),
              Result :: backwater_sup_util:start_link_ret().
 
@@ -34,7 +34,7 @@ start(Ref, Config) ->
 
 
 -spec stop(Ref) -> Result
-        when Ref :: term(),
+        when Ref :: atom(),
              Result :: backwater_sup_util:stop_child_ret().
 
 stop(Ref) ->
@@ -42,7 +42,7 @@ stop(Ref) ->
 
 
 -spec call(Ref, Version, Module, Function, Args) -> Result
-        when Ref :: term(),
+        when Ref :: atom(),
              Version :: unicode:chardata(),
              Module :: module(),
              Function :: atom(),
@@ -55,7 +55,7 @@ call(Ref, Version, Module, Function, Args) ->
 
 
 -spec call(Ref, Version, Module, Function, Args, ConfigOverride) -> Result
-        when Ref :: term(),
+        when Ref :: atom(),
              Version :: unicode:chardata(),
              Module :: module(),
              Function :: atom(),

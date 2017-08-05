@@ -30,16 +30,16 @@
 %% Type Definitions
 %% ------------------------------------------------------------------
 
--type clients() :: #{ (Ref :: term()) => backwater_client_config:t() }.
+-type clients() :: #{ (Ref :: atom()) => backwater_client_config:t() }.
 -export_type([clients/0]).
 
--type servers() :: #{ (Ref :: term()) => backwater_server_instance:config() }.
+-type servers() :: #{ (Ref :: atom()) => backwater_server_instance:config() }.
 -export_type([servers/0]).
 
 -type child_spec() ::
         backwater_cache:child_spec(cache) |
-        backwater_client_sup:child_spec({client, Ret :: term()}) |
-        backwater_server_sup:child_spec({server, Ret :: term()}).
+        backwater_client_sup:child_spec({client, Ref :: atom()}) |
+        backwater_server_sup:child_spec({server, Ref :: atom()}).
 -export_type([child_spec/0]).
 
 %% ------------------------------------------------------------------
@@ -50,21 +50,21 @@
 start_link(Clients, Servers) ->
     supervisor:start_link({local, ?SERVER}, ?CB_MODULE, [Clients, Servers]).
 
--spec start_client(term(), backwater_client_config:t()) -> backwater_sup_util:start_child_ret().
+-spec start_client(atom(), backwater_client_config:t()) -> backwater_sup_util:start_child_ret().
 start_client(Ref, Config) ->
     Child = client_child_spec(Ref, Config),
     start_child(Child).
 
--spec stop_client(term()) -> backwater_sup_util:stop_child_ret().
+-spec stop_client(atom()) -> backwater_sup_util:stop_child_ret().
 stop_client(Ref) ->
     stop_child({client, Ref}).
 
--spec start_server(term(), backwater_server_instance:config()) -> backwater_sup_util:start_child_ret().
+-spec start_server(atom(), backwater_server_instance:config()) -> backwater_sup_util:start_child_ret().
 start_server(Ref, Config) ->
     Child = server_child_spec(Ref, Config),
     start_child(Child).
 
--spec stop_server(term()) -> backwater_sup_util:stop_child_ret().
+-spec stop_server(atom()) -> backwater_sup_util:stop_child_ret().
 stop_server(Ref) ->
     stop_child({server, Ref}).
 
@@ -120,12 +120,12 @@ init([Clients, Servers]) ->
 %% Internal Function Definitions
 %% ------------------------------------------------------------------
 
--spec client_child_spec(term(), backwater_client_config:t())
+-spec client_child_spec(atom(), backwater_client_config:t())
         -> backwater_client_sup:child_spec({client, term()}).
 client_child_spec(Ref, Config) ->
     backwater_client_sup:child_spec({client, Ref}, Ref, Config).
 
--spec server_child_spec(term(), backwater_server_instance:config())
+-spec server_child_spec(atom(), backwater_server_instance:config())
         -> backwater_server_sup:child_spec({server, term()}).
 server_child_spec(Ref, Config) ->
     backwater_server_sup:child_spec({server, Ref}, Ref, Config).

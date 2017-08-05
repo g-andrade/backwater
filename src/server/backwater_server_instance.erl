@@ -31,7 +31,7 @@
 %% ------------------------------------------------------------------
 
 -record(state, {
-          ref :: term(),
+          ref :: atom(),
           monitor :: reference()
          }).
 -type state() :: unstarted | #state{}.
@@ -67,7 +67,7 @@
 
 -type child_spec(Id) ::
         #{ id := Id,
-           start := {?MODULE, start_link, [term() | config(), ...]},
+           start := {?MODULE, start_link, [atom() | config(), ...]},
            restart := transient,
            shutdown := 5000,
            type := worker,
@@ -85,11 +85,11 @@
 %% API Function Definitions
 %% ------------------------------------------------------------------
 
--spec start_link(term(), config()) -> {ok, pid()} | ignore | {error, term()}.
+-spec start_link(atom(), config()) -> {ok, pid()} | ignore | {error, term()}.
 start_link(Ref, Config) ->
     gen_server:start_link({local, server_name(Ref)}, ?CB_MODULE, [Ref, Config], []).
 
--spec child_spec(term(), term(), config()) -> child_spec(term()).
+-spec child_spec(term(), atom(), config()) -> child_spec(term()).
 child_spec(Id, Ref, Config) ->
     #{ id => Id,
        start => {?MODULE, start_link, [Ref, Config]},
@@ -102,7 +102,7 @@ child_spec(Id, Ref, Config) ->
 %% gen_server Function Definitions
 %% ------------------------------------------------------------------
 
--spec init([term() | config(), ...]) -> {ok, unstarted}.
+-spec init([atom() | config(), ...]) -> {ok, unstarted}.
 init([Ref, Config]) ->
     process_flag(trap_exit, true), % in order for 'terminate/2' to be called (condition II)
     gen_server:cast(self(), {start, Ref, Config}),
@@ -139,11 +139,11 @@ code_change(_OldVsn, State, _Extra) ->
 %% Internal Function Definitions
 %% ------------------------------------------------------------------
 
--spec server_name(term()) -> atom().
+-spec server_name(atom()) -> atom().
 server_name(Ref) ->
-    list_to_atom("backwater_" ++ backwater_ref:to_unicode_string(Ref) ++ "_server_instance").
+    list_to_atom("backwater_" ++ atom_to_list(Ref) ++ "_server_instance").
 
--spec start_cowboy(term(), config()) -> {ok, pid()}.
+-spec start_cowboy(atom(), config()) -> {ok, pid()}.
 start_cowboy(Ref, Config) ->
     {StartFunction, TransportOpts, BaseProtoOpts} = parse_cowboy_opts(Config),
     Dispatch = cowboy_router:compile([cowboy_route_rule(Config)]),
@@ -155,7 +155,7 @@ start_cowboy(Ref, Config) ->
           BaseProtoOpts),
     cowboy:StartFunction(Ref, TransportOpts, ProtoOpts).
 
--spec stop_cowboy(term()) -> ok | {error, not_found}.
+-spec stop_cowboy(atom()) -> ok | {error, not_found}.
 stop_cowboy(Ref) ->
     cowboy:stop_listener(Ref).
 

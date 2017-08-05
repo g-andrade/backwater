@@ -34,7 +34,7 @@
 
 -type child_spec() ::
         #{ id := term(),
-           start := {?MODULE, start_link, [term() | t(), ...]},
+           start := {?MODULE, start_link, [atom() | t(), ...]},
            restart := permanent,
            type := worker,
            modules := [?MODULE, ...] }.
@@ -71,12 +71,12 @@
 %% API Function Definitions
 %% ------------------------------------------------------------------
 
--spec start_link(term(), t()) -> {ok, pid()} | ignore | {error, term()}.
+-spec start_link(atom(), t()) -> {ok, pid()} | ignore | {error, term()}.
 %% @private
 start_link(Ref, Config) ->
     gen_server:start_link({local, server_name(Ref)}, ?CB_MODULE, [Ref, Config], []).
 
--spec child_spec(term(), term(), t()) -> child_spec().
+-spec child_spec(term(), atom(), t()) -> child_spec().
 %% @private
 child_spec(Id, Ref, Config) ->
     #{ id => Id,
@@ -85,7 +85,7 @@ child_spec(Id, Ref, Config) ->
        type => worker,
        modules => [?MODULE] }.
 
--spec get_config(term(), override()) -> t().
+-spec get_config(atom(), override()) -> t().
 %% @private
 get_config(Ref, ConfigOverride) ->
     ConfigTableName = config_table_name(Ref),
@@ -96,7 +96,7 @@ get_config(Ref, ConfigOverride) ->
 %% gen_server Function Definitions
 %% ------------------------------------------------------------------
 
--spec init([term() | t(), ...]) -> {ok, state()}.
+-spec init([atom() | t(), ...]) -> {ok, state()}.
 %% @private
 init([Ref, Config]) ->
     ConfigTableName = config_table_name(Ref),
@@ -133,11 +133,11 @@ code_change(_OldVsn, State, _Extra) ->
 %% Internal Function Definitions
 %% ------------------------------------------------------------------
 
--spec server_name(term()) -> atom().
+-spec server_name(atom()) -> atom().
 server_name(Ref) ->
-    list_to_atom("backwater_" ++ backwater_ref:to_unicode_string(Ref) ++ "_client_config").
+    list_to_atom("backwater_" ++ atom_to_list(Ref) ++ "_client_config").
 
--spec config_table_name(term()) -> atom().
+-spec config_table_name(atom()) -> atom().
 config_table_name(Ref) ->
     server_name(Ref).
 

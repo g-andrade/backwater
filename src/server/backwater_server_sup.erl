@@ -26,7 +26,7 @@
 
 -type child_spec(Id) ::
         #{ id := Id,
-           start := {?MODULE, start_link, [term() | backwater_server_instance:config(), ...]},
+           start := {?MODULE, start_link, [atom() | backwater_server_instance:config(), ...]},
            restart := permanent,
            type := supervisor,
            modules := [?MODULE, ...] }.
@@ -36,11 +36,11 @@
 %% API Function Definitions
 %% ------------------------------------------------------------------
 
--spec start_link(term(), backwater_server_instance:config()) -> backwater_sup_util:start_link_ret().
+-spec start_link(atom(), backwater_server_instance:config()) -> backwater_sup_util:start_link_ret().
 start_link(Ref, Config) ->
     supervisor:start_link({local, server_name(Ref)}, ?CB_MODULE, [Ref, Config]).
 
--spec child_spec(term(), term(), backwater_server_instance:config()) -> child_spec(term()).
+-spec child_spec(term(), atom(), backwater_server_instance:config()) -> child_spec(term()).
 child_spec(Id, Ref, Config) ->
     #{ id => Id,
        start => {?MODULE, start_link, [Ref, Config]},
@@ -52,7 +52,7 @@ child_spec(Id, Ref, Config) ->
 %% supervisor Function Definitions
 %% ------------------------------------------------------------------
 
--spec init([term() | backwater_server_instance:config(), ...])
+-spec init([atom() | backwater_server_instance:config(), ...])
         -> {ok, {#{}, [backwater_server_instance:child_spec(server_instance), ...]}}.
 init([Ref, Config]) ->
     Children = [backwater_server_instance:child_spec(server_instance, Ref, Config)],
@@ -62,6 +62,6 @@ init([Ref, Config]) ->
 %% supervisor Function Definitions
 %% ------------------------------------------------------------------
 
--spec server_name(term()) -> atom().
+-spec server_name(atom()) -> atom().
 server_name(Ref) ->
-    list_to_atom("backwater_" ++ backwater_ref:to_unicode_string(Ref) ++ "_server_sup").
+    list_to_atom("backwater_" ++ atom_to_list(Ref) ++ "_server_sup").
