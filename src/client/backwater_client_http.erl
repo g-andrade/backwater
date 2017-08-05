@@ -53,8 +53,9 @@
 -export_type([response/1]).
 
 -type response_error() ::
-        {response_authentication, status_code(),
-         wrong_body_digest | backwater_http_signatures:response_validation_failure()} |
+        {response_authentication,
+         {wrong_body_digest | backwater_http_signatures:response_validation_failure(),
+          status_code(), Body :: binary()}} |
         {remote, response_remote_error()} |
         {undecodable_response_body, status_code(), Body :: binary()} |
         {unknown_content_encoding, status_code(), ContentEncoding :: binary()} |
@@ -178,7 +179,7 @@ authenticate_response(StatusCode, CiHeaders, Body, RequestState) ->
             % TODO deal with signed_header_names in SignedResponseMsg
             authenticate_response_body(StatusCode, CiHeaders, Body, Config, SignedResponseMsg);
         {error, Reason} ->
-            {error, {response_authentication, StatusCode, Reason}}
+            {error, {response_authentication, {Reason, StatusCode, Body}}}
     end.
 
 -spec authenticate_response_body(status_code(), headers(), binary(), backwater_client_config:t(),
@@ -188,7 +189,7 @@ authenticate_response_body(StatusCode, CiHeaders, Body, Config, SignedResponseMs
         true ->
             decode_response_(StatusCode, CiHeaders, Body, Config);
         false ->
-            {error, {response_authentication, StatusCode, wrong_body_digest}}
+            {error, {response_authentication, {wrong_body_digest, StatusCode, Body}}}
     end.
 
 -spec decode_response_(status_code(), headers(), binary(), backwater_client_config:t()) -> response().
