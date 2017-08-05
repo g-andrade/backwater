@@ -4,9 +4,9 @@
 %% API Function Exports
 %% ------------------------------------------------------------------
 
--export([child_spec/3]).
--export([start/2]).
--export([stop/1]).
+-export([child_spec/3]).                   -ignore_xref({child_spec,3}).
+-export([start/2]).                        -ignore_xref({start,2}).
+-export([stop/1]).                         -ignore_xref({stop,1}).
 
 %% ------------------------------------------------------------------
 %% API Function Definitions

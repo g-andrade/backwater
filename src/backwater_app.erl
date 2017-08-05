@@ -8,7 +8,7 @@
 
 -export([start/2]).
 -export([stop/1]).
--export([config_change/3]).
+-export([config_change/3]).          -ignore_xref({config_change,3}).
 
 %% ------------------------------------------------------------------
 %% application Function Definitions
