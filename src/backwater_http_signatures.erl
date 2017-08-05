@@ -10,10 +10,10 @@
 -export([new_request_msg/3]).
 -export([new_response_msg/2]).
 -export([validate_request_signature/2]).
--export([validate_response_signature/2]).
+-export([validate_response_signature/3]).
 -export([validate_msg_body/2]).
--export([sign_request/3]).
--export([sign_response/3]).
+-export([sign_request/4]).
+-export([sign_response/4]).
 -export([get_real_msg_headers/1]).
 -export([list_real_msg_headers/1]).
 
@@ -26,7 +26,8 @@
 
 -define(VALIDATION_MANDATORILY_SIGNED_HEADER_NAMES,
         [<<"date">>,
-         <<"digest">>]).
+         <<"digest">>,
+         <<"x-request-id">>]).
 
 -define(VALIDATION_MANDATORILY_SIGNED_HEADER_NAMES_IF_PRESENT,
         [<<"accept">>,
@@ -60,8 +61,12 @@
 -type request_validation_failure() :: auth_parse_failure() | validation_failure().
 -export_type([request_validation_failure/0]).
 
--type response_validation_failure() :: sig_parse_failure() | validation_failure().
+-type response_validation_failure() :: request_id_validation_failure().
 -export_type([response_validation_failure/0]).
+
+-type request_id_validation_failure() ::
+        mismatched_request_id | missing_request_id | sig_parse_failure() | validation_failure().
+-export_type([request_id_validation_failure/0]).
 
 -type body_validation_failure() :: wrong_body_digest | invalid_body_digest.
 -export_type([body_validation_failure/0]).
@@ -128,7 +133,7 @@ new_response_msg(StatusCode, Headers) ->
     new_msg(FakeHeaders, RealHeaders).
 
 -spec validate_request_signature(config(), message())
-        -> {ok, SignedHeaderNames :: [binary()]} |
+        -> {ok, {SignedHeaderNames :: [binary()], RequestId :: binary()}} |
            {error, {Reason :: request_validation_failure(),
                     ChallengeHeaders :: #{ binary() := binary() }}}.
 %% @private
@@ -143,18 +148,13 @@ validate_request_signature(Config, Msg) ->
         end,
     request_validation_result(Result, Msg).
 
--spec validate_response_signature(config(), message())
+-spec validate_response_signature(config(), message(), binary())
         -> {ok, SignedHeaderNames :: [binary()]} |
            {error, Reason :: response_validation_failure()}.
 %% @private
-validate_response_signature(Config, Msg) ->
-    SignatureHeaderLookup = find_real_msg_header(<<"signature">>, Msg),
-    case parse_signature_header(SignatureHeaderLookup) of
-        {ok, Params} ->
-            validate_params(Config, Params, Msg);
-        {error, Reason} ->
-            {error, Reason}
-    end.
+validate_response_signature(Config, Msg, RequestId) ->
+    MsgRequestIdLookup = find_real_msg_header(<<"x-request-id">>, Msg),
+    validate_response_request_id(Config, Msg, RequestId, MsgRequestIdLookup).
 
 -spec validate_msg_body(message(), binary()) -> ok | {error, body_validation_failure()}.
 %% @private
@@ -171,21 +171,27 @@ validate_msg_body(Msg, Body) ->
             {error, invalid_body_digest}
     end.
 
--spec sign_request(config(), message(), binary()) -> message().
+-spec sign_request(config(), message(), binary(), binary()) -> message().
 %% @private
-sign_request(Config, Msg1, Body) ->
-    BodyDigest = body_digest(Body),
-    Msg2 = remove_real_msg_headers([<<"authorization">>, <<"date">>], Msg1),
-    Msg3 = add_real_msg_headers(#{ <<"digest">> => BodyDigest, <<"date">> => rfc1123() }, Msg2),
+sign_request(Config, Msg1, RequestId, Body) ->
+    Msg2 = remove_real_msg_header(<<"authorization">>, Msg1),
+    ExtraSignedHeaders =
+        #{ <<"digest">> => body_digest(Body),
+           <<"date">> => rfc1123(),
+           <<"x-request-id">> => RequestId },
+    Msg3 = add_real_msg_headers(ExtraSignedHeaders, Msg2),
     AuthorizationHeaderValue = generate_authorization_header_value(Config, Msg3),
     add_real_msg_headers(#{ ?OPAQUE_BINARY(<<"authorization">>) => AuthorizationHeaderValue }, Msg3).
 
--spec sign_response(config(), message(), binary()) -> message().
+-spec sign_response(config(), message(), binary(), binary()) -> message().
 %% @private
-sign_response(Config, Msg1, Body) ->
-    BodyDigest = body_digest(Body),
-    Msg2 = remove_real_msg_headers([<<"date">>, <<"signature">>], Msg1),
-    Msg3 = add_real_msg_headers(#{ <<"digest">> => BodyDigest, <<"date">> => rfc1123() }, Msg2),
+sign_response(Config, Msg1, RequestId, Body) ->
+    Msg2 = remove_real_msg_header(<<"signature">>, Msg1),
+    ExtraSignedHeaders =
+        #{ <<"digest">> => body_digest(Body),
+           <<"date">> => rfc1123(),
+           <<"x-request-id">> => RequestId },
+    Msg3 = add_real_msg_headers(ExtraSignedHeaders, Msg2),
     SignatureHeaderValue = generate_signature_header_value(Config, Msg3),
     add_real_msg_headers(#{ ?OPAQUE_BINARY(<<"signature">>) => SignatureHeaderValue}, Msg3).
 
@@ -231,10 +237,10 @@ find_real_msg_header(CiName, Msg) ->
     #{ real_headers := Map } = Msg,
     maps:find(CiName, Map).
 
--spec remove_real_msg_headers([binary()], message()) -> message().
-remove_real_msg_headers(CiNames, Msg) ->
+-spec remove_real_msg_header(binary(), message()) -> message().
+remove_real_msg_header(CiName, Msg) ->
     #{ real_headers := Map1 } = Msg,
-    Map2 = maps:without(CiNames, Map1),
+    Map2 = maps:remove(CiName, Map1),
     Msg#{ real_headers := Map2 }.
 
 -spec add_real_msg_headers(header_map(), message()) -> message().
@@ -290,16 +296,6 @@ ci_headers_list(List) ->
 %% Internal Function Definitions - Validation
 %% ------------------------------------------------------------------
 
--spec decode_signature_auth_params(binary()) -> {ok, params()} | {error, header_params_failure()}.
-decode_signature_auth_params(Encoded) ->
-    case backwater_http_header_params:decode(Encoded) of
-        {ok, BinParams} ->
-            Params = maps:map(fun decode_signature_param_value/2, BinParams),
-            {ok, Params};
-        error ->
-            {error, invalid_header_params}
-    end.
-
 -spec parse_authorization_header({ok, binary()} | error)
         -> {ok, params()} | {error, auth_parse_failure()}.
 parse_authorization_header({ok, <<"Signature ", EncodedParams/binary>>}) ->
@@ -308,14 +304,6 @@ parse_authorization_header({ok, _OtherAuth}) ->
     {error, invalid_auth_type};
 parse_authorization_header(error) ->
     {error, missing_authorization_header}.
-
--spec parse_digest({ok, binary()} | error) -> {sha256, binary()} | invalid.
-parse_digest({ok, <<"SHA-256=", EncodedDigest/binary>>}) ->
-    % TODO error?
-    Digest = base64:decode(EncodedDigest),
-    {sha256, Digest};
-parse_digest(_) ->
-    invalid.
 
 -spec parse_signature_header({ok, binary()} | error)
         -> {ok, params()} | {error, sig_parse_failure()}.
@@ -332,6 +320,41 @@ decode_signature_param_value(<<"signature">>, EncodedSignature) ->
     base64:decode(EncodedSignature);
 decode_signature_param_value(_Key, Value) ->
     Value.
+
+-spec decode_signature_auth_params(binary()) -> {ok, params()} | {error, header_params_failure()}.
+decode_signature_auth_params(Encoded) ->
+    case backwater_http_header_params:decode(Encoded) of
+        {ok, BinParams} ->
+            Params = maps:map(fun decode_signature_param_value/2, BinParams),
+            {ok, Params};
+        error ->
+            {error, invalid_header_params}
+    end.
+
+-spec parse_digest({ok, binary()} | error) -> {sha256, binary()} | invalid.
+parse_digest({ok, <<"SHA-256=", EncodedDigest/binary>>}) ->
+    % TODO error?
+    Digest = base64:decode(EncodedDigest),
+    {sha256, Digest};
+parse_digest(_) ->
+    invalid.
+
+-spec validate_response_request_id(config(), message(), binary(), {ok, binary()} | error)
+        -> {ok, SignedHeaderNames :: [binary()]} |
+           {error, Reason :: response_validation_failure()}.
+%% @private
+validate_response_request_id(Config, Msg, RequestId, {ok, RequestId}) ->
+    SignatureHeaderLookup = find_real_msg_header(<<"signature">>, Msg),
+    case parse_signature_header(SignatureHeaderLookup) of
+        {ok, Params} ->
+            validate_params(Config, Params, Msg);
+        {error, Reason} ->
+            {error, Reason}
+    end;
+validate_response_request_id(_Config, _Msg, _RequestId, {ok, _WrongRequestId}) ->
+    {error, mismatched_request_id};
+validate_response_request_id(_Config, _Msg, _RequestId, error) ->
+    {error, missing_request_id}.
 
 -spec validate_params(config(), params(), message())
         -> message_validation_success() | {error, key_id_failure()}.
@@ -421,9 +444,11 @@ signed_header_names(Params, Msg) ->
 
 -spec request_validation_result(message_validation_success() | {error, request_validation_failure()},
                                 message())
-        -> message_validation_success() | {error, {request_validation_failure(), header_map()}}.
-request_validation_result({ok, SignedHeaderNames}, _RequestMsg) ->
-    {ok, SignedHeaderNames};
+        -> {ok, {SignedHeaderNames :: [binary()], RequestId :: binary()}} |
+           {error, {request_validation_failure(), header_map()}}.
+request_validation_result({ok, SignedHeaderNames}, RequestMsg) ->
+    {ok, RequestId} = find_real_msg_header(<<"x-request-id">>, RequestMsg),
+    {ok, {SignedHeaderNames, RequestId}};
 request_validation_result({error, Reason}, RequestMsg) ->
     AuthChallengeHeaders = auth_challenge_headers(RequestMsg),
     {error, {Reason, AuthChallengeHeaders}}.

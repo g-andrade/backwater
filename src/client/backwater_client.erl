@@ -68,7 +68,7 @@ call(Ref, Version, Module, Function, Args, ConfigOverride) ->
     Config = backwater_client_config:get_config(Ref, ConfigOverride),
     #{ connect_timeout := ConnectTimeout,
        receive_timeout := ReceiveTimeout } = Config,
-    {RequestMethod, RequestUrl, RequestHeaders, RequestBody} =
+    {{RequestMethod, RequestUrl, RequestHeaders, RequestBody}, RequestState} =
         backwater_client_http:encode_request(Version, Module, Function, Args, Config),
 
     Options =
@@ -83,7 +83,7 @@ call(Ref, Version, Module, Function, Args, ConfigOverride) ->
             case hackney:body(ClientRef) of
                 {ok, ResponseBody} ->
                     backwater_client_http:decode_response(
-                      StatusCode, ResponseHeaders, ResponseBody, Config);
+                      StatusCode, ResponseHeaders, ResponseBody, RequestState);
                 {error, BodyError} ->
                     {error, {response_body, BodyError}}
             end;

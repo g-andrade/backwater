@@ -20,6 +20,15 @@
 %% Type Definitions
 %% ------------------------------------------------------------------
 
+-type stateful_request() :: {request(), request_state()}.
+-export_type([stateful_request/0]).
+
+-opaque request_state() ::
+        #{ config := backwater_client_config:t(),
+           request_id := nonempty_binary() }.
+
+-export_type([request_state/0]).
+
 -type request() ::
         {Method :: nonempty_binary(),
          Url :: nonempty_binary(),
@@ -76,7 +85,7 @@
                  Function :: atom(),
                  Args :: [term()],
                  Config :: backwater_client_config:t(),
-                 Request :: request().
+                 Request :: stateful_request().
 
 encode_request(Version, Module, Function, Args, Config) ->
     Body = backwater_media_etf:encode(Args),
@@ -91,16 +100,16 @@ encode_request(Version, Module, Function, Args, Config) ->
     encode_request_with_compression(Method, Url, Headers, Body, Config).
 
 
--spec decode_response(StatusCode, Headers, Body, Config) -> Response
+-spec decode_response(StatusCode, Headers, Body, RequestState) -> Response
             when StatusCode :: status_code(),
                  Headers :: headers(),
                  Body :: binary(),
-                 Config :: backwater_client_config:t(),
+                 RequestState :: request_state(),
                  Response :: response().
 
-decode_response(StatusCode, Headers, Body, Config) ->
+decode_response(StatusCode, Headers, Body, RequestState) ->
     CiHeaders = lists:keymap(fun backwater_util:latin1_binary_to_lower/1, 1, Headers),
-    authenticate_response(StatusCode, CiHeaders, Body, Config).
+    authenticate_response(StatusCode, CiHeaders, Body, RequestState).
 
 %% ------------------------------------------------------------------
 %% Internal Function Definitions - Requests
@@ -121,7 +130,7 @@ request_url(Version, Module, Function, Arity, Config) ->
 
 -spec encode_request_with_compression(nonempty_binary(), nonempty_binary(),
                                       nonempty_headers(), binary(),
-                                      backwater_client_config:t()) -> request().
+                                      backwater_client_config:t()) -> stateful_request().
 encode_request_with_compression(Method, Url, Headers, Body, Config)
   when byte_size(Body) > ?COMPRESSION_THRESHOLD ->
     CompressedBody = backwater_encoding_gzip:encode(Body),
@@ -132,14 +141,17 @@ encode_request_with_compression(Method, Url, Headers, Body, Config) ->
 
 -spec encode_request_with_auth(nonempty_binary(), nonempty_binary(),
                                nonempty_headers(), binary(),
-                               backwater_client_config:t()) -> request().
-encode_request_with_auth(Method, Url, Headers1, Body, #{ authentication := {signature, Key} }) ->
+                               backwater_client_config:t()) -> stateful_request().
+encode_request_with_auth(Method, Url, Headers1, Body, #{ authentication := {signature, Key} } = Config) ->
     PathWithQs = url_path_with_qs(Url),
     SignaturesConfig = backwater_http_signatures:config(Key),
     SignaturesMsg = backwater_http_signatures:new_request_msg(Method, PathWithQs, Headers1),
-    SignedMsg = backwater_http_signatures:sign_request(SignaturesConfig, SignaturesMsg, Body),
+    RequestId = base64:encode( crypto:strong_rand_bytes(16) ),
+    SignedMsg = backwater_http_signatures:sign_request(SignaturesConfig, SignaturesMsg, RequestId, Body),
     Headers2 = backwater_http_signatures:list_real_msg_headers(SignedMsg),
-    {?OPAQUE_BINARY(Method), ?OPAQUE_BINARY(Url), Headers2, Body}.
+    Request = {?OPAQUE_BINARY(Method), ?OPAQUE_BINARY(Url), Headers2, Body},
+    State = #{ config => Config, request_id => RequestId },
+    {Request, State}.
 
 -spec url_path_with_qs(nonempty_binary()) -> binary().
 url_path_with_qs(Url) ->
@@ -154,13 +166,13 @@ url_path_with_qs(Url) ->
 %% Internal Function Definitions - Responses
 %% ------------------------------------------------------------------
 
--spec authenticate_response(status_code(), headers(), binary(), backwater_client_config:t())
-        -> response().
-authenticate_response(StatusCode, CiHeaders, Body, Config) ->
+-spec authenticate_response(status_code(), headers(), binary(), request_state()) -> response().
+authenticate_response(StatusCode, CiHeaders, Body, RequestState) ->
+    #{ config := Config, request_id := RequestId } = RequestState,
     #{ authentication := {signature, Key} } = Config,
     SignaturesConfig = backwater_http_signatures:config(Key),
     SignedMsg = backwater_http_signatures:new_response_msg(StatusCode, {ci_headers, CiHeaders}),
-    case backwater_http_signatures:validate_response_signature(SignaturesConfig, SignedMsg) of
+    case backwater_http_signatures:validate_response_signature(SignaturesConfig, SignedMsg, RequestId) of
         {ok, _SignedHeaderNames} ->
             % TODO deal with SignedHeaderNames
             authenticate_response_body(StatusCode, CiHeaders, Body, Config, SignedMsg);

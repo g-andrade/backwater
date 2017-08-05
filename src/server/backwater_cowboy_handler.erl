@@ -41,6 +41,7 @@
 
            signed_msg => backwater_http_signatures:message(),
            signed_header_names => [binary()],
+           signed_request_id => binary(),
 
            function_properties => backwater_module_info:fun_properties(),
            args_content_type => content_type(),
@@ -164,9 +165,10 @@ check_authentication(#{ req := Req, authentication := Authentication } = State) 
     SignedMsg = backwater_http_signatures:new_request_msg(Method, PathWithQs, {ci_headers, Headers}),
 
     case backwater_http_signatures:validate_request_signature(SignaturesConfig, SignedMsg) of
-        {ok, SignedHeaderNames} ->
+        {ok, {SignedHeaderNames, RequestId}} ->
             {continue, State#{ signed_msg => SignedMsg,
-                               signed_header_names => SignedHeaderNames }};
+                               signed_header_names => SignedHeaderNames,
+                               signed_request_id => RequestId }};
         {error, {Reason, AuthChallengeHeaders}} ->
             {stop, set_response(401, AuthChallengeHeaders, Reason, State)}
     end.
@@ -522,13 +524,13 @@ call_function(#{ function_properties := #{ function_ref := FunctionRef },
 
 -spec send_response(state()) -> state().
 send_response(State1) ->
-    #{ req := Req1, response := Response } = State1,
+    #{ req := Req1, signed_request_id := RequestId, response := Response } = State1,
     #{ status_code := ResponseStatusCode, headers := ResponseHeaders1, body := ResponseBody } = Response,
 
     #{ authentication := {signature, Key} } = State1,
     Config = backwater_http_signatures:config(Key),
     Msg = backwater_http_signatures:new_response_msg(ResponseStatusCode, {ci_headers, ResponseHeaders1}),
-    SignedMsg = backwater_http_signatures:sign_response(Config, Msg, ResponseBody),
+    SignedMsg = backwater_http_signatures:sign_response(Config, Msg, RequestId, ResponseBody),
     ResponseHeaders2 = backwater_http_signatures:get_real_msg_headers(SignedMsg),
 
     Req2 = cowboy_req:reply(ResponseStatusCode, ResponseHeaders2, ResponseBody, Req1),
