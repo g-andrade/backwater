@@ -7,7 +7,7 @@
 %% API Function Exports
 %% ------------------------------------------------------------------
 
--export([start_link/2]). -ignore_xref({start_link, 2}).
+-export([start_link/2]).                 -ignore_xref({start_link, 2}).
 -export([child_spec/3]).
 -export([get_config/2]).
 

@@ -7,8 +7,8 @@
 %% API Function Exports
 %% ------------------------------------------------------------------
 
--export([encode_request/5]).
--export([decode_response/4]).
+-export([encode_request/5]).                   -ignore_xref({encode_request,5}).
+-export([decode_response/4]).                  -ignore_xref({decode_response,4}).
 
 %% ------------------------------------------------------------------
 %% Macro Definitions

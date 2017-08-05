@@ -6,7 +6,7 @@
 %% API Function Exports
 %% ------------------------------------------------------------------
 
--export([start_link/2]).
+-export([start_link/2]).                -ignore_xref({start_link,2}).
 -export([start_client/2]).
 -export([stop_client/1]).
 -export([start_server/2]).

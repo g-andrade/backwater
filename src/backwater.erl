@@ -5,7 +5,7 @@
 %% rebar3 Plugin Function Exports
 %% ------------------------------------------------------------------
 
--export([init/1]).
+-export([init/1]).                        -ignore_xref({init,1}).
 
 %% ------------------------------------------------------------------
 %% rebar3 Plugin Function Definitions

@@ -4,11 +4,11 @@
 %% API Function Exports
 %% ------------------------------------------------------------------
 
--export([child_spec/3]).
--export([start/2]).
--export([stop/1]).
--export([call/5]).
--export([call/6]).
+-export([child_spec/3]).                      -ignore_xref({child_spec,3}).
+-export([start/2]).                           -ignore_xref({start,2}).
+-export([stop/1]).                            -ignore_xref({stop,2}).
+-export([call/5]).                            -ignore_xref({call,5}).
+-export([call/6]).                            -ignore_xref({call,6}).
 
 %% ------------------------------------------------------------------
 %% API Function Definitions
