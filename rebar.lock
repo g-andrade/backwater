@@ -17,11 +17,7 @@
        {ref,"55c2a9d623454f372a15e99721a37093d8773b48"}},
   1},
  {<<"ssl_verify_fun">>,{pkg,<<"ssl_verify_fun">>,<<"1.1.1">>},1},
- {<<"unicode_util_compat">>,{pkg,<<"unicode_util_compat">>,<<"0.2.0">>},2},
- {<<"unistring">>,
-  {git,"https://github.com/rambocoder/unistring.git",
-       {ref,"5ace62a26a950bc717a0e95f8dbc8846027b9a93"}},
-  0}]}.
+ {<<"unicode_util_compat">>,{pkg,<<"unicode_util_compat">>,<<"0.2.0">>},2}]}.
 [
 {pkg_hash,[
  {<<"certifi">>, <<"C3904F192BD5284E5B13F20DB3CEAC9626E14EEACFBB492E19583CF0E37B22BE">>},

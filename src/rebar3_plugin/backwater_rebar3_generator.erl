@@ -150,7 +150,7 @@ find_module_path(Module, SourceDirectories) ->
 directory_source_files(SrcDir) ->
     case file:list_dir(SrcDir) of
         {ok, Filenames} ->
-            FilteredFilenames = filter_ci_filenames_by_extension(Filenames, "erl"),
+            FilteredFilenames = filter_filenames_by_extension(Filenames, "erl"),
             full_paths(SrcDir, FilteredFilenames);
         {error, enotdir} ->
             [];
@@ -158,22 +158,17 @@ directory_source_files(SrcDir) ->
             error({cant_list_directory, SrcDir, OtherError})
     end.
 
-filter_ci_filenames_by_extension(Filenames, Extension) ->
-    LowExtensionWithDot = "." ++ filename_to_lower(Extension),
+filter_filenames_by_extension(Filenames, Extension) ->
+    ExtensionWithDot = [$. | Extension],
     lists:filter(
       fun (Filename) ->
-              LowFilename = filename_to_lower(Filename),
-              (lists:suffix(LowExtensionWithDot, LowFilename) andalso
-               length(LowFilename) > length(LowExtensionWithDot))
+              (lists:suffix(ExtensionWithDot, Filename) andalso
+               length(Filename) > length(ExtensionWithDot))
       end,
       Filenames).
 
 full_paths(Dir, Names) ->
     [filename:join(Dir, Name) || Name <- Names].
-
-filename_to_lower(Filename) ->
-    % FIXME unistring no longer needed in OTP 20 (I think)
-    unistring:to_lower(Filename).
 
 %% ------------------------------------------------------------------
 %% Internal Function Definitions - Parsing the Original Code
