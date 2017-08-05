@@ -184,7 +184,6 @@ authenticate_response(StatusCode, CiHeaders, Body, RequestState) ->
     case backwater_http_signatures:validate_response_signature(SignaturesConfig, ResponseMsg, SignedRequestMsg)
     of
         {ok, SignedResponseMsg} ->
-            % TODO deal with signed_header_names in SignedResponseMsg
             authenticate_response_body(StatusCode, CiHeaders, Body, Config, SignedResponseMsg);
         {error, Reason} ->
             {error, {{response_authentication, Reason}, {status_code_name(StatusCode), Body}}}
@@ -195,17 +194,18 @@ authenticate_response(StatusCode, CiHeaders, Body, RequestState) ->
 authenticate_response_body(StatusCode, CiHeaders, Body, Config, SignedResponseMsg) ->
     case backwater_http_signatures:validate_signed_msg_body(SignedResponseMsg, Body) of
         true ->
-            decode_response_(StatusCode, CiHeaders, Body, Config);
+            decode_response_(StatusCode, CiHeaders, Body, Config, SignedResponseMsg);
         false ->
             {error, {{response_authentication, wrong_body_digest}, {status_code_name(StatusCode), Body}}}
     end.
 
--spec decode_response_(status_code(), headers(), binary(), backwater_client_config:t()) -> response().
-decode_response_(200 = StatusCode, CiHeaders, Body, Config) ->
+-spec decode_response_(status_code(), headers(), binary(), backwater_client_config:t(),
+                       backwater_http_signatures:signed_message()) -> response().
+decode_response_(200 = StatusCode, CiHeaders, Body, Config, SignedResponseMsg) ->
     #{ rethrow_remote_exceptions := RethrowRemoteExceptions } = Config,
     StatusCodeName = status_code_name(StatusCode),
     RawResponseError = {StatusCodeName, Body},
-    case decode_response_body(CiHeaders, Body, Config) of
+    case decode_response_body(CiHeaders, Body, Config, SignedResponseMsg) of
         {term, {success, ReturnValue}} ->
             {ok, ReturnValue};
         {term, {exception, Class, Exception, Stacktrace}} when RethrowRemoteExceptions ->
@@ -223,10 +223,10 @@ decode_response_(200 = StatusCode, CiHeaders, Body, Config) ->
         {error, {invalid_content_type, RawContentType}} ->
             {error, {{invalid_content_type, RawContentType}, RawResponseError}}
     end;
-decode_response_(StatusCode, CiHeaders, Body, Config) ->
+decode_response_(StatusCode, CiHeaders, Body, Config, SignedResponseMsg) ->
     StatusCodeName = status_code_name(StatusCode),
     RawResponseError = {StatusCodeName, Body},
-    case decode_response_body(CiHeaders, Body, Config) of
+    case decode_response_body(CiHeaders, Body, Config, SignedResponseMsg) of
         {term, Error} ->
             {error, {remote_error, {StatusCodeName, Error}}};
         {raw, Binary} ->
@@ -241,17 +241,18 @@ decode_response_(StatusCode, CiHeaders, Body, Config) ->
             {error, {{invalid_content_type, RawContentType}, RawResponseError}}
     end.
 
--spec decode_response_body(headers(), binary(), backwater_client_config:t())
+-spec decode_response_body(headers(), binary(), backwater_client_config:t(),
+                           backwater_http_signatures:signed_message())
         -> {term, term()} |
            {raw, binary()} |
            {error, {invalid_content_type, binary()}} |
            {error, {undecodable_response_body, binary()}} |
            {error, {unknown_content_encoding, binary()}} |
            {error, {unknown_content_type, nonempty_binary()}}.
-decode_response_body(CiHeaders, Body, Config) ->
-    ContentEncodingLookup = find_content_encoding(CiHeaders),
+decode_response_body(CiHeaders, Body, Config, SignedResponseMsg) ->
+    ContentEncodingLookup = find_content_encoding(CiHeaders, SignedResponseMsg),
     handle_response_body_content_encoding(
-      ContentEncodingLookup, CiHeaders, Body, Config).
+      ContentEncodingLookup, CiHeaders, Body, Config, SignedResponseMsg).
 
 -spec status_code_name(status_code()) -> status_code_name().
 status_code_name(400) -> bad_request;
@@ -267,32 +268,34 @@ status_code_name(Unknown) -> {http, Unknown}.
 %% encoding
 
 -spec handle_response_body_content_encoding({ok, binary()} | error,
-                                            headers(), binary(), backwater_client_config:t())
+                                            headers(), binary(), backwater_client_config:t(),
+                                            backwater_http_signatures:signed_message())
         -> {term, term()} |
            {raw, binary()} |
            {error, {invalid_content_type, binary()}} |
            {error, {undecodable_response_body, binary()}} |
            {error, {unknown_content_encoding, binary()}} |
            {error, {unknown_content_type, nonempty_binary()}}.
-handle_response_body_content_encoding({ok, <<"gzip">>}, CiHeaders, Body, Config) ->
+handle_response_body_content_encoding({ok, <<"gzip">>}, CiHeaders, Body, Config, SignedResponseMsg) ->
     case backwater_encoding_gzip:decode(Body) of
         {ok, UncompressedBody} ->
-            ContentTypeLookup = find_content_type(CiHeaders),
+            ContentTypeLookup = find_content_type(CiHeaders, SignedResponseMsg),
             handle_response_body_content_type(ContentTypeLookup, UncompressedBody, Config);
         {error, _Error} ->
             {error, {undecodable_response_body, Body}}
     end;
-handle_response_body_content_encoding(Lookup, CiHeaders, Body, Config)
+handle_response_body_content_encoding(Lookup, CiHeaders, Body, Config, SignedResponseMsg)
   when Lookup =:= error;
        Lookup =:= {ok, <<"identity">>} ->
-    ContentTypeLookup = find_content_type(CiHeaders),
+    ContentTypeLookup = find_content_type(CiHeaders, SignedResponseMsg),
     handle_response_body_content_type(ContentTypeLookup, Body, Config);
-handle_response_body_content_encoding({ok, OtherEncoding}, _CiHeaders, _Body, _Config) ->
+handle_response_body_content_encoding({ok, OtherEncoding}, _CiHeaders, _Body, _Config, _SignedResponseMsg) ->
     {error, {unknown_content_encoding, OtherEncoding}}.
 
--spec find_content_encoding(headers()) -> {ok, binary()} | error.
-find_content_encoding(CiHeaders) ->
-    find_header_value(?OPAQUE_BINARY(<<"content-encoding">>), CiHeaders).
+-spec find_content_encoding(headers(), backwater_http_signatures:signed_message())
+        -> {ok, binary()} | error.
+find_content_encoding(CiHeaders, SignedResponseMsg) ->
+    find_header_value(?OPAQUE_BINARY(<<"content-encoding">>), CiHeaders, SignedResponseMsg).
 
 %% content type
 
@@ -322,12 +325,12 @@ handle_response_body_content_type({error, content_type_missing},
                                    Body, _Config) ->
     {raw, Body}.
 
--spec find_content_type(headers()) ->
+-spec find_content_type(headers(), backwater_http_signatures:signed_message()) ->
             {ok, {nonempty_binary(), [nonempty_binary()]}} |
             {error, {invalid_content_type, binary()}} |
             {error, content_type_missing}.
-find_content_type(CiHeaders) ->
-    case find_header_value(?OPAQUE_BINARY(<<"content-type">>), CiHeaders) of
+find_content_type(CiHeaders, SignedResponseMsg) ->
+    case find_header_value(?OPAQUE_BINARY(<<"content-type">>), CiHeaders, SignedResponseMsg) of
         {ok, ContentTypeBin} ->
             case binary:split(ContentTypeBin, [<<";">>, <<" ">>, <<$\n>>, <<$\r>>],
                               [global, trim_all])
@@ -343,9 +346,18 @@ find_content_type(CiHeaders) ->
 
 %% utilities
 
--spec find_header_value(nonempty_binary(), headers()) -> {ok, binary()} | error.
-find_header_value(CiKey, CiHeaders) ->
-    case lists:keyfind(CiKey, 1, CiHeaders) of
-        {CiKey, Value} -> {ok, Value};
-        false -> error
+-spec find_header_value(nonempty_binary(), headers(), backwater_http_signatures:signed_message())
+        -> {ok, binary()} | error.
+find_header_value(CiName, CiHeaders, SignedResponseMsg) ->
+    case lists:keyfind(CiName, 1, CiHeaders) of
+        {CiName, Value} ->
+            assert_header_safety(CiName, SignedResponseMsg),
+            {ok, Value};
+        false ->
+            error
     end.
+
+%-spec assert_header_safety(binary(), state()) -> true | no_return().
+assert_header_safety(CiName, SignedResponseMsg) ->
+    backwater_http_signatures:is_header_signed_in_signed_msg(CiName, SignedResponseMsg)
+    orelse error({using_unsafe_header, CiName}).
