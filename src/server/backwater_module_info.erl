@@ -1,6 +1,6 @@
 -module(backwater_module_info).
 
--include("backwater_common.hrl").
+-include("../backwater_common.hrl").
 
 %% ------------------------------------------------------------------
 %% API Function Exports
@@ -57,12 +57,14 @@
 %% ------------------------------------------------------------------
 
 -spec exposed_module_name(exposed_module()) -> module().
+%% @private
 exposed_module_name({Module, _Opts}) ->
     Module;
 exposed_module_name(Module) ->
     Module.
 
 -spec generate([exposed_module()]) -> #{ BinModule :: nonempty_binary() => module_info() }.
+%% @private
 generate(ExposedModules) ->
     KvList = lists:filtermap(fun find_and_parse_module_info/1, ExposedModules),
     maps:from_list(KvList).

@@ -86,10 +86,12 @@
 %% ------------------------------------------------------------------
 
 -spec start_link(atom(), config()) -> {ok, pid()} | ignore | {error, term()}.
+%% @private
 start_link(Ref, Config) ->
     gen_server:start_link({local, server_name(Ref)}, ?CB_MODULE, [Ref, Config], []).
 
 -spec child_spec(term(), atom(), config()) -> child_spec(term()).
+%% @private
 child_spec(Id, Ref, Config) ->
     #{ id => Id,
        start => {?MODULE, start_link, [Ref, Config]},
@@ -103,16 +105,19 @@ child_spec(Id, Ref, Config) ->
 %% ------------------------------------------------------------------
 
 -spec init([atom() | config(), ...]) -> {ok, unstarted}.
+%% @private
 init([Ref, Config]) ->
     process_flag(trap_exit, true), % in order for 'terminate/2' to be called (condition II)
     gen_server:cast(self(), {start, Ref, Config}),
     {ok, unstarted}.
 
 -spec handle_call(term(), {pid(), reference()}, state()) -> {noreply, state()}.
+%% @private
 handle_call(_Request, _From, State) ->
     {noreply, State}.
 
 -spec handle_cast(term(), state()) -> {noreply, state()}.
+%% @private
 handle_cast({start, Ref, Config}, unstarted) ->
     {ok, Pid} = start_cowboy(Ref, Config),
     {noreply, #state{ ref = Ref, monitor = monitor(process, Pid) }};
@@ -120,18 +125,21 @@ handle_cast(_Msg, State) ->
     {noreply, State}.
 
 -spec handle_info(term(), state()) -> {noreply, state()}.
+%% @private
 handle_info({'DOWN', Ref, process, _Pid, Reason}, #state{ ref = Ref } = State) ->
     {stop, Reason, State};
 handle_info(_Info, State) ->
     {noreply, State}.
 
 -spec terminate(term(), state()) -> ok.
+%% @private
 terminate(_Reason, #state{ ref = Ref }) ->
     ok = stop_cowboy(Ref);
 terminate(_Reason, _State) ->
     ok.
 
 -spec code_change(term(), state(), term()) -> {ok, state()}.
+%% @private
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
 
@@ -160,9 +168,7 @@ stop_cowboy(Ref) ->
     cowboy:stop_listener(Ref).
 
 -spec parse_cowboy_opts(config())
-        -> {start_clear | start_tls,
-            backwater_cowboy_handler:backwater_transport_opts(),
-            backwater_cowboy_handler:backwater_protocol_opts()}.
+        -> {start_clear | start_tls, transport_opts(), protocol_opts()}.
 parse_cowboy_opts(Config) ->
     StartFunction =
         case maps:get(transport, Config, clear) of

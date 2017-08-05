@@ -1,3 +1,4 @@
+%% @private
 -module(backwater_cowboy_handler).
 
 -include("../backwater_common.hrl").
