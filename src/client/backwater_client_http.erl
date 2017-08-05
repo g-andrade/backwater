@@ -120,14 +120,13 @@ decode_response(StatusCode, Headers, Body, RequestState) ->
                   backwater_client_config:t()) -> nonempty_binary().
 request_url(Version, Module, Function, Arity, Config) ->
     #{ endpoint := Endpoint } = Config,
-    iolist_to_binary(
-      lists:join(
-        "/",
-        [Endpoint,
-         edoc_lib:escape_uri(unicode:characters_to_list(Version)),
-         edoc_lib:escape_uri(atom_to_list(Module)),
-         edoc_lib:escape_uri(atom_to_list(Function)),
-         integer_to_list(Arity)])).
+    PathComponents =
+        [hackney_url:urlencode(unicode:characters_to_binary(Version)),
+         hackney_url:urlencode(atom_to_binary(Module, utf8)),
+         hackney_url:urlencode(atom_to_binary(Function, utf8)),
+         integer_to_binary(Arity)],
+    QueryString = <<>>,
+    hackney_url:make_url(Endpoint, PathComponents, QueryString).
 
 -spec encode_request_with_compression(nonempty_binary(), nonempty_binary(),
                                       nonempty_headers(), binary(),
