@@ -20,9 +20,6 @@
 %% Type Definitions
 %% ------------------------------------------------------------------
 
--type stateful_request() :: {request(), request_state()}.
--export_type([stateful_request/0]).
-
 -opaque request_state() ::
         #{ config := backwater_client_config:t(),
            signed_request_msg := backwater_http_signatures:signed_message() }.
@@ -36,6 +33,8 @@
          Body :: binary()}.
 
 -export_type([request/0]).
+
+-type stateful_request() :: {request(), request_state()}.
 
 -type status_code() :: pos_integer().
 -export_type([status_code/0]).
@@ -89,13 +88,14 @@
 %% API Function Definitions
 %% ------------------------------------------------------------------
 
--spec encode_request(Version, Module, Function, Args, Config) -> Request
+-spec encode_request(Version, Module, Function, Args, Config) -> {Request, RequestState}
             when Version :: unicode:chardata(),
                  Module :: module(),
                  Function :: atom(),
                  Args :: [term()],
                  Config :: backwater_client_config:t(),
-                 Request :: stateful_request().
+                 Request :: request(),
+                 RequestState :: request_state().
 
 encode_request(Version, Module, Function, Args, Config) ->
     Body = backwater_media_etf:encode(Args),
