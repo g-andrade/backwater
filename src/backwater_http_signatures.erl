@@ -26,8 +26,7 @@
 -define(ALGORITHM, <<"hmac-sha256">>).
 
 -define(VALIDATION_MANDATORILY_SIGNED_HEADER_NAMES,
-        [<<"date">>,
-         <<"digest">>,
+        [<<"digest">>,
          <<"x-request-id">>]).
 
 -define(VALIDATION_MANDATORILY_SIGNED_HEADER_NAMES_IF_PRESENT,
@@ -178,7 +177,6 @@ sign_request(Config, RequestMsg1, Body, RequestId) ->
     BodyDigest = body_digest(Body),
     ExtraSignedHeaders =
         #{ <<"digest">> => BodyDigest,
-           <<"date">> => rfc1123(),
            <<"x-request-id">> => RequestId },
     RequestMsg2 = remove_real_msg_header(<<"authorization">>, RequestMsg1),
     RequestMsg3 = add_real_msg_headers(ExtraSignedHeaders, RequestMsg2),
@@ -198,7 +196,6 @@ sign_response(Config, ResponseMsg1, Body, SignedRequestMsg) ->
     BodyDigest = body_digest(Body),
     ExtraSignedHeaders =
         #{ <<"digest">> => BodyDigest,
-           <<"date">> => rfc1123(),
            <<"x-request-id">> => RequestId },
     ResponseMsg2 = remove_real_msg_header(<<"signature">>, ResponseMsg1),
     ResponseMsg3 = add_real_msg_headers(ExtraSignedHeaders, ResponseMsg2),
@@ -483,12 +480,6 @@ auth_challenge_headers(RequestMsg) ->
 %% ------------------------------------------------------------------
 %% Internal Function Definitions - Signing
 %% ------------------------------------------------------------------
-
--spec rfc1123() -> binary().
-rfc1123() ->
-    CurrTime = erlang:universaltime(),
-    String = httpd_util:rfc1123_date(CurrTime),
-    list_to_binary(String).
 
 -spec generate_authorization_header_value(config(), message(), [binary()]) -> nonempty_binary().
 generate_authorization_header_value(Config, Msg, SignedHeaderNames) ->
