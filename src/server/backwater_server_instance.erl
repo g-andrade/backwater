@@ -7,8 +7,6 @@
 
 -export([start_link/2]). -ignore_xref({start_link, 2}).
 -export([child_spec/3]).
--export([cowboy_route_rule/1]).
--export([cowboy_route_path/1]).
 
 %% ------------------------------------------------------------------
 %% gen_server Function Exports
@@ -77,14 +75,11 @@
 -export_type([child_spec/1]).
 
 -type route_rule() :: {'_' | nonempty_string(), [route_path(), ...]}.
--export_type([route_rule/0]).
 
 -type route_path() :: {nonempty_string(), route_constraints(),
                        backwater_cowboy_handler, backwater_cowboy_handler:state()}.
--export_type([route_path/0]).
 
 -type route_constraints() :: [{version, nonempty} | {module | function | arity, fun ()}, ...].
--export_type([route_constraints/0]).
 
 %% ------------------------------------------------------------------
 %% API Function Definitions
@@ -102,23 +97,6 @@ child_spec(Id, Ref, Config) ->
        shutdown => 5000, % in order of 'terminate/2' to be called (condition I)
        type => worker,
        modules => [?MODULE] }.
-
--spec cowboy_route_rule(config()) -> route_rule().
-cowboy_route_rule(Config) ->
-    Host = maps:get(host, Config, '_'), % TODO document?
-    {Host, [cowboy_route_path(Config)]}.
-
--spec cowboy_route_path(config()) -> route_path().
-cowboy_route_path(Config) ->
-    BasePath = maps:get(base_path, Config, "/rpcall/"), % TODO document?
-    Constraints =
-        [{version, nonempty},
-         {module, fun encoded_atom_constraint/2},
-         {function, fun encoded_atom_constraint/2},
-         {arity, fun arity_constraint/2}],
-    InitialHandlerState = backwater_cowboy_handler:initial_state(Config),
-    {BasePath ++ ":version/:module/:function/:arity",
-     Constraints, backwater_cowboy_handler, InitialHandlerState}.
 
 %% ------------------------------------------------------------------
 %% gen_server Function Definitions
@@ -243,3 +221,20 @@ arity_constraint(format_error, {too_large, Value}) ->
     io_lib:format("Value \"~p\" is too large to be interpreted as arity", [Value]);
 arity_constraint(format_error, {not_a_number, Value}) ->
     io_lib:format("Value \"~p\" is not a number", [Value]).
+
+-spec cowboy_route_rule(config()) -> route_rule().
+cowboy_route_rule(Config) ->
+    Host = maps:get(host, Config, '_'), % TODO document?
+    {Host, [cowboy_route_path(Config)]}.
+
+-spec cowboy_route_path(config()) -> route_path().
+cowboy_route_path(Config) ->
+    BasePath = maps:get(base_path, Config, "/rpcall/"), % TODO document?
+    Constraints =
+        [{version, nonempty},
+         {module, fun encoded_atom_constraint/2},
+         {function, fun encoded_atom_constraint/2},
+         {arity, fun arity_constraint/2}],
+    InitialHandlerState = backwater_cowboy_handler:initial_state(Config),
+    {BasePath ++ ":version/:module/:function/:arity",
+     Constraints, backwater_cowboy_handler, InitialHandlerState}.

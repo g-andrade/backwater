@@ -7,8 +7,6 @@
 -export([child_spec/3]).
 -export([start/2]).
 -export([stop/1]).
--export([cowboy_route_rule/1]).
--export([cowboy_route_path/1]).
 
 %% ------------------------------------------------------------------
 %% API Function Definitions
@@ -39,19 +37,3 @@ start(Ref, Config) ->
 
 stop(Ref) ->
     backwater_sup:stop_server(Ref).
-
-
--spec cowboy_route_rule(Config) -> RouteRule
-        when Config :: backwater_server_instance:config(),
-             RouteRule :: backwater_server_instance:route_rule().
-
-cowboy_route_rule(Config) ->
-    backwater_server_instance:cowboy_route_rule(Config).
-
-
--spec cowboy_route_path(Config) -> RoutePath
-        when Config :: backwater_server_instance:config(),
-             RoutePath :: backwater_server_instance:route_path().
-
-cowboy_route_path(Config) ->
-    backwater_server_instance:cowboy_route_path(Config).
