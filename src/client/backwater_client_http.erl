@@ -25,7 +25,7 @@
 
 -opaque request_state() ::
         #{ config := backwater_client_config:t(),
-           request_id := nonempty_binary() }.
+           signed_request_msg := backwater_http_signatures:signed_message() }.
 
 -export_type([request_state/0]).
 
@@ -53,8 +53,8 @@
 -export_type([response/1]).
 
 -type response_error() ::
-        {response_authentication, status_code(), backwater_http_signatures:response_validation_failure()} |
-        {response_body_authentication, status_code(), backwater_http_signatures:body_validation_failure()} |
+        {response_authentication, status_code(),
+         wrong_body_digest | backwater_http_signatures:response_validation_failure()} |
         {remote, response_remote_error()} |
         {undecodable_response_body, status_code(), Body :: binary()} |
         {unknown_content_encoding, status_code(), ContentEncoding :: binary()} |
@@ -145,12 +145,12 @@ encode_request_with_compression(Method, Url, Headers, Body, Config) ->
 encode_request_with_auth(Method, Url, Headers1, Body, #{ authentication := {signature, Key} } = Config) ->
     PathWithQs = url_path_with_qs(Url),
     SignaturesConfig = backwater_http_signatures:config(Key),
-    SignaturesMsg = backwater_http_signatures:new_request_msg(Method, PathWithQs, Headers1),
+    RequestMsg = backwater_http_signatures:new_request_msg(Method, PathWithQs, Headers1),
     RequestId = base64:encode( crypto:strong_rand_bytes(16) ),
-    SignedMsg = backwater_http_signatures:sign_request(SignaturesConfig, SignaturesMsg, RequestId, Body),
-    Headers2 = backwater_http_signatures:list_real_msg_headers(SignedMsg),
+    SignedRequestMsg = backwater_http_signatures:sign_request(SignaturesConfig, RequestMsg, Body, RequestId),
+    Headers2 = backwater_http_signatures:list_real_msg_headers(SignedRequestMsg),
     Request = {?OPAQUE_BINARY(Method), ?OPAQUE_BINARY(Url), Headers2, Body},
-    State = #{ config => Config, request_id => RequestId },
+    State = #{ config => Config, signed_request_msg => SignedRequestMsg },
     {Request, State}.
 
 -spec url_path_with_qs(nonempty_binary()) -> binary().
@@ -168,26 +168,27 @@ url_path_with_qs(Url) ->
 
 -spec authenticate_response(status_code(), headers(), binary(), request_state()) -> response().
 authenticate_response(StatusCode, CiHeaders, Body, RequestState) ->
-    #{ config := Config, request_id := RequestId } = RequestState,
+    #{ config := Config, signed_request_msg := SignedRequestMsg } = RequestState,
     #{ authentication := {signature, Key} } = Config,
     SignaturesConfig = backwater_http_signatures:config(Key),
-    SignedMsg = backwater_http_signatures:new_response_msg(StatusCode, {ci_headers, CiHeaders}),
-    case backwater_http_signatures:validate_response_signature(SignaturesConfig, SignedMsg, RequestId) of
-        {ok, _SignedHeaderNames} ->
-            % TODO deal with SignedHeaderNames
-            authenticate_response_body(StatusCode, CiHeaders, Body, Config, SignedMsg);
+    ResponseMsg = backwater_http_signatures:new_response_msg(StatusCode, {ci_headers, CiHeaders}),
+    case backwater_http_signatures:validate_response_signature(SignaturesConfig, ResponseMsg, SignedRequestMsg)
+    of
+        {ok, SignedResponseMsg} ->
+            % TODO deal with signed_header_names in SignedResponseMsg
+            authenticate_response_body(StatusCode, CiHeaders, Body, Config, SignedResponseMsg);
         {error, Reason} ->
             {error, {response_authentication, StatusCode, Reason}}
     end.
 
 -spec authenticate_response_body(status_code(), headers(), binary(), backwater_client_config:t(),
-                                 backwater_http_signatures:message()) -> response().
-authenticate_response_body(StatusCode, CiHeaders, Body, Config, SignedMsg) ->
-    case backwater_http_signatures:validate_msg_body(SignedMsg, Body) of
-        ok ->
+                                 backwater_http_signatures:signed_message()) -> response().
+authenticate_response_body(StatusCode, CiHeaders, Body, Config, SignedResponseMsg) ->
+    case backwater_http_signatures:validate_signed_msg_body(SignedResponseMsg, Body) of
+        true ->
             decode_response_(StatusCode, CiHeaders, Body, Config);
-        {error, Reason} ->
-            {error, {response_body_authentication, StatusCode, Reason}}
+        false ->
+            {error, {response_authentication, StatusCode, wrong_body_digest}}
     end.
 
 -spec decode_response_(status_code(), headers(), binary(), backwater_client_config:t()) -> response().

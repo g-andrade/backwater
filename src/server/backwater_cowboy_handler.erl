@@ -39,9 +39,7 @@
            bin_function => binary(),
            arity => arity(),
 
-           signed_msg => backwater_http_signatures:message(),
-           signed_header_names => [binary()],
-           signed_request_id => binary(),
+           signed_request_msg => backwater_http_signatures:signed_message(),
 
            function_properties => backwater_module_info:fun_properties(),
            args_content_type => content_type(),
@@ -162,13 +160,11 @@ check_authentication(#{ req := Req, authentication := Authentication } = State) 
     Method = cowboy_req:method(Req),
     PathWithQs = req_path_with_qs(Req),
     Headers = cowboy_req:headers(Req),
-    SignedMsg = backwater_http_signatures:new_request_msg(Method, PathWithQs, {ci_headers, Headers}),
+    RequestMsg = backwater_http_signatures:new_request_msg(Method, PathWithQs, {ci_headers, Headers}),
 
-    case backwater_http_signatures:validate_request_signature(SignaturesConfig, SignedMsg) of
-        {ok, {SignedHeaderNames, RequestId}} ->
-            {continue, State#{ signed_msg => SignedMsg,
-                               signed_header_names => SignedHeaderNames,
-                               signed_request_id => RequestId }};
+    case backwater_http_signatures:validate_request_signature(SignaturesConfig, RequestMsg) of
+        {ok, SignedRequestMsg} ->
+            {continue, State#{ signed_request_msg => SignedRequestMsg }};
         {error, {Reason, AuthChallengeHeaders}} ->
             {stop, set_response(401, AuthChallengeHeaders, Reason, State)}
     end.
@@ -182,30 +178,31 @@ req_path_with_qs(Req) ->
     end.
 
 -spec safe_req_header(binary(), state()) -> undefined | binary() | no_return().
-safe_req_header(Name, #{ req := Req } = State) ->
-    case cowboy_req:header(Name, Req) of
+safe_req_header(CiName, #{ req := Req } = State) ->
+    case cowboy_req:header(CiName, Req) of
         undefined -> undefined;
         Value ->
-            assert_header_safety(Name, State),
+            assert_header_safety(CiName, State),
             Value
     end.
 
 -spec safe_req_parse_header(binary(), state()) -> term() | no_return().
-safe_req_parse_header(Name, State) ->
-    safe_req_parse_header(Name, State, undefined).
+safe_req_parse_header(CiName, State) ->
+    safe_req_parse_header(CiName, State, undefined).
 
 -spec safe_req_parse_header(binary(), state(), term()) -> term() | no_return().
-safe_req_parse_header(Name, #{ req := Req } = State, Default) ->
-    case cowboy_req:parse_header(Name, Req) of
+safe_req_parse_header(CiName, #{ req := Req } = State, Default) ->
+    case cowboy_req:parse_header(CiName, Req) of
         undefined -> Default;
         Value ->
-            assert_header_safety(Name, State),
+            assert_header_safety(CiName, State),
             Value
     end.
 
 -spec assert_header_safety(binary(), state()) -> true | no_return().
-assert_header_safety(Name, #{ signed_header_names := SignedHeaderNames }) ->
-    lists:member(Name, SignedHeaderNames) orelse error({unsafe_header, Name}).
+assert_header_safety(CiName, #{ signed_request_msg := SignedRequestMsg }) ->
+    backwater_http_signatures:is_header_signed_in_signed_msg(CiName, SignedRequestMsg)
+    orelse error({using_unsafe_header, CiName}).
 
 %% ------------------------------------------------------------------
 %% Internal Function Definitions - Check Method
@@ -444,12 +441,12 @@ read_and_decode_args(#{ req := Req } = State) ->
     end.
 
 validate_body_digest(Data, State) ->
-    #{ signed_msg := SignedMsg } = State,
-    case backwater_http_signatures:validate_msg_body(SignedMsg, Data) of
-        ok -> decode_args_content_encoding(Data, State);
-        {error, Reason} ->
+    #{ signed_request_msg := SignedRequestMsg } = State,
+    case backwater_http_signatures:validate_signed_msg_body(SignedRequestMsg, Data) of
+        true -> decode_args_content_encoding(Data, State);
+        false ->
             % TODO find better status code
-            {stop, set_response(403, Reason, State)}
+            {stop, set_response(403, wrong_body_digest, State)}
     end.
 
 -spec decode_args_content_encoding(binary(), state()) -> {continue | stop, state()}.
@@ -523,17 +520,26 @@ call_function(#{ function_properties := #{ function_ref := FunctionRef },
 %% ------------------------------------------------------------------
 
 -spec send_response(state()) -> state().
-send_response(State1) ->
-    #{ req := Req1, signed_request_id := RequestId, response := Response } = State1,
+send_response(#{ signed_request_msg := SignedRequestMsg } = State1) ->
+    % signed response
+    #{ req := Req1, response := Response } = State1,
     #{ status_code := ResponseStatusCode, headers := ResponseHeaders1, body := ResponseBody } = Response,
 
     #{ authentication := {signature, Key} } = State1,
     Config = backwater_http_signatures:config(Key),
-    Msg = backwater_http_signatures:new_response_msg(ResponseStatusCode, {ci_headers, ResponseHeaders1}),
-    SignedMsg = backwater_http_signatures:sign_response(Config, Msg, RequestId, ResponseBody),
-    ResponseHeaders2 = backwater_http_signatures:get_real_msg_headers(SignedMsg),
+    ResponseMsg =
+        backwater_http_signatures:new_response_msg(ResponseStatusCode, {ci_headers, ResponseHeaders1}),
+    SignedResponseMsg =
+        backwater_http_signatures:sign_response(Config, ResponseMsg, ResponseBody, SignedRequestMsg),
+    ResponseHeaders2 = backwater_http_signatures:get_real_msg_headers(SignedResponseMsg),
 
     Req2 = cowboy_req:reply(ResponseStatusCode, ResponseHeaders2, ResponseBody, Req1),
+    State1#{ req := Req2 };
+send_response(State1) ->
+    % unsigned response
+    #{ req := Req1, response := Response } = State1,
+    #{ status_code := ResponseStatusCode, headers := ResponseHeaders, body := ResponseBody } = Response,
+    Req2 = cowboy_req:reply(ResponseStatusCode, ResponseHeaders, ResponseBody, Req1),
     State1#{ req := Req2 }.
 
 %% ------------------------------------------------------------------

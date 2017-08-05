@@ -11,11 +11,12 @@
 -export([new_response_msg/2]).
 -export([validate_request_signature/2]).
 -export([validate_response_signature/3]).
--export([validate_msg_body/2]).
+-export([validate_signed_msg_body/2]).
 -export([sign_request/4]).
 -export([sign_response/4]).
 -export([get_real_msg_headers/1]).
 -export([list_real_msg_headers/1]).
+-export([is_header_signed_in_signed_msg/2]).
 
 %% ------------------------------------------------------------------
 %% Macro Definitions
@@ -38,12 +39,24 @@
 %% Type Definitions
 %% ------------------------------------------------------------------
 
--type config() :: #{ key := binary() }.
+-opaque config() :: #{ key := binary() }.
 -export_type([config/0]).
 
--type message() :: #{ fake_headers := #{ binary() => binary() },
-                      real_headers := #{ binary() => binary() }  }.
+-type message() :: unsigned_message() | signed_message().
+-export_type([unsigned_message/0]).
+
+-opaque unsigned_message() ::
+    #{ fake_headers := #{ binary() => binary() },
+       real_headers := #{ binary() => binary() }  }.
 -export_type([message/0]).
+
+-opaque signed_message() ::
+    #{ fake_headers := #{ binary() => binary() },
+       real_headers := #{ binary() => binary() },
+       request_id := binary(),
+       signed_header_names := [binary()],
+       body_digest := binary() }.
+-export_type([signed_message/0]).
 
 -type header_list() :: [{binary(), binary()}].
 -export_type([header_list/0]).
@@ -55,7 +68,7 @@
         header_list() | header_map() | {headers | ci_headers, header_list() | header_map()}.
 -export_type([maybe_uncanonical_headers/0]).
 
--type message_validation_success() :: {ok, SignedHeaderNames :: [binary()]}.
+-type message_validation_success() :: {ok, signed_message()}.
 -export_type([message_validation_success/0]).
 
 -type request_validation_failure() :: auth_parse_failure() | validation_failure().
@@ -67,9 +80,6 @@
 -type request_id_validation_failure() ::
         mismatched_request_id | missing_request_id | sig_parse_failure() | validation_failure().
 -export_type([request_id_validation_failure/0]).
-
--type body_validation_failure() :: wrong_body_digest | invalid_body_digest.
--export_type([body_validation_failure/0]).
 
 -type auth_parse_failure() :: invalid_auth_type | missing_authorization_header | header_params_failure().
 -export_type([auth_parse_failure/0]).
@@ -107,7 +117,6 @@
 -export_type([signature_string_failure/0]).
 
 -type params() :: #{ binary() => binary() | [binary()] }.
--export_type([params/0]).
 
 %% ------------------------------------------------------------------
 %% API Function Definitions
@@ -118,82 +127,89 @@
 config(Key) ->
     #{ key => Key }.
 
--spec new_request_msg(binary(), binary(), maybe_uncanonical_headers()) -> message().
+-spec new_request_msg(binary(), binary(), maybe_uncanonical_headers()) -> unsigned_message().
 %% @private
 new_request_msg(Method, PathWithQs, Headers) ->
     FakeHeaders = #{ ?OPAQUE_BINARY(<<"(request-target)">>) => request_target(Method, PathWithQs) },
     RealHeaders = canonical_headers(Headers),
-    new_msg(FakeHeaders, RealHeaders).
+    new_unsigned_msg(FakeHeaders, RealHeaders).
 
--spec new_response_msg(non_neg_integer(), maybe_uncanonical_headers()) -> message().
+-spec new_response_msg(non_neg_integer(), maybe_uncanonical_headers()) -> unsigned_message().
 %% @private
 new_response_msg(StatusCode, Headers) ->
     FakeHeaders = #{ ?OPAQUE_BINARY(<<"(response-status)">>) => response_status(StatusCode) },
     RealHeaders = canonical_headers(Headers),
-    new_msg(FakeHeaders, RealHeaders).
+    new_unsigned_msg(FakeHeaders, RealHeaders).
 
 -spec validate_request_signature(config(), message())
-        -> {ok, {SignedHeaderNames :: [binary()], RequestId :: binary()}} |
+        -> message_validation_success() |
            {error, {Reason :: request_validation_failure(),
                     ChallengeHeaders :: #{ binary() := binary() }}}.
 %% @private
-validate_request_signature(Config, Msg) ->
-    AuthorizationHeaderLookup = find_real_msg_header(<<"authorization">>, Msg),
+validate_request_signature(Config, RequestMsg) ->
+    AuthorizationHeaderLookup = find_real_msg_header(<<"authorization">>, RequestMsg),
     Result =
         case parse_authorization_header(AuthorizationHeaderLookup) of
             {ok, Params} ->
-                validate_params(Config, Params, Msg);
+                validate_params(Config, Params, RequestMsg);
             {error, Reason} ->
                 {error, Reason}
         end,
-    request_validation_result(Result, Msg).
+    request_validation_result(Result, RequestMsg).
 
--spec validate_response_signature(config(), message(), binary())
-        -> {ok, SignedHeaderNames :: [binary()]} |
+-spec validate_response_signature(config(), message(), signed_message())
+        -> message_validation_success() |
            {error, Reason :: response_validation_failure()}.
 %% @private
-validate_response_signature(Config, Msg, RequestId) ->
-    MsgRequestIdLookup = find_real_msg_header(<<"x-request-id">>, Msg),
-    validate_response_request_id(Config, Msg, RequestId, MsgRequestIdLookup).
+validate_response_signature(Config, ResponseMsg, SignedRequestMsg) ->
+    #{ request_id := RequestId } = SignedRequestMsg,
+    MsgRequestIdLookup = find_real_msg_header(<<"x-request-id">>, ResponseMsg),
+    validate_response_request_id(Config, ResponseMsg, RequestId, MsgRequestIdLookup).
 
--spec validate_msg_body(message(), binary()) -> ok | {error, body_validation_failure()}.
+-spec validate_signed_msg_body(signed_message(), binary()) -> boolean().
 %% @private
-validate_msg_body(Msg, Body) ->
-    DigestLookup = find_real_msg_header(<<"digest">>, Msg),
-    case parse_digest(DigestLookup) of
-        {sha256, Digest} ->
-            ExpectedDigest = crypto:hash(sha256, Body),
-            case Digest =:= ExpectedDigest of
-                true -> ok;
-                false -> {error, wrong_body_digest}
-            end;
-        invalid ->
-            {error, invalid_body_digest}
-    end.
+validate_signed_msg_body(SignedMsg, Body) ->
+    #{ body_digest := BodyDigest } = SignedMsg,
+    body_digest(Body) =:= BodyDigest.
 
--spec sign_request(config(), message(), binary(), binary()) -> message().
+-spec sign_request(config(), message(), binary(), binary()) -> signed_message().
 %% @private
-sign_request(Config, Msg1, RequestId, Body) ->
-    Msg2 = remove_real_msg_header(<<"authorization">>, Msg1),
+sign_request(Config, RequestMsg1, Body, RequestId) ->
+    BodyDigest = body_digest(Body),
     ExtraSignedHeaders =
-        #{ <<"digest">> => body_digest(Body),
+        #{ <<"digest">> => BodyDigest,
            <<"date">> => rfc1123(),
            <<"x-request-id">> => RequestId },
-    Msg3 = add_real_msg_headers(ExtraSignedHeaders, Msg2),
-    AuthorizationHeaderValue = generate_authorization_header_value(Config, Msg3),
-    add_real_msg_headers(#{ ?OPAQUE_BINARY(<<"authorization">>) => AuthorizationHeaderValue }, Msg3).
+    RequestMsg2 = remove_real_msg_header(<<"authorization">>, RequestMsg1),
+    RequestMsg3 = add_real_msg_headers(ExtraSignedHeaders, RequestMsg2),
+    SignedHeaderNames = list_msg_header_names(RequestMsg3),
+    AuthorizationHeaderValue = generate_authorization_header_value(Config, RequestMsg3, SignedHeaderNames),
+    RequestMsg4 =
+        add_real_msg_headers(#{ ?OPAQUE_BINARY(<<"authorization">>) => AuthorizationHeaderValue }, RequestMsg3),
+    RequestMsg4#{
+      request_id => RequestId,
+      signed_header_names => SignedHeaderNames,
+      body_digest => BodyDigest }.
 
--spec sign_response(config(), message(), binary(), binary()) -> message().
+-spec sign_response(config(), message(), binary(), signed_message()) -> signed_message().
 %% @private
-sign_response(Config, Msg1, RequestId, Body) ->
-    Msg2 = remove_real_msg_header(<<"signature">>, Msg1),
+sign_response(Config, ResponseMsg1, Body, SignedRequestMsg) ->
+    #{ request_id := RequestId } = SignedRequestMsg,
+    BodyDigest = body_digest(Body),
     ExtraSignedHeaders =
-        #{ <<"digest">> => body_digest(Body),
+        #{ <<"digest">> => BodyDigest,
            <<"date">> => rfc1123(),
            <<"x-request-id">> => RequestId },
-    Msg3 = add_real_msg_headers(ExtraSignedHeaders, Msg2),
-    SignatureHeaderValue = generate_signature_header_value(Config, Msg3),
-    add_real_msg_headers(#{ ?OPAQUE_BINARY(<<"signature">>) => SignatureHeaderValue}, Msg3).
+    ResponseMsg2 = remove_real_msg_header(<<"signature">>, ResponseMsg1),
+    ResponseMsg3 = add_real_msg_headers(ExtraSignedHeaders, ResponseMsg2),
+    SignedHeaderNames = list_msg_header_names(ResponseMsg3),
+    SignatureHeaderValue = generate_signature_header_value(Config, ResponseMsg3, SignedHeaderNames),
+    ResponseMsg4 =
+        add_real_msg_headers(#{ ?OPAQUE_BINARY(<<"signature">>) => SignatureHeaderValue}, ResponseMsg3),
+    ResponseMsg4#{
+      request_id => RequestId,
+      signed_header_names => SignedHeaderNames,
+      body_digest => BodyDigest }.
 
 -spec get_real_msg_headers(message()) -> header_map().
 %% @private
@@ -205,6 +221,11 @@ get_real_msg_headers(Msg) ->
 %% @private
 list_real_msg_headers(Msg) ->
     maps:to_list( get_real_msg_headers(Msg) ).
+
+-spec is_header_signed_in_signed_msg(binary(), signed_message()) -> boolean().
+is_header_signed_in_signed_msg(CiName, SignedMsg) ->
+    #{ signed_header_names := SignedHeaderNames } = SignedMsg,
+    lists:member(CiName, SignedHeaderNames).
 
 %% ------------------------------------------------------------------
 %% Internal Function Definitions - Messages
@@ -219,8 +240,8 @@ request_target(Method, PathWithQs) ->
 response_status(StatusCode) ->
     integer_to_binary(StatusCode).
 
--spec new_msg(header_map(), header_map()) -> message().
-new_msg(FakeHeaders, RealHeaders) ->
+-spec new_unsigned_msg(header_map(), header_map()) -> unsigned_message().
+new_unsigned_msg(FakeHeaders, RealHeaders) ->
     #{ fake_headers => FakeHeaders,
        real_headers => RealHeaders }.
 
@@ -331,16 +352,8 @@ decode_signature_auth_params(Encoded) ->
             {error, invalid_header_params}
     end.
 
--spec parse_digest({ok, binary()} | error) -> {sha256, binary()} | invalid.
-parse_digest({ok, <<"SHA-256=", EncodedDigest/binary>>}) ->
-    % TODO error?
-    Digest = base64:decode(EncodedDigest),
-    {sha256, Digest};
-parse_digest(_) ->
-    invalid.
-
 -spec validate_response_request_id(config(), message(), binary(), {ok, binary()} | error)
-        -> {ok, SignedHeaderNames :: [binary()]} |
+        -> message_validation_success() |
            {error, Reason :: response_validation_failure()}.
 %% @private
 validate_response_request_id(Config, Msg, RequestId, {ok, RequestId}) ->
@@ -422,8 +435,7 @@ validate_mandatorily_signed_headers(Config, #{ <<"headers">> := SignedHeaderName
 
 -spec validate_signature(config(), params(), message())
         -> message_validation_success() | {error, signature_failure()}.
-validate_signature(Config, #{ <<"headers">> := SignedHeaderNames, <<"signature">> := Signature } = Params,
-                   Msg) ->
+validate_signature(Config, #{ <<"headers">> := SignedHeaderNames, <<"signature">> := Signature }, Msg) ->
     case build_signature_iodata(SignedHeaderNames, Msg) of
         {error, Reason} ->
             {error, Reason};
@@ -431,24 +443,23 @@ validate_signature(Config, #{ <<"headers">> := SignedHeaderNames, <<"signature">
             #{ key := Key } = Config,
             ExpectedSignature = crypto:hmac(sha256, Key, IoData),
             case ExpectedSignature =:= Signature of
-                true -> {ok, signed_header_names(Params, Msg)};
-                false -> {error, invalid_signature}
+                false ->
+                    {error, invalid_signature};
+                true ->
+                    {ok, RequestId} = find_real_msg_header(<<"x-request-id">>, Msg),
+                    {ok, BodyDigest} = find_real_msg_header(<<"digest">>, Msg),
+                    SignedMsg = Msg#{ request_id => RequestId,
+                                      signed_header_names => SignedHeaderNames,
+                                      body_digest => BodyDigest },
+                    {ok, SignedMsg}
             end
     end.
 
--spec signed_header_names(params(), message()) -> [binary()].
-signed_header_names(Params, Msg) ->
-    RealHeaderNames = list_real_msg_header_names(Msg),
-    #{ <<"headers">> := SignedHeaderNames } = Params,
-    [Name || Name <- RealHeaderNames, lists:member(Name, SignedHeaderNames)].
-
 -spec request_validation_result(message_validation_success() | {error, request_validation_failure()},
                                 message())
-        -> {ok, {SignedHeaderNames :: [binary()], RequestId :: binary()}} |
-           {error, {request_validation_failure(), header_map()}}.
-request_validation_result({ok, SignedHeaderNames}, RequestMsg) ->
-    {ok, RequestId} = find_real_msg_header(<<"x-request-id">>, RequestMsg),
-    {ok, {SignedHeaderNames, RequestId}};
+        -> message_validation_success() | {error, {request_validation_failure(), header_map()}}.
+request_validation_result({ok, SignedMsg}, _RequestMsg) ->
+    {ok, SignedMsg};
 request_validation_result({error, Reason}, RequestMsg) ->
     AuthChallengeHeaders = auth_challenge_headers(RequestMsg),
     {error, {Reason, AuthChallengeHeaders}}.
@@ -479,15 +490,14 @@ rfc1123() ->
     String = httpd_util:rfc1123_date(CurrTime),
     list_to_binary(String).
 
--spec generate_authorization_header_value(config(), message()) -> nonempty_binary().
-generate_authorization_header_value(Config, Msg) ->
-    EncodedParams = generate_signature_header_value(Config, Msg),
+-spec generate_authorization_header_value(config(), message(), [binary()]) -> nonempty_binary().
+generate_authorization_header_value(Config, Msg, SignedHeaderNames) ->
+    EncodedParams = generate_signature_header_value(Config, Msg, SignedHeaderNames),
     ?OPAQUE_BINARY(<<"Signature ", EncodedParams/binary>>).
 
--spec generate_signature_header_value(config(), message()) -> binary().
-generate_signature_header_value(Config, Msg) ->
+-spec generate_signature_header_value(config(), message(), [binary()]) -> binary().
+generate_signature_header_value(Config, Msg, SignedHeaderNames) ->
     #{ key := Key } = Config,
-    SignedHeaderNames = list_msg_header_names(Msg),
     {ok, SignatureIoData} = build_signature_iodata(SignedHeaderNames, Msg),
     Signature = crypto:hmac(sha256, Key, SignatureIoData),
     SignatureParams =
