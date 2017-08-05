@@ -185,10 +185,14 @@ parse_cowboy_opts(Config) ->
 -spec encoded_atom_constraint(forward | reverse | format_error, binary())
         -> {ok, binary()} | {error, cant_convert_to_atom} | iolist().
 encoded_atom_constraint(Operation, Binary) when Operation =:= forward; Operation =:= reverse ->
-    % TODO deal with UTF8?
-    case byte_size(Binary) < 256 of
-        true -> {ok, Binary};
-        false -> {error, cant_convert_to_atom}
+    case unicode:characters_to_list(Binary, utf8) of
+        String when is_list(String) ->
+            case length(String) < 256 of
+                true -> {ok, Binary};
+                false -> {error, cant_convert_to_atom}
+            end;
+        _Error ->
+            {error, cant_convert_to_atom}
     end;
 encoded_atom_constraint(format_error, {cant_convert_to_atom, Value}) ->
     io_lib:format("Value \"~p\" cannot be converted to an atom", [Value]).
