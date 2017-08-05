@@ -228,12 +228,12 @@ arity_constraint(format_error, {not_a_number, Value}) ->
 
 -spec cowboy_route_rule(config()) -> route_rule().
 cowboy_route_rule(Config) ->
-    Host = maps:get(host, Config, '_'), % TODO document?
+    Host = '_', % We could make this configurable.
     {Host, [cowboy_route_path(Config)]}.
 
 -spec cowboy_route_path(config()) -> route_path().
 cowboy_route_path(Config) ->
-    BasePath = maps:get(base_path, Config, "/rpcall/"), % TODO document?
+    BasePath = "/", % We could make this configurable.
     Constraints =
         [{version, nonempty},
          {module, fun encoded_atom_constraint/2},

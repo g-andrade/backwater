@@ -46,7 +46,6 @@ fast_catch(Function, Args) ->
 
 -spec latin1_binary_to_lower(binary()) -> binary().
 latin1_binary_to_lower(Bin) ->
-    % TODO: optimize
     list_to_binary( string:to_lower( binary_to_list(Bin) ) ).
 
 -spec latin1_binary_trim_whitespaces(binary()) -> binary().

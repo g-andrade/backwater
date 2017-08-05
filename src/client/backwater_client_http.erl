@@ -53,28 +53,37 @@
 -export_type([response/1]).
 
 -type response_error() ::
-        {response_authentication,
-         {wrong_body_digest | backwater_http_signatures:response_validation_failure(),
-          status_code(), Body :: binary()}} |
-        {remote, response_remote_error()} |
-        {undecodable_response_body, status_code(), Body :: binary()} |
-        {unknown_content_encoding, status_code(), ContentEncoding :: binary()} |
-        {unknown_content_type, status_code(), ContentType :: nonempty_binary()}.
+        {{response_authentication, response_authentication_error()}, raw_response_error()} |
+        {remote_exception, Class :: error | exit | throw, Reason :: term(), erlang:raise_stacktrace()} |
+        {remote_error, raw_response_error()} |
+        {{undecodable_response_body, binary()}, raw_response_error()} |
+        {{unknown_content_encoding, binary()}, raw_response_error()} |
+        {{unknown_content_type, nonempty_binary()}, raw_response_error()} |
+        {{invalid_content_type, binary()}, raw_response_error()}.
 
 -export_type([response_error/0]).
 
--type response_remote_error() ::
-        {bad_request, Body :: binary()} |
-        {forbidden, Body :: binary()} |
-        {internal_error, Body :: binary()} |
-        {not_found, Body :: binary()} |
-        {payload_too_large, Body :: binary()} |
-        {unauthorized, Body :: binary()} |
-        {unsupported_media_type, Body :: binary()} |
-        {http, status_code(), Body :: binary()} |
-        {invalid_content_type, status_code(), ContentType :: binary()}.
+-type raw_response_error() :: {status_code_name(), (Error :: term()) | (RawBody :: binary())}.
+-export_type([raw_response_error/0]).
 
--export_type([response_remote_error/0]).
+-type status_code_name() ::
+        bad_request |
+        unauthorized |
+        forbidden |
+        not_found |
+        not_acceptable |
+        payload_too_large |
+        unsupported_media_type |
+        internal_error |
+        {http, status_code()}.
+
+-export_type([status_code_name/0]).
+
+-type response_authentication_error() ::
+        wrong_body_digest |
+        backwater_http_signatures:response_validation_failure().
+
+-export_type([response_authentication_error/0]).
 
 %% ------------------------------------------------------------------
 %% API Function Definitions
@@ -178,7 +187,7 @@ authenticate_response(StatusCode, CiHeaders, Body, RequestState) ->
             % TODO deal with signed_header_names in SignedResponseMsg
             authenticate_response_body(StatusCode, CiHeaders, Body, Config, SignedResponseMsg);
         {error, Reason} ->
-            {error, {response_authentication, {Reason, StatusCode, Body}}}
+            {error, {{response_authentication, Reason}, {status_code_name(StatusCode), Body}}}
     end.
 
 -spec authenticate_response_body(status_code(), headers(), binary(), backwater_client_config:t(),
@@ -188,12 +197,14 @@ authenticate_response_body(StatusCode, CiHeaders, Body, Config, SignedResponseMs
         true ->
             decode_response_(StatusCode, CiHeaders, Body, Config);
         false ->
-            {error, {response_authentication, {wrong_body_digest, StatusCode, Body}}}
+            {error, {{response_authentication, wrong_body_digest}, {status_code_name(StatusCode), Body}}}
     end.
 
 -spec decode_response_(status_code(), headers(), binary(), backwater_client_config:t()) -> response().
 decode_response_(200 = StatusCode, CiHeaders, Body, Config) ->
     #{ rethrow_remote_exceptions := RethrowRemoteExceptions } = Config,
+    StatusCodeName = status_code_name(StatusCode),
+    RawResponseError = {StatusCodeName, Body},
     case decode_response_body(CiHeaders, Body, Config) of
         {term, {success, ReturnValue}} ->
             {ok, ReturnValue};
@@ -202,46 +213,32 @@ decode_response_(200 = StatusCode, CiHeaders, Body, Config) ->
         {term, {exception, Class, Exception, Stacktrace}} ->
             {error, {remote_exception, Class, Exception, Stacktrace}};
         {raw, Binary} ->
-            {error, {http, StatusCode, Binary}};
+            {error, {remote_error, {StatusCode, Binary}}};
         {error, {unknown_content_encoding, ContentEncoding}} ->
-            {error, {unknown_content_encoding, StatusCode, ContentEncoding}};
+            {error, {{unknown_content_encoding, ContentEncoding}, RawResponseError}};
         {error, {undecodable_response_body, Binary}} ->
-            {error, {undecodable_response_body, StatusCode, Binary}};
+            {error, {{undecodable_response_body, Binary}, RawResponseError}};
         {error, {unknown_content_type, RawContentType}} ->
-            {error, {unknown_content_type, StatusCode, RawContentType}};
+            {error, {{unknown_content_type, RawContentType}, RawResponseError}};
         {error, {invalid_content_type, RawContentType}} ->
-            {error, {invalid_content_type, StatusCode, RawContentType}}
+            {error, {{invalid_content_type, RawContentType}, RawResponseError}}
     end;
 decode_response_(StatusCode, CiHeaders, Body, Config) ->
+    StatusCodeName = status_code_name(StatusCode),
+    RawResponseError = {StatusCodeName, Body},
     case decode_response_body(CiHeaders, Body, Config) of
         {term, Error} ->
-            {error, {remote, Error}};
-        {raw, Binary} when StatusCode =:= 400 ->
-            {error, {remote, {bad_request, Binary}}};
-        {raw, Binary} when StatusCode =:= 401 ->
-            {error, {remote, {unauthorized, Binary}}};
-        {raw, Binary} when StatusCode =:= 403 ->
-            {error, {remote, {forbidden, Binary}}};
-        {raw, Binary} when StatusCode =:= 404 ->
-            {error, {remote, {not_found, Binary}}};
-        {raw, Binary} when StatusCode =:= 406 ->
-            {error, {remote, {not_acceptable, Binary}}};
-        {raw, Binary} when StatusCode =:= 413 ->
-            {error, {remote, {payload_too_large, Binary}}};
-        {raw, Binary} when StatusCode =:= 415 ->
-            {error, {remote, {unsupported_media_type, Binary}}};
-        {raw, Binary} when StatusCode =:= 500 ->
-            {error, {remote, {internal_error, Binary}}};
+            {error, {remote_error, {StatusCodeName, Error}}};
         {raw, Binary} ->
-            {error, {remote, {http, StatusCode, Binary}}};
+            {error, {remote_error, {StatusCodeName, Binary}}};
         {error, {unknown_content_encoding, ContentEncoding}} ->
-            {error, {unknown_content_encoding, StatusCode, ContentEncoding}};
+            {error, {{unknown_content_encoding, ContentEncoding}, RawResponseError}};
         {error, {undecodable_response_body, Binary}} ->
-            {error, {undecodable_response_body, StatusCode, Binary}};
+            {error, {{undecodable_response_body, Binary}, RawResponseError}};
         {error, {unknown_content_type, RawContentType}} ->
-            {error, {unknown_content_type, StatusCode, RawContentType}};
+            {error, {{unknown_content_type, RawContentType}, RawResponseError}};
         {error, {invalid_content_type, RawContentType}} ->
-            {error, {invalid_content_type, StatusCode, RawContentType}}
+            {error, {{invalid_content_type, RawContentType}, RawResponseError}}
     end.
 
 -spec decode_response_body(headers(), binary(), backwater_client_config:t())
@@ -255,6 +252,17 @@ decode_response_body(CiHeaders, Body, Config) ->
     ContentEncodingLookup = find_content_encoding(CiHeaders),
     handle_response_body_content_encoding(
       ContentEncodingLookup, CiHeaders, Body, Config).
+
+-spec status_code_name(status_code()) -> status_code_name().
+status_code_name(400) -> bad_request;
+status_code_name(401) -> unauthorized;
+status_code_name(403) -> forbidden;
+status_code_name(404) -> not_found;
+status_code_name(406) -> not_acceptable;
+status_code_name(413) -> payload_too_large;
+status_code_name(415) -> unsupported_media_type;
+status_code_name(500) -> internal_error;
+status_code_name(Unknown) -> {http, Unknown}.
 
 %% encoding
 

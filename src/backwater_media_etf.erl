@@ -12,7 +12,7 @@
 %% Macro Definitions
 %% ------------------------------------------------------------------
 
-%% TODO: use content-type parameters for negotiating this
+%% XXX: We should use content-type parameters for negotiating this.
 -define(MINOR_VERSION, 1).
 
 %% ------------------------------------------------------------------

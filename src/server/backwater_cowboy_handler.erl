@@ -165,7 +165,9 @@ check_authentication(#{ req := Req, authentication := Authentication } = State) 
     case backwater_http_signatures:validate_request_signature(SignaturesConfig, RequestMsg) of
         {ok, SignedRequestMsg} ->
             {continue, State#{ signed_request_msg => SignedRequestMsg }};
-        {error, {Reason, AuthChallengeHeaders}} ->
+        {error, Reason} ->
+            AuthChallengeHeaders =
+                backwater_http_signatures:get_request_auth_challenge_headers(RequestMsg),
             {stop, set_response(401, AuthChallengeHeaders, Reason, State)}
     end.
 
@@ -445,8 +447,9 @@ validate_body_digest(Data, State) ->
     case backwater_http_signatures:validate_signed_msg_body(SignedRequestMsg, Data) of
         true -> decode_args_content_encoding(Data, State);
         false ->
-            % TODO find better status code
-            {stop, set_response(403, wrong_body_digest, State)}
+            AuthChallengeHeaders =
+                backwater_http_signatures:get_request_auth_challenge_headers(SignedRequestMsg),
+            {stop, set_response(401, AuthChallengeHeaders, wrong_body_digest, State)}
     end.
 
 -spec decode_args_content_encoding(binary(), state()) -> {continue | stop, state()}.

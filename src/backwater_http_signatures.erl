@@ -17,6 +17,7 @@
 -export([get_real_msg_headers/1]).
 -export([list_real_msg_headers/1]).
 -export([is_header_signed_in_signed_msg/2]).
+-export([get_request_auth_challenge_headers/1]).
 
 %% ------------------------------------------------------------------
 %% Macro Definitions
@@ -142,19 +143,16 @@ new_response_msg(StatusCode, Headers) ->
 
 -spec validate_request_signature(config(), message())
         -> message_validation_success() |
-           {error, {Reason :: request_validation_failure(),
-                    ChallengeHeaders :: #{ binary() := binary() }}}.
+           {error, Reason :: request_validation_failure()}.
 %% @private
 validate_request_signature(Config, RequestMsg) ->
     AuthorizationHeaderLookup = find_real_msg_header(<<"authorization">>, RequestMsg),
-    Result =
-        case parse_authorization_header(AuthorizationHeaderLookup) of
-            {ok, Params} ->
-                validate_params(Config, Params, RequestMsg);
-            {error, Reason} ->
-                {error, Reason}
-        end,
-    request_validation_result(Result, RequestMsg).
+    case parse_authorization_header(AuthorizationHeaderLookup) of
+        {ok, Params} ->
+            validate_params(Config, Params, RequestMsg);
+        {error, Reason} ->
+            {error, Reason}
+    end.
 
 -spec validate_response_signature(config(), message(), signed_message())
         -> message_validation_success() |
@@ -220,9 +218,27 @@ list_real_msg_headers(Msg) ->
     maps:to_list( get_real_msg_headers(Msg) ).
 
 -spec is_header_signed_in_signed_msg(binary(), signed_message()) -> boolean().
+%% @private
 is_header_signed_in_signed_msg(CiName, SignedMsg) ->
     #{ signed_header_names := SignedHeaderNames } = SignedMsg,
     lists:member(CiName, SignedHeaderNames).
+
+-spec get_request_auth_challenge_headers(message()) -> header_map().
+%% @private
+get_request_auth_challenge_headers(RequestMsg) ->
+    PseudoHeaderNamesToSign = list_pseudo_msg_header_names(RequestMsg),
+    RealHeaderNames = list_real_msg_header_names(RequestMsg),
+    RealHeaderNamesToSign =
+            [Name || Name <- RealHeaderNames,
+                     lists:member(Name, ?VALIDATION_MANDATORILY_SIGNED_HEADER_NAMES) orelse
+                     lists:member(Name, ?VALIDATION_MANDATORILY_SIGNED_HEADER_NAMES_IF_PRESENT)],
+
+    HeaderNamesToSign = lists:usort(PseudoHeaderNamesToSign ++ RealHeaderNamesToSign),
+    EncodedHeaderNamesToSign = iolist_to_binary(lists:join(" ", HeaderNamesToSign)),
+    Params = #{ <<"realm">> => <<"backwater">>,
+                <<"headers">> => EncodedHeaderNamesToSign },
+    BinParams = backwater_http_header_params:encode(Params),
+    #{ ?OPAQUE_BINARY(<<"www-authenticate">>) => ?OPAQUE_BINARY(<<"Signature ", BinParams/binary>>) }.
 
 %% ------------------------------------------------------------------
 %% Internal Function Definitions - Messages
@@ -334,8 +350,11 @@ parse_signature_header(error) ->
 decode_signature_param_value(<<"headers">>, EncodedList) ->
     binary:split(EncodedList, <<" ">>, [global, trim_all]);
 decode_signature_param_value(<<"signature">>, EncodedSignature) ->
-    % TODO error?
-    base64:decode(EncodedSignature);
+    try
+        base64:decode(EncodedSignature)
+    catch
+        _ -> error(invalid_header_param)
+    end;
 decode_signature_param_value(_Key, Value) ->
     Value.
 
@@ -343,8 +362,13 @@ decode_signature_param_value(_Key, Value) ->
 decode_signature_auth_params(Encoded) ->
     case backwater_http_header_params:decode(Encoded) of
         {ok, BinParams} ->
-            Params = maps:map(fun decode_signature_param_value/2, BinParams),
-            {ok, Params};
+            try
+                Params = maps:map(fun decode_signature_param_value/2, BinParams),
+                {ok, Params}
+            catch
+                error:invalid_header_param ->
+                    {error, invalid_header_params}
+            end;
         error ->
             {error, invalid_header_params}
     end.
@@ -451,31 +475,6 @@ validate_signature(Config, #{ <<"headers">> := SignedHeaderNames, <<"signature">
                     {ok, SignedMsg}
             end
     end.
-
--spec request_validation_result(message_validation_success() | {error, request_validation_failure()},
-                                message())
-        -> message_validation_success() | {error, {request_validation_failure(), header_map()}}.
-request_validation_result({ok, SignedMsg}, _RequestMsg) ->
-    {ok, SignedMsg};
-request_validation_result({error, Reason}, RequestMsg) ->
-    AuthChallengeHeaders = auth_challenge_headers(RequestMsg),
-    {error, {Reason, AuthChallengeHeaders}}.
-
--spec auth_challenge_headers(message()) -> header_map().
-auth_challenge_headers(RequestMsg) ->
-    PseudoHeaderNamesToSign = list_pseudo_msg_header_names(RequestMsg),
-    RealHeaderNames = list_real_msg_header_names(RequestMsg),
-    RealHeaderNamesToSign =
-            [Name || Name <- RealHeaderNames,
-                     lists:member(Name, ?VALIDATION_MANDATORILY_SIGNED_HEADER_NAMES) orelse
-                     lists:member(Name, ?VALIDATION_MANDATORILY_SIGNED_HEADER_NAMES_IF_PRESENT)],
-
-    HeaderNamesToSign = lists:usort(PseudoHeaderNamesToSign ++ RealHeaderNamesToSign),
-    EncodedHeaderNamesToSign = iolist_to_binary(lists:join(" ", HeaderNamesToSign)),
-    Params = #{ <<"realm">> => <<"backwater">>,
-                <<"headers">> => EncodedHeaderNamesToSign },
-    BinParams = backwater_http_header_params:encode(Params),
-    #{ ?OPAQUE_BINARY(<<"www-authenticate">>) => ?OPAQUE_BINARY(<<"Signature ", BinParams/binary>>) }.
 
 %% ------------------------------------------------------------------
 %% Internal Function Definitions - Signing
