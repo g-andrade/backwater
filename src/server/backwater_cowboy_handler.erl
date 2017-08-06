@@ -71,9 +71,11 @@
            headers := http_headers(),
            body := iodata() }.
 
--type call_result() ::
-        ({success, term()} |
-         {exception, Class :: term(), Exception :: term(), [erlang:stack_item()]}).
+-type call_result() :: {success, term()} | call_exception().
+
+-type call_exception() :: {exception, raisable_class(), Exception :: term(), [erlang:stack_item()]}.
+
+-type raisable_class() :: error | exit | throw.
 
 %% ------------------------------------------------------------------
 %% API Function Definitions
@@ -522,26 +524,64 @@ validate_args(Args, State) ->
 
 -spec execute_call(state()) -> {continue, state()}.
 execute_call(State) ->
-    Result = call_function(State),
-    {continue, set_response(200, Result, State)}.
-
--spec call_function(state()) -> call_result().
-call_function(#{ function_properties := #{ function_ref := FunctionRef },
-                 args := Args,
-                 return_exception_stacktraces := ReturnExceptionStacktraces }) ->
-    try
-        {success, apply(FunctionRef, Args)}
-    catch
-        Class:Exception when ReturnExceptionStacktraces ->
-            Stacktrace = erlang:get_stacktrace(),
-            % Hide all calls previous to the one made to the target function (cowboy stuff, etc.)
-            % This works under the assumption that *no sensible call* would ever go through the
-            % current function again.
-            PurgedStacktrace = backwater_util:purge_stacktrace_below({?MODULE,call_function,1}, Stacktrace),
-            {exception, Class, Exception, PurgedStacktrace};
-        Class:Exception ->
-            {exception, Class, Exception, []}
+    case call_function(State) of
+        {ok, Result} ->
+            {continue, set_response(200, Result, State)};
+        {error, undefined_module_or_function} ->
+            % It's important to handle this situation gracefully, as the remote caller
+            % really isn't to blame that we're bad at keeping track of module upgrades.
+            {stop, set_response(404, module_or_function_not_found, State)}
     end.
+
+-spec call_function(state()) -> {ok, call_result()} | {error, undefined_module_or_function}.
+call_function(State) ->
+    #{ function_properties := FunctionProperties, args := FunctionArgs } = State,
+    #{ function_ref := FunctionRef } = FunctionProperties,
+    try
+        {ok, {success, apply(FunctionRef, FunctionArgs)}}
+    catch
+        Class:Exception ->
+            handle_possibly_undef_call_exception(Class, Exception, State, FunctionRef)
+    end.
+
+-spec handle_possibly_undef_call_exception(raisable_class(), term(), state(), fun())
+        -> {ok, call_exception()} | {error, undefined_module_or_function}.
+handle_possibly_undef_call_exception(Class, Exception, State, FunctionRef)
+  when Class =:= error, Exception =:= undef ->
+    #{ return_exception_stacktraces := ReturnExceptionStacktraces } = State,
+    {module, Module} = erlang:fun_info(FunctionRef, module),
+    {name, Name} = erlang:fun_info(FunctionRef, name),
+    {arity, Arity} = erlang:fun_info(FunctionRef, arity),
+    case erlang:get_stacktrace() of
+        [{Module, Name, Args, _Location} | _] when is_list(Args), length(Args) =:= Arity ->
+            % It looks like our target function or module has disappeared in the mean time,
+            % either due to a stale cache or because the module has been (un/re)loaded.
+            % Checking for this is expensive but limited to 'error:undef' exceptions,
+            % so the average impact should be minimal, unless users are juggling around
+            % a lot of calls to undefined functions or modules in their own code.
+            % Don't bother clearing the cache as the TTL is low in any case.
+            {error, undefined_module_or_function};
+        Stacktrace when ReturnExceptionStacktraces ->
+            return_call_exception(Class, Exception, Stacktrace);
+        _Stacktrace when not ReturnExceptionStacktraces ->
+            return_call_exception(Class, Exception, [])
+    end;
+handle_possibly_undef_call_exception(Class, Exception, State, _FunctionRef) ->
+    handle_call_exception(Class, Exception, State).
+
+-spec handle_call_exception(raisable_class(), term(), state()) -> {ok, call_exception()}.
+handle_call_exception(Class, Exception, #{ return_exception_stacktraces := true }) ->
+    Stacktrace = erlang:get_stacktrace(),
+    return_call_exception(Class, Exception, Stacktrace);
+handle_call_exception(Class, Exception, #{ return_exception_stacktraces := false }) ->
+    return_call_exception(Class, Exception, []).
+
+-spec return_call_exception(raisable_class(), term(), [erlang:stack_item()]) -> {ok, call_exception()}.
+return_call_exception(Class, Exception, Stacktrace) ->
+    % Hide all calls previous to the one made to the target function (cowboy stuff, etc.)
+    % This works under the assumption that *no sensible call* would ever go through 'call_function/1' again.
+    PurgedStacktrace = backwater_util:purge_stacktrace_below({?MODULE,call_function,1}, Stacktrace),
+    {ok, {exception, Class, Exception, PurgedStacktrace}}.
 
 %% ------------------------------------------------------------------
 %% Internal Function Definitions - Send Response
