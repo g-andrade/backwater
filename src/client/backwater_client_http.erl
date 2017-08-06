@@ -152,9 +152,9 @@ encode_request_with_compression(Method, Url, Headers, Body, Config) ->
                                nonempty_headers(), binary(),
                                backwater_client_config:t()) -> stateful_request().
 encode_request_with_auth(Method, Url, Headers1, Body, #{ authentication := {signature, Key} } = Config) ->
-    PathWithQs = url_path_with_qs(Url),
+    EncodedPathWithQs = url_encoded_path_with_qs(Url),
     SignaturesConfig = backwater_http_signatures:config(Key),
-    RequestMsg = backwater_http_signatures:new_request_msg(Method, PathWithQs, Headers1),
+    RequestMsg = backwater_http_signatures:new_request_msg(Method, EncodedPathWithQs, Headers1),
     RequestId = base64:encode( crypto:strong_rand_bytes(16) ),
     SignedRequestMsg = backwater_http_signatures:sign_request(SignaturesConfig, RequestMsg, Body, RequestId),
     Headers2 = backwater_http_signatures:list_real_msg_headers(SignedRequestMsg),
@@ -162,14 +162,12 @@ encode_request_with_auth(Method, Url, Headers1, Body, #{ authentication := {sign
     State = #{ config => Config, signed_request_msg => SignedRequestMsg },
     {Request, State}.
 
--spec url_path_with_qs(nonempty_binary()) -> binary().
-url_path_with_qs(Url) ->
+-spec url_encoded_path_with_qs(nonempty_binary()) -> binary().
+url_encoded_path_with_qs(Url) ->
     HackneyUrl = hackney_url:parse_url(Url),
-    #hackney_url{ path = Path, qs = Qs } = HackneyUrl,
-    case Qs =:= <<>> of
-        true -> Path;
-        false -> <<Path/binary, "?", Qs/binary>>
-    end.
+    #hackney_url{ path = Path, qs = QueryString } = HackneyUrl,
+    EncodedPath  = hackney_url:pathencode(Path),
+    <<EncodedPath/binary, QueryString/binary>>.
 
 %% ------------------------------------------------------------------
 %% Internal Function Definitions - Responses

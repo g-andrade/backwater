@@ -129,8 +129,8 @@ config(Key) ->
 
 -spec new_request_msg(binary(), binary(), maybe_uncanonical_headers()) -> unsigned_message().
 %% @private
-new_request_msg(Method, PathWithQs, Headers) ->
-    PseudoHeaders = #{ ?OPAQUE_BINARY(<<"(request-target)">>) => request_target(Method, PathWithQs) },
+new_request_msg(Method, EncodedPathWithQs, Headers) ->
+    PseudoHeaders = #{ ?OPAQUE_BINARY(<<"(request-target)">>) => request_target(Method, EncodedPathWithQs) },
     RealHeaders = canonical_headers(Headers),
     new_unsigned_msg(PseudoHeaders, RealHeaders).
 
@@ -245,9 +245,9 @@ get_request_auth_challenge_headers(RequestMsg) ->
 %% ------------------------------------------------------------------
 
 -spec request_target(binary(), binary()) -> binary().
-request_target(Method, PathWithQs) ->
+request_target(Method, EncodedPathWithQs) ->
     CiMethod = backwater_util:latin1_binary_to_lower(Method),
-    ?OPAQUE_BINARY(<<CiMethod/binary, " ", PathWithQs/binary>>).
+    ?OPAQUE_BINARY(<<CiMethod/binary, " ", EncodedPathWithQs/binary>>).
 
 -spec response_status(non_neg_integer()) -> binary().
 response_status(StatusCode) ->

@@ -160,9 +160,10 @@ check_authentication(#{ req := Req, authentication := Authentication } = State) 
     SignaturesConfig = backwater_http_signatures:config(Key),
 
     Method = cowboy_req:method(Req),
-    PathWithQs = req_path_with_qs(Req),
+    EncodedPathWithQs = req_encoded_path_with_qs(Req),
     Headers = cowboy_req:headers(Req),
-    RequestMsg = backwater_http_signatures:new_request_msg(Method, PathWithQs, {ci_headers, Headers}),
+    RequestMsg =
+        backwater_http_signatures:new_request_msg(Method, EncodedPathWithQs, {ci_headers, Headers}),
 
     case backwater_http_signatures:validate_request_signature(SignaturesConfig, RequestMsg) of
         {ok, SignedRequestMsg} ->
@@ -173,13 +174,11 @@ check_authentication(#{ req := Req, authentication := Authentication } = State) 
             {stop, set_response(401, AuthChallengeHeaders, Reason, State)}
     end.
 
--spec req_path_with_qs(req()) -> binary().
-req_path_with_qs(Req) ->
-    Path = cowboy_req:path(Req),
-    case cowboy_req:qs(Req) of
-        <<>> -> Path;
-        QueryString -> <<Path/binary, "?", QueryString/binary>>
-    end.
+-spec req_encoded_path_with_qs(req()) -> binary().
+req_encoded_path_with_qs(Req) ->
+    EncodedPath = cowboy_req:path(Req),
+    QueryString = cowboy_req:qs(Req),
+    <<EncodedPath/binary, QueryString/binary>>.
 
 -spec safe_req_header(binary(), state()) -> undefined | binary() | no_return().
 safe_req_header(CiName, #{ req := Req } = State) ->
