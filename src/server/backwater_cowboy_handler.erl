@@ -261,36 +261,60 @@ check_existence(State) ->
                             function_not_exported |
                             module_not_found).
 find_function_properties(State) ->
-    #{ exposed_modules := ExposedModules,
-       version := BinVersion,
+    CacheKey = function_properties_cache_key(State),
+    CachedFunctionPropertiesLookup = backwater_cache:find(CacheKey),
+    handle_cached_function_properties_lookup(CachedFunctionPropertiesLookup, State).
+
+-spec handle_cached_function_properties_lookup({ok, backwater_module_info:fun_properties()} | error, state())
+        -> {found, backwater_module_info:fun_properties()} |
+           module_version_not_found |
+           module_not_found |
+           function_not_exported.
+handle_cached_function_properties_lookup({ok, FunctionProperties}, _State) ->
+    {found, FunctionProperties};
+handle_cached_function_properties_lookup(error, State) ->
+    #{ bin_module := BinModule, exposed_modules := ExposedModules } = State,
+    InfoPerExposedModule = backwater_module_info:generate(ExposedModules),
+    InfoLookup = maps:find(BinModule, InfoPerExposedModule),
+    handle_module_info_lookup(InfoLookup, State).
+
+-spec handle_module_info_lookup({ok, backwater_module_info:module_info()}, state())
+        -> {found, backwater_module_info:fun_properties()} |
+           module_version_not_found |
+           module_not_found |
+           function_not_exported.
+handle_module_info_lookup({ok, #{ version := Version }}, #{ version := BinVersion })
+  when Version =/= BinVersion ->
+    module_version_not_found;
+handle_module_info_lookup({ok, Info}, State) ->
+    #{ exports := Exports } = Info,
+    #{ bin_function := BinFunction, arity := Arity } = State,
+    FunctionPropertiesLookup = maps:find({BinFunction, Arity}, Exports),
+    handle_function_properties_lookup(FunctionPropertiesLookup, State);
+handle_module_info_lookup(error, _State) ->
+    module_not_found.
+
+-spec handle_function_properties_lookup({ok, backwater_module_info:fun_properties()} | error, state())
+        -> {found, backwater_module_info:fun_properties()} |
+           function_not_exported.
+handle_function_properties_lookup({ok, FunctionProperties}, State) ->
+    % let's only fill successful lookups so that we don't risk
+    % overloading the cache if attacked (the trade off is potentially
+    % much higher CPU usage)
+    CacheKey = function_properties_cache_key(State),
+    backwater_cache:put(CacheKey, FunctionProperties, ?CACHED_FUNCTION_PROPERTIES_TTL),
+    {found, FunctionProperties};
+handle_function_properties_lookup(error, _State) ->
+    function_not_exported.
+
+-spec function_properties_cache_key(state())
+        -> {exposed_function_properties, binary(), binary(), binary(), arity()}.
+function_properties_cache_key(State) ->
+    #{ version := Version,
        bin_module := BinModule,
        bin_function := BinFunction,
        arity := Arity } = State,
-
-    CacheKey = {exposed_function_properties, BinModule, BinVersion, BinFunction, Arity},
-    case backwater_cache:find(CacheKey) of
-        {ok, FunctionProperties} ->
-            {found, FunctionProperties};
-        error ->
-            InfoPerExposedModule = backwater_module_info:generate(ExposedModules),
-            case maps:find(BinModule, InfoPerExposedModule) of
-                {ok, #{ version := Version }} when Version =/= BinVersion ->
-                    module_version_not_found;
-                {ok, #{ exports := Exports }} ->
-                    case maps:find({BinFunction, Arity}, Exports) of
-                        {ok, FunctionProperties} ->
-                            % let's only fill successful lookups so that we don't risk
-                            % overloading the cache if attacked (the trade off is potentially
-                            % much higher CPU usage)
-                            backwater_cache:put(CacheKey, FunctionProperties, ?CACHED_FUNCTION_PROPERTIES_TTL),
-                            {found, FunctionProperties};
-                        error ->
-                            function_not_exported
-                    end;
-                error ->
-                    module_not_found
-            end
-    end.
+    {exposed_function_properties, BinModule, Version, BinFunction, Arity}.
 
 %% ------------------------------------------------------------------
 %% Internal Function Definitions - Validate Arguments Content Type
