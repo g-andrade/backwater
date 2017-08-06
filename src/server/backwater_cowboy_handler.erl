@@ -258,7 +258,7 @@ check_existence(State) ->
 -spec find_function_properties(state())
         -> {found, backwater_module_info:fun_properties()} | Error
              when Error :: (module_version_not_found |
-                            function_not_exported |
+                            function_not_found |
                             module_not_found).
 find_function_properties(State) ->
     CacheKey = function_properties_cache_key(State),
@@ -269,7 +269,7 @@ find_function_properties(State) ->
         -> {found, backwater_module_info:fun_properties()} |
            module_version_not_found |
            module_not_found |
-           function_not_exported.
+           function_not_found.
 handle_cached_function_properties_lookup({ok, FunctionProperties}, _State) ->
     {found, FunctionProperties};
 handle_cached_function_properties_lookup(error, State) ->
@@ -282,7 +282,7 @@ handle_cached_function_properties_lookup(error, State) ->
         -> {found, backwater_module_info:fun_properties()} |
            module_version_not_found |
            module_not_found |
-           function_not_exported.
+           function_not_found.
 handle_module_info_lookup({ok, #{ version := Version }}, #{ version := BinVersion })
   when Version =/= BinVersion ->
     module_version_not_found;
@@ -296,7 +296,7 @@ handle_module_info_lookup(error, _State) ->
 
 -spec handle_function_properties_lookup({ok, backwater_module_info:fun_properties()} | error, state())
         -> {found, backwater_module_info:fun_properties()} |
-           function_not_exported.
+           function_not_found.
 handle_function_properties_lookup({ok, FunctionProperties}, State) ->
     % let's only fill successful lookups so that we don't risk
     % overloading the cache if attacked (the trade off is potentially
@@ -305,7 +305,7 @@ handle_function_properties_lookup({ok, FunctionProperties}, State) ->
     backwater_cache:put(CacheKey, FunctionProperties, ?CACHED_FUNCTION_PROPERTIES_TTL),
     {found, FunctionProperties};
 handle_function_properties_lookup(error, _State) ->
-    function_not_exported.
+    function_not_found.
 
 -spec function_properties_cache_key(state())
         -> {exposed_function_properties, binary(), binary(), binary(), arity()}.
