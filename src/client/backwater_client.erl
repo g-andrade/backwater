@@ -62,7 +62,7 @@ call(Ref, Version, Module, Function, Args) ->
              Args :: [term()],
              ConfigOverride :: backwater_client_config:override(),
              Result :: backwater_client_http:response(OtherError),
-             OtherError :: {response_body, atom() | {closed, binary()}} | {socket, term()}.
+             OtherError :: {hackney, term()}.
 
 call(Ref, Version, Module, Function, Args, ConfigOverride) ->
     Config = backwater_client_config:get_config(Ref, ConfigOverride),
@@ -74,19 +74,15 @@ call(Ref, Version, Module, Function, Args, ConfigOverride) ->
     Options =
         [{pool, default}, % TODO
          {connect_timeout, ConnectTimeout},
-         {recv_timeout, ReceiveTimeout}],
+         {recv_timeout, ReceiveTimeout},
+         with_body,
+         {max_body, 1 bsl 20} % TODO
+        ],
 
-    case hackney:request(RequestMethod, RequestUrl, RequestHeaders,
-                         RequestBody, Options)
+    case hackney:request(RequestMethod, RequestUrl, RequestHeaders, RequestBody, Options)
     of
-        {ok, StatusCode, ResponseHeaders, ClientRef} ->
-            case hackney:body(ClientRef) of
-                {ok, ResponseBody} ->
-                    backwater_client_http:decode_response(
-                      StatusCode, ResponseHeaders, ResponseBody, RequestState);
-                {error, BodyError} ->
-                    {error, {response_body, BodyError}}
-            end;
-        {error, SocketError} ->
-            {error, {socket, SocketError}}
+        {ok, StatusCode, ResponseHeaders, ResponseBody} ->
+            backwater_client_http:decode_response(StatusCode, ResponseHeaders, ResponseBody, RequestState);
+        {error, Error} ->
+            {error, {hackney, Error}}
     end.
