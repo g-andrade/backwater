@@ -6,13 +6,11 @@
 %% ------------------------------------------------------------------
 
 -export([copies/2]).
--export([fast_catch/2]).
 -export([latin1_binary_to_lower/1]).
 -export([latin1_binary_trim_whitespaces/1]).
 -export([lists_allmap/2]).
 -export([lists_anymap/2]).
 -export([lists_enumerate/1]).
--export([lists_intersect/1]).
 -export([maps_mapfold/3]).
 -export([maps_merge/1]).
 -export([proplists_sort_and_merge/2]).
@@ -34,15 +32,6 @@ copies(_Value, 0) ->
     [];
 copies(Value, Count) ->
     copies_recur([Value], Count).
-
--spec fast_catch(Function :: fun ((...) -> term()), Args :: [term()]) -> term().
-fast_catch(Function, Args) ->
-    try
-        apply(Function, Args)
-    catch
-        Class:Exception ->
-            {error, {Class, Exception}}
-    end.
 
 -spec latin1_binary_to_lower(binary()) -> binary().
 latin1_binary_to_lower(Bin) ->
@@ -71,11 +60,6 @@ lists_anymap(Fun, [H|T]) ->
 -spec lists_enumerate([term()]) -> [{pos_integer(), term()}].
 lists_enumerate(List) ->
     lists:zip(lists:seq(1, length(List)), List).
-
--spec lists_intersect([[term()]]) -> [term()].
-lists_intersect(Lists) ->
-    Ordsets = lists:map(fun ordsets:from_list/1, Lists),
-    ordsets:to_list( ordsets:intersection(Ordsets) ).
 
 -spec maps_mapfold(fun ((term(), term(), term()) -> {term(), term()}),
                    term(), map()) -> {map(), term()}.

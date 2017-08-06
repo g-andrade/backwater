@@ -10,7 +10,8 @@ ifeq ($(REBAR3),)
 	REBAR3 = $(CURDIR)/rebar3
 endif
 
-.PHONY: all build clean check dialyzer xref publish run
+.PHONY: all build clean check dialyzer xref run
+#publish
 
 all: build
 
@@ -27,13 +28,13 @@ clean:
 check: dialyzer xref
 
 dialyzer:
-	@$(REBAR3) dialyzer
+	@$(REBAR3) as development dialyzer
 
 xref:
-	@$(REBAR3) xref
-
-publish:
-	@$(REBAR3) as publish hex publish
+	@$(REBAR3) as development xref
 
 run:
-	@$(REBAR3) as local run
+	@$(REBAR3) as development run
+
+#publish:
+#	@$(REBAR3) as publication hex publish

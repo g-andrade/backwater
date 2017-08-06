@@ -2,8 +2,8 @@
 -module(backwater_rebar3_prv_generate).
 
 -export([init/1]).
--export([do/1]).
--export([format_error/1]).
+-export([do/1]).                          -ignore_xref({do,1}).
+-export([format_error/1]).                -ignore_xref({format_error,1}).
 
 -define(PROVIDER, 'generate').
 -define(DEPS, [{default, app_discovery},
