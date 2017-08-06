@@ -141,8 +141,8 @@ server_name(Ref) ->
 config_table_name(Ref) ->
     server_name(Ref).
 
--spec default_connect_timeout() -> 5000.
-default_connect_timeout() -> 5000.
+-spec default_connect_timeout() -> 8000.
+default_connect_timeout() -> 8000.
 
 -spec default_receive_timeout() -> 5000.
 default_receive_timeout() -> 5000.
