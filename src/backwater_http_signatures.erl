@@ -10,7 +10,7 @@
 -export([new_request_msg/3]).
 -export([new_response_msg/2]).
 -export([validate_request_signature/2]).
--export([validate_response_signature/3]).
+-export([validate_response_signature/2]).
 -export([validate_signed_msg_body/2]).
 -export([sign_request/4]).
 -export([sign_response/4]).
@@ -39,24 +39,15 @@
 %% Type Definitions
 %% ------------------------------------------------------------------
 
+-type algorithm_failure() :: unknown_algorithm | headers_failure().
+-export_type([algorithm_failure/0]).
+
+-type auth_parse_failure() ::
+        invalid_auth_type | missing_authorization_header | header_params_failure().
+-export_type([auth_parse_failure/0]).
+
 -opaque config() :: #{ key := binary() }.
 -export_type([config/0]).
-
--type message() :: unsigned_message() | signed_message().
--export_type([unsigned_message/0]).
-
--opaque unsigned_message() ::
-    #{ pseudo_headers := #{ binary() => binary() },
-       real_headers := #{ binary() => binary() }  }.
--export_type([message/0]).
-
--opaque signed_message() ::
-    #{ pseudo_headers := #{ binary() => binary() },
-       real_headers := #{ binary() => binary() },
-       request_id := binary(),
-       signed_header_names := [binary()],
-       body_digest := binary() }.
--export_type([signed_message/0]).
 
 -type header_list() :: [{binary(), binary()}].
 -export_type([header_list/0]).
@@ -64,15 +55,32 @@
 -type header_map() :: #{ binary() => binary() }.
 -export_type([header_map/0]).
 
+-type header_params_failure() :: invalid_header_params.
+-export_type([header_params_failure/0]).
+
+-type headers_failure() :: missing_signed_header_list | mandatory_headers_failure().
+-export_type([headers_failure/0]).
+
+-type key_id_failure() :: unknown_key | algorithm_failure().
+-export_type([key_id_failure/0]).
+
+-type mandatorily_signed_headers_failure() :: ({missing_mandatorily_signed_header, binary()} |
+                                               signature_failure()).
+-export_type([mandatorily_signed_headers_failure/0]).
+
+-type mandatory_headers_failure() :: ({missing_mandatory_header, binary()} |
+                                      mandatorily_signed_headers_failure()).
+-export_type([mandatory_headers_failure/0]).
+
 -type maybe_uncanonical_headers() ::
         header_list() | header_map() | {headers | ci_headers, header_list() | header_map()}.
 -export_type([maybe_uncanonical_headers/0]).
 
+-type message() :: unsigned_message() | signed_message().
+-export_type([unsigned_message/0]).
+
 -type message_validation_success() :: {ok, signed_message()}.
 -export_type([message_validation_success/0]).
-
--type request_validation_failure() :: auth_parse_failure() | validation_failure().
--export_type([request_validation_failure/0]).
 
 -type response_validation_failure() :: request_id_validation_failure().
 -export_type([response_validation_failure/0]).
@@ -81,34 +89,28 @@
         mismatched_request_id | missing_request_id | sig_parse_failure() | validation_failure().
 -export_type([request_id_validation_failure/0]).
 
--type auth_parse_failure() :: invalid_auth_type | missing_authorization_header | header_params_failure().
--export_type([auth_parse_failure/0]).
+-type request_validation_failure() :: auth_parse_failure() | validation_failure().
+-export_type([request_validation_failure/0]).
 
 -type sig_parse_failure() :: missing_signature_header | header_params_failure().
 -export_type([sig_parse_failure/0]).
 
--type header_params_failure() :: invalid_header_params.
--export_type([header_params_failure/0]).
+-opaque signed_message() ::
+    #{ pseudo_headers := #{ binary() => binary() },
+       real_headers := #{ binary() => binary() },
+       config := config(),
+       request_id := binary(),
+       signed_header_names := [binary()],
+       body_digest := binary() }.
+-export_type([signed_message/0]).
+
+-opaque unsigned_message() ::
+    #{ pseudo_headers := #{ binary() => binary() },
+       real_headers := #{ binary() => binary() }  }.
+-export_type([message/0]).
 
 -type validation_failure() :: key_id_failure().
 -export_type([validation_failure/0]).
-
--type key_id_failure() :: unknown_key | algorithm_failure().
--export_type([key_id_failure/0]).
-
--type algorithm_failure() :: unknown_algorithm | headers_failure().
--export_type([algorithm_failure/0]).
-
--type headers_failure() :: missing_signed_header_list | mandatory_headers_failure().
--export_type([headers_failure/0]).
-
--type mandatory_headers_failure() :: ({missing_mandatory_header, binary()} |
-                                      mandatorily_signed_headers_failure()).
--export_type([mandatory_headers_failure/0]).
-
--type mandatorily_signed_headers_failure() :: ({missing_mandatorily_signed_header, binary()} |
-                                               signature_failure()).
--export_type([mandatorily_signed_headers_failure/0]).
 
 -type signature_failure() :: invalid_signature | signature_string_failure().
 -export_type([signature_failure/0]).
@@ -154,12 +156,12 @@ validate_request_signature(Config, RequestMsg) ->
             {error, Reason}
     end.
 
--spec validate_response_signature(config(), message(), signed_message())
+-spec validate_response_signature(signed_message(), message())
         -> message_validation_success() |
            {error, Reason :: response_validation_failure()}.
 %% @private
-validate_response_signature(Config, ResponseMsg, SignedRequestMsg) ->
-    #{ request_id := RequestId } = SignedRequestMsg,
+validate_response_signature(SignedRequestMsg, ResponseMsg) ->
+    #{ config := Config, request_id := RequestId } = SignedRequestMsg,
     MsgRequestIdLookup = find_real_msg_header(<<"x-request-id">>, ResponseMsg),
     validate_response_request_id(Config, ResponseMsg, RequestId, MsgRequestIdLookup).
 
@@ -183,6 +185,7 @@ sign_request(Config, RequestMsg1, Body, RequestId) ->
     RequestMsg4 =
         add_real_msg_headers(#{ ?OPAQUE_BINARY(<<"authorization">>) => AuthorizationHeaderValue }, RequestMsg3),
     RequestMsg4#{
+      config => Config,
       request_id => RequestId,
       signed_header_names => SignedHeaderNames,
       body_digest => BodyDigest }.
@@ -202,6 +205,7 @@ sign_response(Config, ResponseMsg1, Body, SignedRequestMsg) ->
     ResponseMsg4 =
         add_real_msg_headers(#{ ?OPAQUE_BINARY(<<"signature">>) => SignatureHeaderValue}, ResponseMsg3),
     ResponseMsg4#{
+      config => Config,
       request_id => RequestId,
       signed_header_names => SignedHeaderNames,
       body_digest => BodyDigest }.
@@ -456,7 +460,8 @@ validate_mandatorily_signed_headers(Config, #{ <<"headers">> := SignedHeaderName
 
 -spec validate_signature(config(), params(), message())
         -> message_validation_success() | {error, signature_failure()}.
-validate_signature(Config, #{ <<"headers">> := SignedHeaderNames, <<"signature">> := Signature }, Msg) ->
+validate_signature(Config, #{ <<"headers">> := SignedHeaderNames, <<"signature">> := Signature },
+                   Msg) ->
     case build_signature_iodata(SignedHeaderNames, Msg) of
         {error, Reason} ->
             {error, Reason};
@@ -469,9 +474,11 @@ validate_signature(Config, #{ <<"headers">> := SignedHeaderNames, <<"signature">
                 true ->
                     {ok, RequestId} = find_real_msg_header(<<"x-request-id">>, Msg),
                     {ok, BodyDigest} = find_real_msg_header(<<"digest">>, Msg),
-                    SignedMsg = Msg#{ request_id => RequestId,
-                                      signed_header_names => SignedHeaderNames,
-                                      body_digest => BodyDigest },
+                    SignedMsg =
+                        Msg#{ config => Config,
+                              request_id => RequestId,
+                              signed_header_names => SignedHeaderNames,
+                              body_digest => BodyDigest },
                     {ok, SignedMsg}
             end
     end.

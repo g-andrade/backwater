@@ -2,7 +2,7 @@
 -module(backwater_cowboy_handler).
 -behaviour(cowboy_handler).
 
--include("../backwater_common.hrl").
+-include("backwater_common.hrl").
 
 %% ------------------------------------------------------------------
 %% API Function Exports
@@ -30,7 +30,7 @@
 %% ------------------------------------------------------------------
 
 -opaque state() ::
-        #{ authentication := backwater_server_instance:authentication(),
+        #{ authentication := backwater_cowboy_instance:authentication(),
            decode_unsafe_terms := boolean(),
            return_exception_stacktraces := boolean(),
            exposed_modules := [backwater_module_info:exposed_module()],
@@ -54,34 +54,38 @@
            result_content_encoding => binary() }.
 -export_type([state/0]).
 
--type content_type() :: {Type :: binary(), SubType :: binary(), content_type_params()}.
--type content_type_params() :: [{binary(), binary()}].
-
 -type accepted_content_type() :: {content_type(), Quality :: 0..1000, accepted_ext()}.
+
 -type accepted_ext() :: [{binary(), binary()} | binary()].
 
 -type accepted_content_encoding() :: {content_type(), Quality :: 0..1000}.
-
--type req() :: cowboy_req:req().
-
--type http_status() :: cowboy:http_status().
--type http_headers() :: cowboy:http_headers().
--type response() ::
-        #{ status_code := http_status(),
-           headers := http_headers(),
-           body := iodata() }.
 
 -type call_result() :: {success, term()} | call_exception().
 
 -type call_exception() :: {exception, raisable_class(), Exception :: term(), [erlang:stack_item()]}.
 
+-type content_type() :: {Type :: binary(), SubType :: binary(), content_type_params()}.
+
+-type content_type_params() :: [{binary(), binary()}].
+
+-type http_headers() :: cowboy:http_headers().
+
+-type http_status() :: cowboy:http_status().
+
+-type req() :: cowboy_req:req().
+
 -type raisable_class() :: error | exit | throw.
+
+-type response() ::
+        #{ status_code := http_status(),
+           headers := http_headers(),
+           body := iodata() }.
 
 %% ------------------------------------------------------------------
 %% API Function Definitions
 %% ------------------------------------------------------------------
 
--spec initial_state(backwater_server_instance:config()) -> state().
+-spec initial_state(backwater_cowboy_instance:config()) -> state().
 initial_state(Config) ->
     #{ authentication => maps:get(authentication, Config),
        decode_unsafe_terms => maps:get(decode_unsafe_terms, Config, true),

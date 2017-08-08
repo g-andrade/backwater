@@ -16,9 +16,8 @@
 
 -spec start(application:start_type(), term()) -> backwater_sup_util:start_link_ret().
 start(_StartType, _StartArgs) ->
-    Clients = application:get_env(backwater, clients, #{}),
     Servers = application:get_env(backwater, servers, #{}),
-    backwater_sup:start_link(Clients, Servers).
+    backwater_sup:start_link(Servers).
 
 -spec stop(term()) -> ok.
 stop(_State) ->
@@ -26,6 +25,5 @@ stop(_State) ->
 
 -spec config_change([{atom(), term()}], [{atom(), term()}], [atom()]) -> ok.
 config_change(_Changed, _New, _Removed) ->
-    Clients = application:get_env(backwater, clients, #{}),
     Servers = application:get_env(backwater, servers, #{}),
-    backwater_sup:app_config_changed(Clients, Servers).
+    backwater_sup:app_config_changed(Servers).

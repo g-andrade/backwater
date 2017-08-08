@@ -1,6 +1,6 @@
 -module(backwater_module_info).
 
--include("../backwater_common.hrl").
+-include("backwater_common.hrl").
 
 %% ------------------------------------------------------------------
 %% API Function Exports
@@ -20,20 +20,17 @@
 %% Type Definitions
 %% ------------------------------------------------------------------
 
+-type content_type() :: {nonempty_binary(), nonempty_binary()}.
+-export_type([content_type/0]).
+
+-type exports() :: #{ fun_arity_pair() => fun_properties() }.
+-export_type([exports/0]).
+
 -type exposed_module() :: module() | {module(), [exposed_module_opt()]}.
 -export_type([exposed_module/0]).
 
 -type exposed_module_opt() :: {exports, all | use_backwater_attributes | [atom()]}.
 -export_type([exposed_module_opt/0]).
-
--type module_info() :: #{ version := version(), exports := exports() }.
--export_type([module_info/0]).
-
--type version() :: binary().
--export_type([version/0]).
-
--type exports() :: #{ fun_arity_pair() => fun_properties() }.
--export_type([exports/0]).
 
 -type fun_arity_pair() :: {binary(), arity()}.
 -export_type([fun_arity_pair/0]).
@@ -43,11 +40,14 @@
            function_ref := fun() }.
 -export_type([fun_properties/0]).
 
--type content_type() :: {nonempty_binary(), nonempty_binary()}.
--export_type([content_type/0]).
-
 -type lookup_result() :: {true, {BinModule :: nonempty_binary(), module_info()}} | false.
 -export_type([lookup_result/0]).
+
+-type module_info() :: #{ version := version(), exports := exports() }.
+-export_type([module_info/0]).
+
+-type version() :: binary().
+-export_type([version/0]).
 
 -type raw_module_info() :: [{atom(), term()}].
 -type raw_module_attributes() :: [{atom(), term()}].

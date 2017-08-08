@@ -13,6 +13,7 @@
 -export([lists_enumerate/1]).
 -export([maps_mapfold/3]).
 -export([maps_merge/1]).
+-export([maps_merge_with/3]).
 -export([proplists_sort_and_merge/2]).
 -export([purge_stacktrace_below/2]).
 
@@ -80,11 +81,17 @@ maps_mapfold(Fun, Acc0, Map) ->
 maps_merge(Maps) ->
     lists:foldl(fun (Map2, Map1) -> maps:merge(Map1, Map2) end, #{}, Maps).
 
+-spec maps_merge_with(fun ((term(), term(), term()) -> term()), map(), map()) -> map().
+maps_merge_with(Fun, Map1, Map2) ->
+    List1 = lists:keysort(1, maps:to_list(Map1)),
+    List2 = lists:keysort(1, maps:to_list(Map2)),
+    maps_merge_with_recur(Fun, List1, List2, []).
+
 -spec proplists_sort_and_merge(proplist(), proplist()) -> proplist().
 proplists_sort_and_merge(List1, List2) ->
     SortedList1 = lists:usort(fun proplists_element_cmp/2, lists:reverse(List1)),
     SortedList2 = lists:usort(fun proplists_element_cmp/2, lists:reverse(List2)),
-    lists:merge(fun proplists_element_cmp/2, SortedList2, SortedList1).
+    lists:umerge(fun proplists_element_cmp/2, SortedList2, SortedList1).
 
 -spec purge_stacktrace_below({module(),atom(),arity()}, [erlang:stack_item()])
         -> [erlang:stack_item()].
@@ -115,6 +122,31 @@ lists_allmap_recur(Fun, [H|T], Acc) ->
         false -> {false, H}
     end.
 
+-spec maps_merge_with_recur(fun ((term(), term(), term()) -> term()),
+                            [{term(), term()}], [{term(), term()}], [{term(), term()}])
+        -> map().
+maps_merge_with_recur(Fun, [{K1,V1}|T1], [{K2,_}|_] = L2, Acc)
+  when K1 < K2 ->
+    % List1 is lagging behind
+    NewAcc = [{K1,V1} | Acc],
+    maps_merge_with_recur(Fun, T1, L2, NewAcc);
+maps_merge_with_recur(Fun, [{K1,V1}|T1], [{K2,V2}|T2], Acc)
+  when K1 =:= K2 ->
+    % a common key - merge the values
+    MergedV = Fun(K1, V1, V2),
+    NewAcc = [{K1,MergedV} | Acc],
+    maps_merge_with_recur(Fun, T1, T2, NewAcc);
+maps_merge_with_recur(Fun, [{K1,_}|_] = L1, [{K2,V2}|T2], Acc)
+  when K1 > K2 ->
+    % List2 is lagging behind
+    NewAcc = [{K2,V2} | Acc],
+    maps_merge_with_recur(Fun, L1, T2, NewAcc);
+maps_merge_with_recur(_Fun, [], L2, Acc) ->
+    % List1 is over
+    maps:from_list(L2 ++ Acc);
+maps_merge_with_recur(_Fun, L1, [], Acc) ->
+    % List2 is over
+    maps:from_list(L1 ++ Acc).
 -spec proplists_element_cmp(proplists:property(), proplists:property()) -> boolean().
 proplists_element_cmp(A, B) ->
     proplists_element_key(A) =< proplists_element_key(B).
