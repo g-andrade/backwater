@@ -34,9 +34,6 @@
 %% Type Definitions
 %% ------------------------------------------------------------------
 
--type authentication() :: {signature, Key :: binary()}.
--export_type([authentication/0]).
-
 -type child_spec(Id) ::
     #{ id := Id,
        start := {?MODULE, start_link, [ref() | config(), ...]},
@@ -46,7 +43,7 @@
 -export_type([child_spec/1]).
 
 -type config() ::
-        #{ authentication := authentication(),
+        #{ secret := binary(),
            decode_unsafe_terms => boolean(),
            return_exception_stacktraces => boolean(),
            exposed_modules := [backwater_module_info:exposed_module()],

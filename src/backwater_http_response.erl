@@ -22,8 +22,8 @@
 %% ------------------------------------------------------------------
 
 -type authentication_error() ::
-        wrong_body_digest |
-        backwater_http_signatures:response_validation_failure().
+        backwater_http_signatures:response_validation_failure() |
+        wrong_body_digest.
 -export_type([authentication_error/0]).
 
 -type error() ::

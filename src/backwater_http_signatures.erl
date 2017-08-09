@@ -126,8 +126,8 @@
 
 -spec config(binary()) -> config().
 %% @private
-config(Key) ->
-    #{ key => Key }.
+config(Secret) ->
+    #{ key => Secret }.
 
 -spec new_request_msg(binary(), binary(), maybe_uncanonical_headers()) -> unsigned_message().
 %% @private

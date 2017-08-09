@@ -12,15 +12,12 @@
 %% Type Definitions
 %% ------------------------------------------------------------------
 
--type authentication() :: {signature, Key :: binary()}.
--export_type([authentication/0]).
-
 -type config() :: config_ref() | {config_ref(), config_override()} | explicit_config().
 -export_type([config/0]).
 
 -type config_override() ::
     #{ endpoint => nonempty_binary(),
-       authentication => authentication(),
+       secret => binary(),
        hackney_options => [hackney_option()],
        decode_unsafe_terms => boolean(),
        rethrow_remote_exceptions => boolean()
@@ -35,7 +32,7 @@
 
 -type explicit_config() ::
     #{ endpoint := nonempty_binary(),
-       authentication := authentication(),
+       secret := binary(),
        hackney_options => [hackney_option()],
        decode_unsafe_terms => boolean(),
        rethrow_remote_exceptions => boolean()
@@ -116,9 +113,9 @@ call_({error, Error}, _Version, _Module, _Function, _Args) ->
 -spec encode_request(explicit_config(), unicode:chardata(), module(), atom(), [term()])
         -> backwater_http_response:t(Error) when Error :: {hackney, term()}.
 encode_request(ExplicitConfig, Version, Module, Function, Args) ->
-    #{ endpoint := Endpoint, authentication := Authentication } = ExplicitConfig,
+    #{ endpoint := Endpoint, secret := Secret } = ExplicitConfig,
     {Request, State} =
-        backwater_http_request:encode(Endpoint, Version, Module, Function, Args, Authentication),
+        backwater_http_request:encode(Endpoint, Version, Module, Function, Args, Secret),
     call_hackney(ExplicitConfig, State, Request).
 
 -spec call_hackney(explicit_config(), backwater_http_request:state(), backwater_http_request:t())

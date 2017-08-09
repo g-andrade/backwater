@@ -30,7 +30,7 @@
 %% ------------------------------------------------------------------
 
 -opaque state() ::
-        #{ authentication := backwater_cowboy_instance:authentication(),
+        #{ secret := binary(),
            decode_unsafe_terms := boolean(),
            return_exception_stacktraces := boolean(),
            exposed_modules := [backwater_module_info:exposed_module()],
@@ -87,7 +87,7 @@
 
 -spec initial_state(backwater_cowboy_instance:config()) -> state().
 initial_state(Config) ->
-    #{ authentication => maps:get(authentication, Config),
+    #{ secret => maps:get(secret, Config),
        decode_unsafe_terms => maps:get(decode_unsafe_terms, Config, true),
        return_exception_stacktraces => maps:get(return_exception_stacktraces, Config, true),
        exposed_modules => maps:get(exposed_modules, Config, []) }.
@@ -161,10 +161,8 @@ execute_pipeline([], State) ->
 %% ------------------------------------------------------------------
 
 -spec check_authentication(state()) -> {continue | stop, state()}.
-check_authentication(#{ req := Req, authentication := Authentication } = State) ->
-    {signature, Key} = Authentication,
-    SignaturesConfig = backwater_http_signatures:config(Key),
-
+check_authentication(#{ req := Req, secret := Secret } = State) ->
+    SignaturesConfig = backwater_http_signatures:config(Secret),
     Method = cowboy_req:method(Req),
     EncodedPathWithQs = req_encoded_path_with_qs(Req),
     Headers = cowboy_req:headers(Req),
@@ -597,8 +595,8 @@ send_response(#{ signed_request_msg := SignedRequestMsg } = State1) ->
     #{ req := Req1, response := Response } = State1,
     #{ status_code := ResponseStatusCode, headers := ResponseHeaders1, body := ResponseBody } = Response,
 
-    #{ authentication := {signature, Key} } = State1,
-    Config = backwater_http_signatures:config(Key),
+    #{ secret := Secret } = State1,
+    Config = backwater_http_signatures:config(Secret),
     ResponseMsg =
         backwater_http_signatures:new_response_msg(ResponseStatusCode, {ci_headers, ResponseHeaders1}),
     SignedResponseMsg =

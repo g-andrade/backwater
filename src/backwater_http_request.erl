@@ -19,9 +19,6 @@
 %% Type Definitions
 %% ------------------------------------------------------------------
 
--type authentication() :: {signature, Key :: binary()}.
--export_type([authentication/0]).
-
 -type nonempty_headers() :: [{nonempty_binary(), binary()}, ...].
 -export_type([nonempty_headers/0]).
 
@@ -38,17 +35,17 @@
 %% API Function Definitions
 %% ------------------------------------------------------------------
 
--spec encode(Endpoint, Version, Module, Function, Args, Authentication) -> {Request, RequestState}
+-spec encode(Endpoint, Version, Module, Function, Args, Secret) -> {Request, RequestState}
             when Endpoint :: nonempty_binary(),
                  Version :: unicode:chardata(),
                  Module :: module(),
                  Function :: atom(),
                  Args :: [term()],
-                 Authentication :: authentication(),
+                 Secret :: binary(),
                  Request :: t(),
                  RequestState :: state().
 
-encode(Endpoint, Version, Module, Function, Args, Authentication) ->
+encode(Endpoint, Version, Module, Function, Args, Secret) ->
     Body = backwater_media_etf:encode(Args),
     Arity = length(Args),
     Method = ?OPAQUE_BINARY(<<"POST">>),
@@ -58,7 +55,7 @@ encode(Endpoint, Version, Module, Function, Args, Authentication) ->
         [{?OPAQUE_BINARY(<<"accept">>), ?OPAQUE_BINARY(<<MediaType/binary>>)},
          {?OPAQUE_BINARY(<<"accept-encoding">>), ?OPAQUE_BINARY(<<"gzip">>)},
          {?OPAQUE_BINARY(<<"content-type">>), ?OPAQUE_BINARY(<<MediaType/binary>>)}],
-    compress(Method, Url, Headers, Body, Authentication).
+    compress(Method, Url, Headers, Body, Secret).
 
 %% ------------------------------------------------------------------
 %% Internal Function Definitions
@@ -75,21 +72,21 @@ request_url(Endpoint, Version, Module, Function, Arity) ->
     QueryString = <<>>,
     hackney_url:make_url(Endpoint, PathComponents, QueryString).
 
--spec compress(nonempty_binary(), nonempty_binary(), nonempty_headers(), binary(), authentication())
+-spec compress(nonempty_binary(), nonempty_binary(), nonempty_headers(), binary(), binary())
         -> stateful_request().
-compress(Method, Url, Headers, Body, Authentication)
+compress(Method, Url, Headers, Body, Secret)
   when byte_size(Body) > ?COMPRESSION_THRESHOLD ->
     CompressedBody = backwater_encoding_gzip:encode(Body),
     UpdatedHeaders = [{<<"content-encoding">>, <<"gzip">>} | Headers],
-    authenticate(Method, Url, UpdatedHeaders, CompressedBody, Authentication);
-compress(Method, Url, Headers, Body, Authentication) ->
-    authenticate(Method, Url, Headers, Body, Authentication).
+    authenticate(Method, Url, UpdatedHeaders, CompressedBody, Secret);
+compress(Method, Url, Headers, Body, Secret) ->
+    authenticate(Method, Url, Headers, Body, Secret).
 
--spec authenticate(nonempty_binary(), nonempty_binary(), nonempty_headers(), binary(), authentication())
+-spec authenticate(nonempty_binary(), nonempty_binary(), nonempty_headers(), binary(), binary())
         -> stateful_request().
-authenticate(Method, Url, Headers1, Body, {signature, Key}) ->
+authenticate(Method, Url, Headers1, Body, Secret) ->
     EncodedPathWithQs = url_encoded_path_with_qs(Url),
-    SignaturesConfig = backwater_http_signatures:config(Key),
+    SignaturesConfig = backwater_http_signatures:config(Secret),
     RequestMsg = backwater_http_signatures:new_request_msg(Method, EncodedPathWithQs, Headers1),
     RequestId = base64:encode( crypto:strong_rand_bytes(16) ),
     SignedRequestMsg = backwater_http_signatures:sign_request(SignaturesConfig, RequestMsg, Body, RequestId),
