@@ -2,6 +2,37 @@
 
 -include_lib("backwater_common.hrl").
 
+%% @doc The code in this module is based on the "http signatures"[1]
+%% IETF draft, version nr. 7, by M. Cavage, published on July 17, 2017.
+%%
+%% A few things to point out:
+%% - The only algorithm supported as of now is "hmac-sha256".
+%% - There's a single key identifier: "default".
+%% - SHA-256 body digests are mandatory and only this kind of checksum
+%%   is yet supported.
+%% - HTTP response status code is a mandatory part of response signatures,
+%%   through use of a "(response-status)" pseudo-header.
+%% - Custom header "x-request-id" is a mandatory part of the signature of
+%%   both request and response signatures, and it is intended to be filled
+%%   with an unique non-empty string per request; validation of response
+%%   signature is also dependent upon its "x-request-id" being an exact
+%%   match to the request's.
+%% - Dates are not (yet?) used.
+%% - Multiple header pairs under the same name, with names being case
+%%   insensitive, are not supported.
+%%
+%% Under its current configuration, replay attacks are plentifully possible
+%% under HTTP but, bugs aside and presuming a good quality well-kept secret,
+%% the following kinds of mischief are to be detectable:
+%% - forged requests
+%% - forged responses
+%% - in-flight request modification
+%% - in-flight response modification (save for the status line reason phrase)
+%%
+%% Which is pretty good but rather incomplete. Best to use HTTPS to start with.
+%%
+%% [1]: https://tools.ietf.org/html/draft-cavage-http-signatures-07
+
 %% ------------------------------------------------------------------
 %% API Function Exports
 %% ------------------------------------------------------------------
