@@ -380,7 +380,6 @@ decode_signature_auth_params(Encoded) ->
 -spec validate_response_request_id(config(), message(), binary(), {ok, binary()} | error)
         -> message_validation_success() |
            {error, Reason :: response_validation_failure()}.
-%% @private
 validate_response_request_id(Config, Msg, RequestId, {ok, RequestId}) ->
     SignatureHeaderLookup = find_real_msg_header(<<"signature">>, Msg),
     case parse_signature_header(SignatureHeaderLookup) of
