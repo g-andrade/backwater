@@ -1,4 +1,3 @@
-%% @private
 -module(backwater_cowboy_handler).
 -behaviour(cowboy_handler).
 
@@ -24,16 +23,15 @@
 -define(CACHED_FUNCTION_PROPERTIES_TTL, (timer:seconds(5))).
 -define(COMPRESSION_THRESHOLD, 300).
 -define(KNOWN_CONTENT_ENCODINGS, [<<"gzip">>, <<"identity">>]).
+-define(DEFAULT_OPT_DECODE_UNSAFE_TERMS, false).
+-define(DEFAULT_OPT_RETURN_EXCEPTION_STACKTRACES, true).
 
 %% ------------------------------------------------------------------
 %% Type Definitions
 %% ------------------------------------------------------------------
 
 -opaque state() ::
-        #{ secret := binary(),
-           decode_unsafe_terms := boolean(),
-           return_exception_stacktraces := boolean(),
-           exposed_modules := [backwater_module_info:exposed_module()],
+        #{ opts := opts(),
 
            req => req(),
            version => backwater_module_info:version(),
@@ -53,6 +51,13 @@
            result_content_type => content_type(),
            result_content_encoding => binary() }.
 -export_type([state/0]).
+
+-type opts() ::
+        #{ secret := binary(),
+           exposed_modules := [backwater_module_info:exposed_module()],
+           decode_unsafe_terms => boolean(),
+           return_exception_stacktraces => boolean() }.
+-export_type([opts/0]).
 
 -type accepted_content_type() :: {content_type(), Quality :: 0..1000, accepted_ext()}.
 
@@ -85,18 +90,30 @@
 %% API Function Definitions
 %% ------------------------------------------------------------------
 
--spec initial_state(backwater_cowboy_instance:config()) -> state().
-initial_state(Config) ->
-    #{ secret => maps:get(secret, Config),
-       decode_unsafe_terms => maps:get(decode_unsafe_terms, Config, true),
-       return_exception_stacktraces => maps:get(return_exception_stacktraces, Config, true),
-       exposed_modules => maps:get(exposed_modules, Config, []) }.
+-spec initial_state(opts()) -> {ok, state()} | {error, term()}.
+%% @private
+initial_state(#{ secret := _, exposed_modules := _ } = Opts) ->
+    ListOpts = maps:to_list(Opts),
+    ValidationResult = backwater_util:lists_allmap(fun validate_opt_pair/1, ListOpts),
+    case ValidationResult of
+        {true, ValidatedListOpts} ->
+            InitialState = #{ opts => maps:from_list(ValidatedListOpts) },
+            {ok, InitialState};
+        {false, InvalidOpt} ->
+            {error, {invalid_opt, InvalidOpt}}
+    end;
+initial_state(Opts) when is_map(Opts) ->
+    Missing = [secret, exposed_modules] -- maps:keys(Opts),
+    {error, {missing_mandatory_opts, Missing}};
+initial_state(_Opts) ->
+    {error, invalid_opts}.
 
 %% ------------------------------------------------------------------
 %% cowboy_http_handler Function Definitions
 %% ------------------------------------------------------------------
 
 -spec init(req(), state()) -> {ok, req(), state()}.
+%% @private
 init(Req1, State1) ->
     %% initialize
     Version = cowboy_req:binding(version, Req1),
@@ -133,6 +150,7 @@ init(Req1, State1) ->
     {ok, Req2, State4}.
 
 -spec terminate(term(), req(), state()) -> ok.
+%% @private
 terminate({crash, Class, Reason}, _Req, _State) ->
     Stacktrace = erlang:get_stacktrace(),
     io:format("Crash! ~p:~p, ~p~n", [Class, Reason, Stacktrace]),
@@ -161,7 +179,7 @@ execute_pipeline([], State) ->
 %% ------------------------------------------------------------------
 
 -spec check_authentication(state()) -> {continue | stop, state()}.
-check_authentication(#{ req := Req, secret := Secret } = State) ->
+check_authentication(#{ req := Req, opts := #{ secret := Secret } } = State) ->
     SignaturesConfig = backwater_http_signatures:config(Secret),
     Method = cowboy_req:method(Req),
     EncodedPathWithQs = req_encoded_path_with_qs(Req),
@@ -231,7 +249,7 @@ check_method(#{ req := Req } = State) ->
 -spec check_authorization(state()) -> {continue | stop, state()}.
 check_authorization(State) ->
     #{ bin_module := BinModule,
-       exposed_modules := ExposedModules } = State,
+       opts := #{ exposed_modules := ExposedModules } } = State,
 
     SearchResult =
         lists:any(
@@ -277,7 +295,8 @@ find_function_properties(State) ->
 handle_cached_function_properties_lookup({ok, FunctionProperties}, _State) ->
     {found, FunctionProperties};
 handle_cached_function_properties_lookup(error, State) ->
-    #{ bin_module := BinModule, exposed_modules := ExposedModules } = State,
+    #{ bin_module := BinModule,
+       opts := #{ exposed_modules := ExposedModules  } } = State,
     InfoPerExposedModule = backwater_module_info:generate(ExposedModules),
     InfoLookup = maps:find(BinModule, InfoPerExposedModule),
     handle_module_info_lookup(InfoLookup, State).
@@ -502,7 +521,7 @@ decode_args_content_type(Data, State) ->
 
 -spec decode_etf_args(binary(), state()) -> {continue | stop, state()}.
 decode_etf_args(Data, State) ->
-    #{ decode_unsafe_terms := DecodeUnsafeTerms } = State,
+    DecodeUnsafeTerms = should_decode_unsafe_terms(State),
     case backwater_media_etf:decode(Data, DecodeUnsafeTerms) of
         error ->
             {stop, set_response(400, unable_to_decode_arguments, State)};
@@ -519,6 +538,11 @@ validate_args(UnvalidatedArgs, #{ arity := Arity } = State)
     {stop, set_response(400, inconsistent_arguments_arity, State)};
 validate_args(Args, State) ->
     {continue, State#{ args => Args }}.
+
+-spec should_decode_unsafe_terms(state()) -> boolean().
+should_decode_unsafe_terms(State) ->
+    #{ opts := Opts } = State,
+    maps:get(should_decode_unsafe_terms, Opts, ?DEFAULT_OPT_DECODE_UNSAFE_TERMS).
 
 %% ------------------------------------------------------------------
 %% Internal Function Definitions - Execute Call
@@ -550,7 +574,7 @@ call_function(State) ->
         -> {ok, call_exception()} | {error, undefined_module_or_function}.
 handle_possibly_undef_call_exception(Class, Exception, State, FunctionRef)
   when Class =:= error, Exception =:= undef ->
-    #{ return_exception_stacktraces := ReturnExceptionStacktraces } = State,
+    ReturnExceptionStacktraces = should_return_exception_stack_traces(State),
     {module, Module} = erlang:fun_info(FunctionRef, module),
     {name, Name} = erlang:fun_info(FunctionRef, name),
     {arity, Arity} = erlang:fun_info(FunctionRef, arity),
@@ -572,11 +596,14 @@ handle_possibly_undef_call_exception(Class, Exception, State, _FunctionRef) ->
     handle_call_exception(Class, Exception, State).
 
 -spec handle_call_exception(raisable_class(), term(), state()) -> {ok, call_exception()}.
-handle_call_exception(Class, Exception, #{ return_exception_stacktraces := true }) ->
-    Stacktrace = erlang:get_stacktrace(),
-    return_call_exception(Class, Exception, Stacktrace);
-handle_call_exception(Class, Exception, #{ return_exception_stacktraces := false }) ->
-    return_call_exception(Class, Exception, []).
+handle_call_exception(Class, Exception, State) ->
+    case should_return_exception_stack_traces(State) of
+        false ->
+            return_call_exception(Class, Exception, []);
+        true ->
+            Stacktrace = erlang:get_stacktrace(),
+            return_call_exception(Class, Exception, Stacktrace)
+    end.
 
 -spec return_call_exception(raisable_class(), term(), [erlang:stack_item()]) -> {ok, call_exception()}.
 return_call_exception(Class, Exception, Stacktrace) ->
@@ -584,6 +611,11 @@ return_call_exception(Class, Exception, Stacktrace) ->
     % This works under the assumption that *no sensible call* would ever go through 'call_function/1' again.
     PurgedStacktrace = backwater_util:purge_stacktrace_below({?MODULE,call_function,1}, Stacktrace),
     {ok, {exception, Class, Exception, PurgedStacktrace}}.
+
+-spec should_return_exception_stack_traces(state()) -> boolean().
+should_return_exception_stack_traces(State) ->
+    #{ opts := Opts } = State,
+    maps:get(return_exception_stacktraces, Opts, ?DEFAULT_OPT_RETURN_EXCEPTION_STACKTRACES).
 
 %% ------------------------------------------------------------------
 %% Internal Function Definitions - Send Response
@@ -595,12 +627,12 @@ send_response(#{ signed_request_msg := SignedRequestMsg } = State1) ->
     #{ req := Req1, response := Response } = State1,
     #{ status_code := ResponseStatusCode, headers := ResponseHeaders1, body := ResponseBody } = Response,
 
-    #{ secret := Secret } = State1,
-    Config = backwater_http_signatures:config(Secret),
+    #{ opts := #{ secret := Secret } } = State1,
+    SignaturesConfig = backwater_http_signatures:config(Secret),
     ResponseMsg =
         backwater_http_signatures:new_response_msg(ResponseStatusCode, {ci_headers, ResponseHeaders1}),
     SignedResponseMsg =
-        backwater_http_signatures:sign_response(Config, ResponseMsg, ResponseBody, SignedRequestMsg),
+        backwater_http_signatures:sign_response(SignaturesConfig, ResponseMsg, ResponseBody, SignedRequestMsg),
     ResponseHeaders2 = backwater_http_signatures:get_real_msg_headers(SignedResponseMsg),
 
     Req2 = cowboy_req:reply(ResponseStatusCode, ResponseHeaders2, ResponseBody, Req1),
@@ -657,3 +689,20 @@ nocache_headers() ->
     #{ <<"cache-control">> => <<"private, no-cache, no-store, must-revalidate">>,
        <<"pragma">> => <<"no-cache">>,
        <<"expires">> => <<"0">> }.
+
+%% ------------------------------------------------------------------
+%% Internal Function Definitions
+%% ------------------------------------------------------------------
+
+-spec validate_opt_pair({term(), term()}) -> boolean().
+validate_opt_pair({secret, Secret}) ->
+    is_binary(Secret);
+validate_opt_pair({exposed_modules, ExposedModules}) ->
+    % TODO validate deeper
+    is_list(ExposedModules);
+validate_opt_pair({decode_unsafe_terms, DecodeUnsafeTerms}) ->
+    is_boolean(DecodeUnsafeTerms);
+validate_opt_pair({return_exception_stacktraces, ReturnExceptionStacktraces}) ->
+    is_boolean(ReturnExceptionStacktraces);
+validate_opt_pair({_Key, _Value}) ->
+    false.
