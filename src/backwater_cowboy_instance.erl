@@ -62,10 +62,7 @@
 -type transport_opts() :: ranch_tcp:opts() | ranch_ssl:opts().
 -export_type([transport_opts/0]).
 
--type cowboy_transport() ::
-        clear | tls |
-        tcp | ssl |    % aliases #1
-        http | https.  % aliases #2
+-type cowboy_transport() :: clear | tls.
 
 -type route_constraints() :: [{version, nonempty} | {module | function | arity, fun ()}, ...].
 
@@ -210,11 +207,7 @@ parse_cowboy_opts(Config) ->
     StartFunction =
         case maps:get(transport, Config, clear) of
             clear -> start_clear;
-            tcp   -> start_clear;
-            http  -> start_clear;
-            tls   -> start_tls;
-            ssl   -> start_tls;
-            https -> start_tls
+            tls   -> start_tls
         end,
 
     DefaultTransportOpts = [{port,8080}],
