@@ -22,7 +22,8 @@
     #{ endpoint => nonempty_binary(),
        authentication => authentication(),
        hackney_options => [hackney_option()],
-       response_options => backwater_http_response:options()
+       decode_unsafe_terms => boolean(),
+       rethrow_remote_exceptions => boolean()
      }.
 -export_type([config_override/0]).
 
@@ -36,7 +37,8 @@
     #{ endpoint := nonempty_binary(),
        authentication := authentication(),
        hackney_options => [hackney_option()],
-       response_options => backwater_http_response:options()
+       decode_unsafe_terms => boolean(),
+       rethrow_remote_exceptions => boolean()
      }.
 -export_type([explicit_config/0]).
 
@@ -83,8 +85,7 @@ generate_config({ConfigRef, ConfigOverride}) when is_atom(ConfigRef), is_map(Con
     end.
 
 default_config_override() ->
-    #{ hackney_options => default_hackney_options(),
-       response_options => #{} }.
+    #{ hackney_options => default_hackney_options() }.
 
 default_hackney_options() ->
     % TODO improve
@@ -98,8 +99,6 @@ merge_configs(BaseConfig, ConfigOverride) ->
     backwater_util:maps_merge_with(
       fun (hackney_options, Base, Override) ->
               backwater_util:proplists_sort_and_merge(Base, Override);
-          (response_options, Base, Override) ->
-              maps:merge(Base, Override);
           (_Other, _Base, Override) ->
               Override
       end,
@@ -127,12 +126,13 @@ encode_request(ExplicitConfig, Version, Module, Function, Args) ->
 call_hackney(ExplicitConfig, RequestState, Request) ->
     {Method, Url, Headers, Body} = Request,
     #{ hackney_options := BaseHackneyOptions } = ExplicitConfig,
-    HackneyOptions = [with_body | BaseHackneyOptions],
+    MandatoryHackneyOptions = [with_body],
+    HackneyOptions = backwater_util:proplists_sort_and_merge(BaseHackneyOptions, MandatoryHackneyOptions),
     Result = hackney:request(Method, Url, Headers, Body, HackneyOptions),
     handle_hackney_result(ExplicitConfig, RequestState, Result).
 
 handle_hackney_result(ExplicitConfig, RequestState, {ok, StatusCode, Headers, Body}) ->
-    #{ response_options := Options } = ExplicitConfig,
+    Options = maps:with([decode_unsafe_terms, rethrow_remote_exceptions], ExplicitConfig),
     backwater_http_response:decode(StatusCode, Headers, Body, RequestState, Options);
 handle_hackney_result(_ExplicitConfig, _RequestState, {error, Error}) ->
     {error, {hackney, Error}}.
