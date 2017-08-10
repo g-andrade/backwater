@@ -11,7 +11,7 @@
     cowboy,
     hackney
    ]},
-  {env,[]}, % Check config/sys.config example
+  {env,[]},
   {modules, []},
 
   {maintainers, ["Guilherme Andrade"]},
