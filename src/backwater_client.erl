@@ -6,7 +6,7 @@
 %% API Function Exports
 %% ------------------------------------------------------------------
 
--export([call/5]).
+-export([call/5]).                               -ignore_xref({call,5}).
 
 %% ------------------------------------------------------------------
 %% Type Definitions
@@ -49,8 +49,14 @@
 %% API Function Definitions
 %% ------------------------------------------------------------------
 
--spec call(config(), unicode:chardata(), module(), atom(), [term()]) -> result().
-%% @private
+-spec call(Config, Version, Module, Function, Args) -> Result
+        when Config :: config(),
+             Version :: unicode:chardata(),
+             Module :: module(),
+             Function :: atom(),
+             Args :: [term()],
+             Result :: result().
+
 call(Config, Version, Module, Function, Args) ->
     ExplicitConfigGeneration = generate_config(Config),
     call_(ExplicitConfigGeneration, Version, Module, Function, Args).

@@ -1,4 +1,4 @@
--module(backwater_cowboy).
+-module(backwater_server).
 
 %% ------------------------------------------------------------------
 %% API Function Exports
