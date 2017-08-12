@@ -20,7 +20,7 @@
 %% ------------------------------------------------------------------
 
 -define(DEFAULT_CLEAR_PORT, 8080).
--define(DEFAULT_TLS_PORT, 4430).
+-define(DEFAULT_TLS_PORT, 8443).
 
 %% ------------------------------------------------------------------
 %% Type Definitions
@@ -47,7 +47,7 @@
                  BackwaterOpts :: opts().
 
 start_clear(Ref, TransportOpts0, ProtoOpts, BackwaterOpts) ->
-    DefaultTransportOpts = [{port, ?DEFAULT_CLEAR_PORT}],
+    DefaultTransportOpts = default_transport_options(?DEFAULT_CLEAR_PORT),
     TransportOpts = backwater_util:proplists_sort_and_merge(DefaultTransportOpts, TransportOpts0),
     start_cowboy(start_clear, Ref, TransportOpts, ProtoOpts, BackwaterOpts).
 
@@ -59,7 +59,7 @@ start_clear(Ref, TransportOpts0, ProtoOpts, BackwaterOpts) ->
                  BackwaterOpts :: opts().
 
 start_tls(Ref, TransportOpts0, ProtoOpts, BackwaterOpts) ->
-    DefaultTransportOpts = [{port, ?DEFAULT_TLS_PORT}],
+    DefaultTransportOpts = default_transport_options(?DEFAULT_TLS_PORT),
     TransportOpts = backwater_util:proplists_sort_and_merge(DefaultTransportOpts, TransportOpts0),
     start_cowboy(start_tls, Ref, TransportOpts, ProtoOpts, BackwaterOpts).
 
@@ -123,6 +123,9 @@ encoded_atom_constraint(format_error, {cant_convert_to_atom, Value}) ->
 %% ------------------------------------------------------------------
 %% Internal Function Definitions
 %% ------------------------------------------------------------------
+
+default_transport_options(Port) ->
+    [{port, Port}, {reuseaddr, true}].
 
 -spec cowboy_route_path(backwater_cowboy_handler:state()) -> route_path().
 cowboy_route_path(InitialHandlerState) ->

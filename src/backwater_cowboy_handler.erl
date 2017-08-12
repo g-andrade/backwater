@@ -104,7 +104,7 @@ initial_state(#{ secret := _, exposed_modules := _ } = Opts) ->
     end;
 initial_state(Opts) when is_map(Opts) ->
     Missing = [secret, exposed_modules] -- maps:keys(Opts),
-    {error, {missing_mandatory_opts, Missing}};
+    {error, {missing_mandatory_opts, lists:sort(Missing)}};
 initial_state(_Opts) ->
     {error, invalid_opts}.
 
@@ -350,7 +350,7 @@ check_args_content_type(State) ->
             State2 = State#{ args_content_type => ContentType },
             {continue, State2};
         undefined ->
-            {stop, set_response(400, {bad_header, 'content-type'}, State)}
+            {stop, set_response(400, {bad_header, <<"content-type">>}, State)}
     end.
 
 %% ------------------------------------------------------------------
@@ -508,7 +508,7 @@ decode_args_content_encoding(Data, #{ args_content_encoding := <<"gzip">> } = St
         {ok, UncompressedData} ->
             decode_args_content_type(UncompressedData, State);
         {error, _} ->
-            {stop, set_response(400, unable_to_uncompress_body, State)}
+            {stop, set_response(400, unable_to_uncompress_arguments, State)}
     end.
 
 -spec decode_args_content_type(binary(), state()) -> {continue | stop, state()}.
@@ -542,7 +542,7 @@ validate_args(Args, State) ->
 -spec should_decode_unsafe_terms(state()) -> boolean().
 should_decode_unsafe_terms(State) ->
     #{ opts := Opts } = State,
-    maps:get(should_decode_unsafe_terms, Opts, ?DEFAULT_OPT_DECODE_UNSAFE_TERMS).
+    maps:get(decode_unsafe_terms, Opts, ?DEFAULT_OPT_DECODE_UNSAFE_TERMS).
 
 %% ------------------------------------------------------------------
 %% Internal Function Definitions - Execute Call

@@ -11,6 +11,14 @@
 -export([stop/1]).                               -ignore_xref({stop,1}).
 
 %% ------------------------------------------------------------------
+%% Common Test Helper Exports
+%% ------------------------------------------------------------------
+
+-ifdef(TEST).
+-export(['_call'/6]).
+-endif.
+
+%% ------------------------------------------------------------------
 %% Macro Definitions
 %% ------------------------------------------------------------------
 
@@ -153,3 +161,19 @@ handle_hackney_result(Config, RequestState, {ok, StatusCode, Headers, Body}) ->
     backwater_http_response:decode(StatusCode, Headers, Body, RequestState, Options);
 handle_hackney_result(_Config, _RequestState, {error, Error}) ->
     {error, {hackney, Error}}.
+
+%% ------------------------------------------------------------------
+%% Common Test Helper Definitions
+%% ------------------------------------------------------------------
+
+-ifdef(TEST).
+%% @private
+'_call'(Ref, Version, Module, Function, Args, Override) ->
+    {ok, Config} = backwater_client_instances:find_client_config(Ref),
+    #{ endpoint := Endpoint, secret := Secret } = Config,
+    RequestEncodingOverride = maps:get(request, Override, #{}),
+    {Request, State} =
+        backwater_http_request:'_encode'(Endpoint, Version, Module, Function, Args, Secret,
+                                         RequestEncodingOverride),
+    call_hackney(Config, State, Request).
+-endif.
