@@ -115,23 +115,12 @@ initial_state(_Config) ->
 -spec init(req(), state()) -> {ok, req(), state()}.
 %% @private
 init(Req1, State1) ->
-    %% initialize
-    Version = cowboy_req:binding(version, Req1),
-    BinModule = cowboy_req:binding(module, Req1),
-    BinFunction = cowboy_req:binding(function, Req1),
-    Arity = cowboy_req:binding(arity, Req1),
-    State2 =
-        State1#{ req => Req1,
-                 version => Version,
-                 bin_module => BinModule,
-                 bin_function => BinFunction,
-                 arity => Arity
-               },
-
+    State2 = State1#{ req => Req1 },
     State3 =
         execute_pipeline(
           [fun check_authentication/1,
            fun check_method/1,
+           fun parse_path/1,
            fun check_authorization/1,
            fun check_existence/1,
            fun check_args_content_type/1,
@@ -240,6 +229,44 @@ check_method(#{ req := Req } = State) ->
             {continue, State};
         false ->
             {stop, set_bodyless_response(405, State)}
+    end.
+
+%% ------------------------------------------------------------------
+%% Internal Function Definitions - Parse Path
+%% ------------------------------------------------------------------
+
+-spec parse_path(state()) -> {continue | stop, state()}.
+parse_path(#{ req := Req } = State) ->
+    case cowboy_req:path_info(Req) of
+        [Version, BinModule, BinFunction, BinArity] ->
+            parse_path(Version, BinModule, BinFunction, BinArity, State);
+        Other when is_list(Other) ->
+            {stop, set_response(400, invalid_path, State)}
+    end.
+
+-spec parse_path(backwater_module_info:version(), binary(), binary(), binary(), state())
+        -> {continue | stop, state()}.
+parse_path(Version, BinModule, BinFunction, BinArity, State1) ->
+    case arity_from_binary(BinArity) of
+        {ok, Arity} ->
+            State2 =
+                State1#{ version => Version,
+                         bin_module => BinModule,
+                         bin_function => BinFunction,
+                         arity => Arity },
+            {continue, State2};
+        error ->
+            {stop, set_response(400, invalid_arity, State1)}
+    end.
+
+-spec arity_from_binary(binary()) -> {ok, arity()} | error.
+arity_from_binary(BinArity) ->
+    try binary_to_integer(BinArity) of
+        Integer when Integer > 255 -> error;
+        Integer when Integer < 0 -> error;
+        Arity -> {ok, Arity}
+    catch
+        error:badarg -> error
     end.
 
 %% ------------------------------------------------------------------

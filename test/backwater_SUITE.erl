@@ -317,6 +317,16 @@ missing_request_request_id_grouptest(Config) ->
                 {unauthorized, <<"{missing_header,<<\"x-request-id\">>}">>}}}, % remote error
        backwater_client:'_call'(Ref, "1", erlang, '-', [Arg], Override)).
 
+invalid_path_grouptest(Config) ->
+    {ref, Ref} = lists:keyfind(ref, 1, Config),
+    Arg = rand:uniform(1000),
+    Override =
+        #{ request =>
+            #{ update_url_with => append_to_binary_fun(<<"/blah">>) } },
+    ?assertMatch(
+       {error, {remote_error, {bad_request, <<"invalid_path">>}}},
+       backwater_client:'_call'(Ref, "1", erlang, '-', [Arg], Override)).
+
 negative_url_arity_grouptest(Config) ->
     {ref, Ref} = lists:keyfind(ref, 1, Config),
     Arg = rand:uniform(1000),
@@ -324,8 +334,7 @@ negative_url_arity_grouptest(Config) ->
         #{ request =>
             #{ update_url_with => replace_url_part_fun(<<"-1">>, -1) } },
     ?assertMatch(
-       {error, {{response_authentication, missing_request_id}, % local error
-                {not_found, _}}},                              % remote error
+       {error, {remote_error, {bad_request, <<"invalid_arity">>}}},
        backwater_client:'_call'(Ref, "1", erlang, '-', [Arg], Override)).
 
 big_url_arity_grouptest(Config) ->
@@ -335,8 +344,7 @@ big_url_arity_grouptest(Config) ->
         #{ request =>
             #{ update_url_with => replace_url_part_fun(<<"256">>, -1) } },
     ?assertMatch(
-       {error, {{response_authentication, missing_request_id}, % local error
-                {not_found, _}}},                              % remote error
+       {error, {remote_error, {bad_request, <<"invalid_arity">>}}},
        backwater_client:'_call'(Ref, "1", erlang, '-', [Arg], Override)).
 
 nonnumeric_url_arity_grouptest(Config) ->
@@ -346,54 +354,7 @@ nonnumeric_url_arity_grouptest(Config) ->
         #{ request =>
             #{ update_url_with => replace_url_part_fun(<<"foobar">>, -1) } },
     ?assertMatch(
-       {error, {{response_authentication, missing_request_id}, % local error
-                {not_found, _}}},                              % remote error
-       backwater_client:'_call'(Ref, "1", erlang, '-', [Arg], Override)).
-
-nonutf8_url_module_grouptest(Config) ->
-    {ref, Ref} = lists:keyfind(ref, 1, Config),
-    Arg = rand:uniform(1000),
-    Override =
-        #{ request =>
-            #{ update_url_with => replace_url_part_fun(<<"ê">>, -3) } },
-    ?assertMatch(
-       {error, {{response_authentication, missing_request_id}, % local error
-                {not_found, _}}},                              % remote error
-       backwater_client:'_call'(Ref, "1", erlang, '-', [Arg], Override)).
-
-nonutf8_url_function_grouptest(Config) ->
-    {ref, Ref} = lists:keyfind(ref, 1, Config),
-    Arg = rand:uniform(1000),
-    Override =
-        #{ request =>
-            #{ update_url_with => replace_url_part_fun(<<"ê">>, -2) } },
-    ?assertMatch(
-       {error, {{response_authentication, missing_request_id}, % local error
-                {not_found, _}}},                              % remote error
-       backwater_client:'_call'(Ref, "1", erlang, '-', [Arg], Override)).
-
-big_url_module_grouptest(Config) ->
-    {ref, Ref} = lists:keyfind(ref, 1, Config),
-    Arg = rand:uniform(1000),
-    BinModule = list_to_binary( string:copies("x", 256) ),
-    Override =
-        #{ request =>
-            #{ update_url_with => replace_url_part_fun(BinModule, -3) } },
-    ?assertMatch(
-       {error, {{response_authentication, missing_request_id}, % local error
-                {not_found, _}}},                              % remote error
-       backwater_client:'_call'(Ref, "1", erlang, '-', [Arg], Override)).
-
-big_url_function_grouptest(Config) ->
-    {ref, Ref} = lists:keyfind(ref, 1, Config),
-    Arg = rand:uniform(1000),
-    BinFunction = list_to_binary( string:copies("x", 256) ),
-    Override =
-        #{ request =>
-            #{ update_url_with => replace_url_part_fun(BinFunction, -2) } },
-    ?assertMatch(
-       {error, {{response_authentication, missing_request_id}, % local error
-                {not_found, _}}},                              % remote error
+       {error, {remote_error, {bad_request, <<"invalid_arity">>}}},
        backwater_client:'_call'(Ref, "1", erlang, '-', [Arg], Override)).
 
 unallowed_method_grouptest(Config) ->
@@ -637,6 +598,9 @@ remove_header_fun(CiName) ->
 
 update_header_fun(CiName, Value) ->
     fun (CiHeaders) -> lists:keystore(CiName, 1, CiHeaders, {CiName, Value}) end.
+
+append_to_binary_fun(Suffix) ->
+    fun (Binary) -> <<Binary/binary, Suffix/binary>> end.
 
 replace_url_part_fun(UpdatedValue, Index) ->
     fun (Url) ->
