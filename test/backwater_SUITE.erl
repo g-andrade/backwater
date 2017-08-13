@@ -28,7 +28,7 @@ init_per_group(Name, Config) ->
            decode_unsafe_terms => DecodeUnsafeTerms,
            return_exception_stacktraces => ReturnExceptionStacktraces
          },
-    {ok, _Pid} = backwater_server:StartFun(Name, ProtoOpts, #{}, ServerConfig),
+    {ok, _Pid} = backwater_server:StartFun(Name, ServerConfig, ProtoOpts, #{}),
 
     BaseClientConfig =
         #{ endpoint => Endpoint,
@@ -70,8 +70,8 @@ end_per_suite(Config) ->
 
 %%%
 
-bad_client_start_opts_test(_Config) ->
-    Ref = bad_client_start_opts_test,
+bad_client_start_config_test(_Config) ->
+    Ref = bad_client_start_config_test,
     StartFun = fun (Config) -> backwater_client:start(Ref, Config) end,
 
     % not a map
@@ -127,59 +127,57 @@ bad_client_stop_test(_Config) ->
 
 %%%
 
-bad_server_start_opts_grouptest(Config) ->
+bad_server_start_config_grouptest(Config) ->
     {name, Name} = lists:keyfind(name, 1, Config),
-    bad_server_start_opts_grouptest(Config, Name).
+    bad_server_start_config_grouptest(Config, Name).
 
-bad_server_start_opts_grouptest(_Config, Name) when Name =/= http, Name =/= https ->
-    {skip, not_applicable};
-bad_server_start_opts_grouptest(Config, Name) ->
+bad_server_start_config_grouptest(Config, Name) ->
     {server_start_fun, StartFun} = lists:keyfind(server_start_fun, 1, Config),
-    Ref = {Name, bad_server_start_opts_grouptest},
+    Ref = {Name, bad_server_start_config_grouptest},
     WrappedStartFun =
-        fun (BackwaterOpts) ->
-                backwater_server:StartFun(Ref, [{port,12345}], #{}, BackwaterOpts)
+        fun (ServerConfig) ->
+                backwater_server:StartFun(Ref, ServerConfig, [{port,12345}], #{})
         end,
 
     % not a map
-    ?assertEqual({error, invalid_opts}, WrappedStartFun([])),
+    ?assertEqual({error, invalid_config}, WrappedStartFun([])),
 
     % missing opts
     ?assertEqual(
-       {error, {missing_mandatory_opts, [exposed_modules, secret]}},
+       {error, {missing_mandatory_config_parameters, [exposed_modules, secret]}},
        WrappedStartFun(#{})),
     ?assertEqual(
-       {error, {missing_mandatory_opts, [exposed_modules]}},
+       {error, {missing_mandatory_config_parameters, [exposed_modules]}},
        WrappedStartFun(#{ secret => <<>> })),
     ?assertEqual(
-       {error, {missing_mandatory_opts, [secret]}},
+       {error, {missing_mandatory_config_parameters, [secret]}},
        WrappedStartFun(#{ exposed_modules => [] })),
 
     % invalid secret
     ?assertEqual(
-       {error, {invalid_opt, {secret, invalid_secret}}},
+       {error, {invalid_config_parameter, {secret, invalid_secret}}},
        WrappedStartFun(#{ secret => invalid_secret, exposed_modules => [] })),
 
     % invalid exposed_modules
     ?assertEqual(
-       {error, {invalid_opt, {exposed_modules, invalid_exposed_modules}}},
+       {error, {invalid_config_parameter, {exposed_modules, invalid_exposed_modules}}},
        WrappedStartFun(#{ secret => <<>>, exposed_modules => invalid_exposed_modules })),
 
     % invalid decode_unsafe_terms (optional)
     ?assertEqual(
-       {error, {invalid_opt, {decode_unsafe_terms, invalid_decode_unsafe_terms}}},
+       {error, {invalid_config_parameter, {decode_unsafe_terms, invalid_decode_unsafe_terms}}},
        WrappedStartFun(#{ secret => <<>>, exposed_modules => [],
                           decode_unsafe_terms => invalid_decode_unsafe_terms })),
 
     % invalid return_exception_stacktraces (optional)
     ?assertEqual(
-       {error, {invalid_opt, {return_exception_stacktraces, invalid_return_exception_stacktraces}}},
+       {error, {invalid_config_parameter, {return_exception_stacktraces, invalid_return_exception_stacktraces}}},
        WrappedStartFun(#{ secret => <<>>, exposed_modules => [],
                           return_exception_stacktraces => invalid_return_exception_stacktraces })),
 
     % unknown setting
     ?assertEqual(
-       {error, {invalid_opt, {unknown_setting, some_value}}},
+       {error, {invalid_config_parameter, {unknown_setting, some_value}}},
        WrappedStartFun(#{ secret => <<>>, exposed_modules => [],
                           unknown_setting => some_value })).
 
@@ -194,9 +192,9 @@ server_start_ref_clash_grouptest(Config, Name, _Protocol) ->
     {server_start_fun, StartFun} = lists:keyfind(server_start_fun, 1, Config),
     Ref = {Name, server_start_ref_clash_test},
     WrappedStartFun =
-        fun (BackwaterOpts) ->
+        fun (ServerConfig) ->
                 ProtoOpts = [{port,12346}],
-                backwater_server:StartFun(Ref, ProtoOpts, #{}, BackwaterOpts)
+                backwater_server:StartFun(Ref, ServerConfig, ProtoOpts, #{})
         end,
 
     ?assertMatch(

@@ -31,7 +31,7 @@
 %% ------------------------------------------------------------------
 
 -opaque state() ::
-        #{ opts := opts(),
+        #{ config := config(),
 
            req => req(),
            version => backwater_module_info:version(),
@@ -52,12 +52,12 @@
            result_content_encoding => binary() }.
 -export_type([state/0]).
 
--type opts() ::
+-type config() ::
         #{ secret := binary(),
            exposed_modules := [backwater_module_info:exposed_module()],
            decode_unsafe_terms => boolean(),
            return_exception_stacktraces => boolean() }.
--export_type([opts/0]).
+-export_type([config/0]).
 
 -type accepted_content_type() :: {content_type(), Quality :: 0..1000, accepted_ext()}.
 
@@ -90,23 +90,23 @@
 %% API Function Definitions
 %% ------------------------------------------------------------------
 
--spec initial_state(opts()) -> {ok, state()} | {error, term()}.
+-spec initial_state(config()) -> {ok, state()} | {error, term()}.
 %% @private
-initial_state(#{ secret := _, exposed_modules := _ } = Opts) ->
-    ListOpts = maps:to_list(Opts),
-    ValidationResult = backwater_util:lists_allmap(fun validate_opt_pair/1, ListOpts),
+initial_state(#{ secret := _, exposed_modules := _ } = Config) ->
+    ConfigList = maps:to_list(Config),
+    ValidationResult = backwater_util:lists_allmap(fun validate_config_pair/1, ConfigList),
     case ValidationResult of
-        {true, ValidatedListOpts} ->
-            InitialState = #{ opts => maps:from_list(ValidatedListOpts) },
+        {true, ValidatedConfigList} ->
+            InitialState = #{ config => maps:from_list(ValidatedConfigList) },
             {ok, InitialState};
         {false, InvalidOpt} ->
-            {error, {invalid_opt, InvalidOpt}}
+            {error, {invalid_config_parameter, InvalidOpt}}
     end;
-initial_state(Opts) when is_map(Opts) ->
-    Missing = [secret, exposed_modules] -- maps:keys(Opts),
-    {error, {missing_mandatory_opts, lists:sort(Missing)}};
-initial_state(_Opts) ->
-    {error, invalid_opts}.
+initial_state(Config) when is_map(Config) ->
+    Missing = [secret, exposed_modules] -- maps:keys(Config),
+    {error, {missing_mandatory_config_parameters, lists:sort(Missing)}};
+initial_state(_Config) ->
+    {error, invalid_config}.
 
 %% ------------------------------------------------------------------
 %% cowboy_http_handler Function Definitions
@@ -179,7 +179,7 @@ execute_pipeline([], State) ->
 %% ------------------------------------------------------------------
 
 -spec check_authentication(state()) -> {continue | stop, state()}.
-check_authentication(#{ req := Req, opts := #{ secret := Secret } } = State) ->
+check_authentication(#{ req := Req, config := #{ secret := Secret } } = State) ->
     SignaturesConfig = backwater_http_signatures:config(Secret),
     Method = cowboy_req:method(Req),
     EncodedPathWithQs = req_encoded_path_with_qs(Req),
@@ -249,7 +249,7 @@ check_method(#{ req := Req } = State) ->
 -spec check_authorization(state()) -> {continue | stop, state()}.
 check_authorization(State) ->
     #{ bin_module := BinModule,
-       opts := #{ exposed_modules := ExposedModules } } = State,
+       config := #{ exposed_modules := ExposedModules } } = State,
 
     SearchResult =
         lists:any(
@@ -296,7 +296,7 @@ handle_cached_function_properties_lookup({ok, FunctionProperties}, _State) ->
     {found, FunctionProperties};
 handle_cached_function_properties_lookup(error, State) ->
     #{ bin_module := BinModule,
-       opts := #{ exposed_modules := ExposedModules  } } = State,
+       config := #{ exposed_modules := ExposedModules  } } = State,
     InfoPerExposedModule = backwater_module_info:generate(ExposedModules),
     InfoLookup = maps:find(BinModule, InfoPerExposedModule),
     handle_module_info_lookup(InfoLookup, State).
@@ -541,8 +541,8 @@ validate_args(Args, State) ->
 
 -spec should_decode_unsafe_terms(state()) -> boolean().
 should_decode_unsafe_terms(State) ->
-    #{ opts := Opts } = State,
-    maps:get(decode_unsafe_terms, Opts, ?DEFAULT_OPT_DECODE_UNSAFE_TERMS).
+    #{ config := Config } = State,
+    maps:get(decode_unsafe_terms, Config, ?DEFAULT_OPT_DECODE_UNSAFE_TERMS).
 
 %% ------------------------------------------------------------------
 %% Internal Function Definitions - Execute Call
@@ -614,8 +614,8 @@ return_call_exception(Class, Exception, Stacktrace) ->
 
 -spec should_return_exception_stack_traces(state()) -> boolean().
 should_return_exception_stack_traces(State) ->
-    #{ opts := Opts } = State,
-    maps:get(return_exception_stacktraces, Opts, ?DEFAULT_OPT_RETURN_EXCEPTION_STACKTRACES).
+    #{ config := Config } = State,
+    maps:get(return_exception_stacktraces, Config, ?DEFAULT_OPT_RETURN_EXCEPTION_STACKTRACES).
 
 %% ------------------------------------------------------------------
 %% Internal Function Definitions - Send Response
@@ -627,7 +627,7 @@ send_response(#{ signed_request_msg := SignedRequestMsg } = State1) ->
     #{ req := Req1, response := Response } = State1,
     #{ status_code := ResponseStatusCode, headers := ResponseHeaders1, body := ResponseBody } = Response,
 
-    #{ opts := #{ secret := Secret } } = State1,
+    #{ config := #{ secret := Secret } } = State1,
     SignaturesConfig = backwater_http_signatures:config(Secret),
     ResponseMsg =
         backwater_http_signatures:new_response_msg(ResponseStatusCode, {ci_headers, ResponseHeaders1}),
@@ -694,15 +694,15 @@ nocache_headers() ->
 %% Internal Function Definitions
 %% ------------------------------------------------------------------
 
--spec validate_opt_pair({term(), term()}) -> boolean().
-validate_opt_pair({secret, Secret}) ->
+-spec validate_config_pair({term(), term()}) -> boolean().
+validate_config_pair({secret, Secret}) ->
     is_binary(Secret);
-validate_opt_pair({exposed_modules, ExposedModules}) ->
+validate_config_pair({exposed_modules, ExposedModules}) ->
     % TODO validate deeper
     is_list(ExposedModules);
-validate_opt_pair({decode_unsafe_terms, DecodeUnsafeTerms}) ->
+validate_config_pair({decode_unsafe_terms, DecodeUnsafeTerms}) ->
     is_boolean(DecodeUnsafeTerms);
-validate_opt_pair({return_exception_stacktraces, ReturnExceptionStacktraces}) ->
+validate_config_pair({return_exception_stacktraces, ReturnExceptionStacktraces}) ->
     is_boolean(ReturnExceptionStacktraces);
-validate_opt_pair({_Key, _Value}) ->
+validate_config_pair({_Key, _Value}) ->
     false.
