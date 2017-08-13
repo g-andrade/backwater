@@ -519,6 +519,31 @@ exception_error_result_grouptest(Config, ReturnExceptionStacktraces) ->
                backwater_client:call(Ref, "1", erlang, '/', [Arg1, Arg2]))
     end.
 
+unsafe_argument_grouptest(Config) ->
+    {ref, Ref} = lists:keyfind(ref, 1, Config),
+    {name, Name} = lists:keyfind(name, 1, Config),
+    {_Protocol, DecodeUnsafeTerms, _ReturnExceptionStacktraces} = decode_group_name(Name),
+    AtomName = base64:encode( crypto:strong_rand_bytes(16) ),
+    AtomNameSize = byte_size(AtomName),
+    Arity = 2,
+    EncodedArguments = <<131, 108, Arity:32,                 % list tag and size
+                         119, AtomNameSize, AtomName/binary, % argument 1 (encoded atom)
+                         119, 4, "utf8",                     % argument 2 (encoded atom)
+                         106>>,                              % list termination (nil)
+    Override =
+        #{ request =>
+            #{ {update_body_with, before_authentication} => value_fun1(EncodedArguments) } },
+
+    Result = backwater_client:'_call'(Ref, "1", erlang, atom_to_binary, [placeholder, utf8], Override),
+    case DecodeUnsafeTerms of
+        true ->
+            ?assertEqual({ok, AtomName}, Result);
+        false ->
+            ?assertEqual(
+               {error, {remote_error, {bad_request, unable_to_decode_arguments}}},
+               Result)
+    end.
+
 %%%
 all_individual_tests() ->
     [Name || {Name, 1} <- exported_functions(),
