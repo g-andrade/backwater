@@ -109,7 +109,7 @@ validate_config(#{ endpoint := _, secret := _ } = Config) ->
             {error, {invalid_config_parameter, InvalidSetting}}
     end;
 validate_config(#{} = Config) ->
-    Missing = [endpoint, secret] -- maps:keys(Config),
+    Missing = lists:sort([endpoint, secret] -- maps:keys(Config)),
     {error, {missing_mandatory_config_parameters, Missing}};
 validate_config(_Config) ->
     {error, invalid_config}.
