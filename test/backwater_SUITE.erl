@@ -122,7 +122,7 @@ bad_client_start_config_test(_Config) ->
        StartFun(#{ endpoint => <<"https://blah">>, secret => <<>>,
                    unknown_setting => some_value })).
 
-bad_client_stop_test(_Config) ->
+not_started_client_stop_test(_Config) ->
     ?assertEqual({error, not_found}, backwater_client:stop(non_existing_client_ref)).
 
 %%%
