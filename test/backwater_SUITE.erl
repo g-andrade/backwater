@@ -41,7 +41,7 @@ init_per_group(Name, Config) ->
     ok = backwater_client:start(Name, BaseClientConfig),
 
     ClientConfigWithWrongEndpoint =
-        BaseClientConfig#{ endpoint := <<"http://127.0.0.2">> },
+        BaseClientConfig#{ endpoint := <<Endpoint/binary, "/nope">> },
     ok = backwater_client:start(
            {wrong_endpoint, Name}, ClientConfigWithWrongEndpoint),
 
@@ -258,7 +258,10 @@ wrong_endpoint_grouptest(Config) ->
     {ref, BaseRef} = lists:keyfind(ref, 1, Config),
     Ref = {wrong_endpoint, BaseRef},
     Arg = rand:uniform(1000),
-    ?assertEqual({error, {hackney,econnrefused}}, backwater_client:call(Ref, erlang, '-', [Arg])).
+    ?assertMatch(
+       {error, {{response_authentication, missing_request_id},
+                {not_found, _Headers, _Body}}},
+       backwater_client:call(Ref, erlang, '-', [Arg])).
 
 wrong_secret_grouptest(Config) ->
     {ref, BaseRef} = lists:keyfind(ref, 1, Config),
