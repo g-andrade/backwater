@@ -134,10 +134,10 @@ init(Req1, State1) ->
 
 -spec terminate(term(), req(), state()) -> ok.
 %% @private
-terminate({crash, Class, Reason}, _Req, _State) ->
-    Stacktrace = erlang:get_stacktrace(),
-    io:format("Crash! ~p:~p, ~p~n", [Class, Reason, Stacktrace]),
-    ok;
+%terminate({crash, Class, Reason}, _Req, _State) ->
+%    Stacktrace = erlang:get_stacktrace(),
+%    io:format("Crash! ~p:~p, ~p~n", [Class, Reason, Stacktrace]),
+%    ok;
 terminate(_Reason, _Req, _State) ->
     ok.
 
