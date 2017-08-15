@@ -23,7 +23,6 @@
 
 -define(CACHED_FUNCTION_PROPERTIES_TTL, (timer:seconds(5))).
 -define(COMPRESSION_THRESHOLD, 300).
--define(MAX_BODY_SIZE, (10 * (1 bsl 20))). % in bytes
 -define(KNOWN_CONTENT_ENCODINGS, [<<"gzip">>, <<"identity">>]).
 -define(DEFAULT_OPT_DECODE_UNSAFE_TERMS, false).
 -define(DEFAULT_OPT_RETURN_EXCEPTION_STACKTRACES, true).
