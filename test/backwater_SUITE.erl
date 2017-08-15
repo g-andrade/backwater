@@ -470,6 +470,16 @@ inconsistent_arguments_arity_grouptest(Config) ->
        {error, {remote_error, {bad_request, inconsistent_arguments_arity}}},
        backwater_client:'_call'(Ref, "1", erlang, '-', [Arg], Override)).
 
+wrong_arguments_type_grouptest(Config) ->
+    {ref, Ref} = lists:keyfind(ref, 1, Config),
+    EncodedArguments = term_to_binary({}), % tuple instead of list
+    Override =
+        #{ request =>
+            #{ {update_body_with,before_compression} => value_fun1(EncodedArguments) } },
+    ?assertMatch(
+       {error, {remote_error, {bad_request, arguments_not_a_list}}},
+       backwater_client:'_call'(Ref, "1", erlang, '-', [dummy], Override)).
+
 exception_error_result_grouptest(Config) ->
     {name, Name} = lists:keyfind(name, 1, Config),
     {_Protocol, _DecodeUnsafeTerms, ReturnExceptionStacktraces} = decode_group_name(Name),
