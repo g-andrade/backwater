@@ -58,7 +58,12 @@ end_per_group(_Name, Config1) ->
     {value, {ref, Ref}, Config2} = lists:keytake(ref, 1, Config1),
     Config3 = lists_keywithout([server_start_fun, name], 1, Config2),
     ok = backwater_server:stop_listener(Ref),
-    ok = backwater_client:stop(Ref),
+    lists:foreach(
+      fun backwater_client:stop/1,
+      [Ref,
+       {wrong_endpoint, Ref},
+       {wrong_secret, Ref},
+       {remote_exceptions_rethrown, Ref}]),
     Config3.
 
 init_per_suite(Config) ->
