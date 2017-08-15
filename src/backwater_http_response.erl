@@ -4,6 +4,10 @@
 -include("backwater_client.hrl").
 -include("backwater_common.hrl").
 
+-ifdef(TEST).
+-include_lib("eunit/include/eunit.hrl").
+-endif.
+
 %% ------------------------------------------------------------------
 %% API Function Exports
 %% ------------------------------------------------------------------
@@ -59,6 +63,7 @@
 -export_type([status_code/0]).
 
 -type status_code_name() ::
+        ok |
         bad_request |
         unauthorized |
         forbidden |
@@ -103,7 +108,7 @@ decode(StatusCode, Headers, Body, RequestState, Options) ->
     authenticate(StatusCode, CiHeaders, Body, RequestState, Options).
 
 %% ------------------------------------------------------------------
-%% Internal Function Definitions - Responses
+%% Internal Function Definitions - Authentication
 %% ------------------------------------------------------------------
 
 -spec authenticate(status_code(), headers(), binary(), backwater_http_request:state(),
@@ -129,6 +134,10 @@ authenticate_body(StatusCode, CiHeaders, Body, Options, SignedResponseMsg) ->
             failure_error({response_authentication, wrong_body_digest}, StatusCode, CiHeaders, Body)
     end.
 
+%% ------------------------------------------------------------------
+%% Internal Function Definitions - Decode Response
+%% ------------------------------------------------------------------
+
 -spec decode_(status_code(), headers(), binary(), options(),
               backwater_http_signatures:signed_message()) -> t().
 decode_(200 = StatusCode, CiHeaders, Body, Options, SignedResponseMsg) ->
@@ -140,13 +149,17 @@ decode_(200 = StatusCode, CiHeaders, Body, Options, SignedResponseMsg) ->
             erlang:raise(Class, Exception, Stacktrace);
         {ok, {exception, {Class, Exception, Stacktrace}}} ->
             {error, {exception, {Class, Exception, Stacktrace}}};
-        {ok, _Other} ->
+        {ok, _UnknownBodyFormat} ->
             failure_error(invalid_body, StatusCode, CiHeaders, Body);
         {error, Error} ->
             failure_error(Error, StatusCode, CiHeaders, Body)
     end;
 decode_(StatusCode, CiHeaders, Body, _Options, _SignedResponseMsg) ->
     failure_error(remote, StatusCode, CiHeaders, Body).
+
+%% ------------------------------------------------------------------
+%% Internal Function Definitions - Content Encoding
+%% ------------------------------------------------------------------
 
 -spec decode_body(headers(), binary(), options(),
                            backwater_http_signatures:signed_message())
@@ -155,8 +168,6 @@ decode_(StatusCode, CiHeaders, Body, _Options, _SignedResponseMsg) ->
 decode_body(CiHeaders, Body, Options, SignedResponseMsg) ->
     ContentEncoding = get_content_encoding(CiHeaders, SignedResponseMsg),
     handle_body_content_encoding(ContentEncoding, CiHeaders, Body, Options, SignedResponseMsg).
-
-%% body encoding
 
 -spec handle_body_content_encoding(ContentEncoding :: binary(),
                                    headers(), binary(), options(),
@@ -186,7 +197,9 @@ get_content_encoding(CiHeaders, SignedResponseMsg) ->
             <<"identity">>
     end.
 
-%% body content type
+%% ------------------------------------------------------------------
+%% Internal Function Definitions - Content Type
+%% ------------------------------------------------------------------
 
 -spec handle_body_content_type({ok, {nonempty_binary(), [nonempty_binary()]}} |
                                {error, invalid_content_type},
@@ -225,7 +238,9 @@ get_content_type(CiHeaders, SignedResponseMsg) ->
             {error, invalid_content_type}
     end.
 
-%% utilities and misfits
+%% ------------------------------------------------------------------
+%% Internal Function Definitions - Utilities and Misfits
+%% ------------------------------------------------------------------
 
 -spec find_header_value(nonempty_binary(), headers(), backwater_http_signatures:signed_message())
         -> {ok, binary()} | error.
@@ -257,6 +272,7 @@ failure_error(Failure, StatusCode, CiHeaders, Body) ->
     {error, {Failure, {status_code_name(StatusCode), CiHeaders, Body}}}.
 
 -spec status_code_name(status_code()) -> status_code_name().
+status_code_name(200) -> ok;
 status_code_name(400) -> bad_request;
 status_code_name(401) -> unauthorized;
 status_code_name(403) -> forbidden;
@@ -267,3 +283,114 @@ status_code_name(413) -> payload_too_large;
 status_code_name(415) -> unsupported_media_type;
 status_code_name(500) -> internal_error;
 status_code_name(Unknown) -> {http, Unknown}.
+
+%% ------------------------------------------------------------------
+%% Internal Function Definitions - Unit Tests
+%% ------------------------------------------------------------------
+-ifdef(TEST).
+
+test_signatures_config() ->
+    backwater_http_signatures:config( crypto:strong_rand_bytes(32) ).
+
+test_request_msg() ->
+    SignaturesConfig = test_signatures_config(),
+    {SignaturesConfig, backwater_http_signatures:new_request_msg(<<"POST">>, <<"/path">>, #{})}.
+
+test_request_state() ->
+    {SignaturesConfig, RequestMsg} = test_request_msg(),
+    RequestId = crypto:strong_rand_bytes(16),
+    SignedRequestMsg =
+        backwater_http_signatures:sign_request(SignaturesConfig, RequestMsg, <<"request body">>, RequestId),
+    {SignaturesConfig, #{ signed_request_msg => SignedRequestMsg }}.
+
+test_response(ResponseHeaders) ->
+    ResponseBody = crypto:strong_rand_bytes(1024),
+    {StatusCode, SignedResponseMsgHeaders, RequestState} = test_response(ResponseHeaders, ResponseBody),
+    {StatusCode, SignedResponseMsgHeaders, ResponseBody, RequestState}.
+
+test_response(ResponseHeaders, ResponseBody) ->
+    {SignaturesConfig, RequestState} = test_request_state(),
+    #{ signed_request_msg := SignedRequestMsg } = RequestState,
+    StatusCode = 200,
+    StatusCodeName = status_code_name(StatusCode),
+    ResponseMsg = backwater_http_signatures:new_response_msg(StatusCode, ResponseHeaders),
+    SignedResponseMsg = backwater_http_signatures:sign_response(SignaturesConfig,
+                                                                ResponseMsg, ResponseBody,
+                                                                SignedRequestMsg),
+    SignedResponseMsgHeaders = backwater_http_signatures:list_real_msg_headers(SignedResponseMsg),
+    {StatusCodeName, SignedResponseMsgHeaders, RequestState}.
+
+
+invalid_signature_test() ->
+    {StatusCodeName, SignedResponseMsgHeaders, ResponseBody, RequestState} = test_response(#{}),
+    CorruptSignedResponseMsgHeaders =
+        lists:keystore(<<"digest">>, 1, SignedResponseMsgHeaders, {<<"digest">>, <<>>}),
+    ?assertMatch(
+       {error, {{response_authentication, invalid_signature},
+                {StatusCodeName, CorruptSignedResponseMsgHeaders, ResponseBody}}},
+       decode(200, CorruptSignedResponseMsgHeaders, ResponseBody, RequestState)).
+
+invalid_body_digest_test() ->
+    {StatusCodeName, SignedResponseMsgHeaders, _ResponseBody, RequestState} = test_response(#{}),
+    CorruptResponseBody = crypto:strong_rand_bytes(1024),
+    ?assertMatch(
+       {error, {{response_authentication, wrong_body_digest},
+                {StatusCodeName, SignedResponseMsgHeaders, CorruptResponseBody}}},
+       decode(200, SignedResponseMsgHeaders, CorruptResponseBody, RequestState)).
+
+unknown_content_encoding_test() ->
+    ResponseHeaders = #{ <<"content-encoding">> => <<"something">> },
+    {StatusCodeName, SignedResponseMsgHeaders, ResponseBody, RequestState} =
+        test_response(ResponseHeaders),
+    ?assertMatch(
+       {error, {invalid_content_encoding, {StatusCodeName, SignedResponseMsgHeaders, ResponseBody}}},
+       decode(200, SignedResponseMsgHeaders, ResponseBody, RequestState)).
+
+missing_content_type_test() ->
+    {StatusCodeName, SignedResponseMsgHeaders, ResponseBody, RequestState} = test_response(#{}),
+    ?assertMatch(
+       {error, {invalid_content_type, {StatusCodeName, SignedResponseMsgHeaders, ResponseBody}}},
+       decode(200, SignedResponseMsgHeaders, ResponseBody, RequestState)).
+
+unknown_content_type_test() ->
+    ResponseHeaders = #{ <<"content-type">> => <<"something/something">> },
+    {StatusCodeName, SignedResponseMsgHeaders, ResponseBody, RequestState} =
+        test_response(ResponseHeaders),
+    ?assertMatch(
+       {error, {invalid_content_type, {StatusCodeName, SignedResponseMsgHeaders, ResponseBody}}},
+       decode(200, SignedResponseMsgHeaders, ResponseBody, RequestState)).
+
+malformed_content_type_test() ->
+    ResponseHeaders = #{ <<"content-type">> => <<>> },
+    {StatusCodeName, SignedResponseMsgHeaders, ResponseBody, RequestState} =
+        test_response(ResponseHeaders),
+    ?assertMatch(
+       {error, {invalid_content_type, {StatusCodeName, SignedResponseMsgHeaders, ResponseBody}}},
+       decode(200, SignedResponseMsgHeaders, ResponseBody, RequestState)).
+
+malformed_body_test() ->
+    ResponseHeaders = #{ <<"content-type">> => <<"application/x-erlang-etf">> },
+    {StatusCodeName, SignedResponseMsgHeaders, ResponseBody, RequestState} =
+        test_response(ResponseHeaders),
+    ?assertMatch(
+       {error, {invalid_body, {StatusCodeName, SignedResponseMsgHeaders, ResponseBody}}},
+       decode(200, SignedResponseMsgHeaders, ResponseBody, RequestState)).
+
+malformed_compressed_body_test() ->
+    ResponseHeaders = #{ <<"content-type">> => <<"application/x-erlang-etf">>,
+                         <<"content-encoding">> => <<"gzip">> },
+    {StatusCodeName, SignedResponseMsgHeaders, ResponseBody, RequestState} =
+        test_response(ResponseHeaders),
+    ?assertMatch(
+       {error, {invalid_body, {StatusCodeName, SignedResponseMsgHeaders, ResponseBody}}},
+       decode(200, SignedResponseMsgHeaders, ResponseBody, RequestState)).
+
+unknown_body_format_test() ->
+    ResponseHeaders = #{ <<"content-type">> => <<"application/x-erlang-etf">> },
+    ResponseBody = term_to_binary(unknown),
+    {StatusCodeName, SignedResponseMsgHeaders, RequestState} = test_response(ResponseHeaders, ResponseBody),
+    ?assertMatch(
+       {error, {invalid_body, {StatusCodeName, SignedResponseMsgHeaders, ResponseBody}}},
+       decode(200, SignedResponseMsgHeaders, ResponseBody, RequestState)).
+
+-endif.
