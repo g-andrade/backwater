@@ -1,6 +1,13 @@
 %% @private
 -module(backwater_media_etf).
 
+%% @doc Mostly a wrapper around erlang:{term_to_binary,binary_to_term} that:
+%% - transforms exceptions into errors
+%% - always encodes using a hardcoded format minor version (currently 1)
+%% - refuses to decode compressed payloads as these could be used to
+%%   work around existing request and response size limits enforced
+%%   both on HTTP and content encoding levels (gzip)
+
 %% ------------------------------------------------------------------
 %% API Function Exports
 %% ------------------------------------------------------------------
@@ -34,6 +41,9 @@ decode(Binary, DecodeUnsafeTerms) when not DecodeUnsafeTerms ->
 %% ------------------------------------------------------------------
 
 -spec decode_(binary(), [safe]) -> {ok, term()} | error.
+decode_(<<131, 80, _UncompressedSize:32, _CompressedData/binary>>, _Options) ->
+    % Refuse to decode compressed payloads
+    error;
 decode_(Binary, Options) ->
     try
         {ok, erlang:binary_to_term(Binary, Options)}
