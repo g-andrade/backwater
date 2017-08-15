@@ -8,14 +8,14 @@
 %% API Function Exports
 %% ------------------------------------------------------------------
 
--export([encode/6]).
+-export([encode/5]).
 
 %% ------------------------------------------------------------------
 %% Common Test Helper Exports
 %% ------------------------------------------------------------------
 
 -ifdef(TEST).
--export(['_encode'/7]).
+-export(['_encode'/6]).
 -endif.
 
 %% ------------------------------------------------------------------
@@ -44,9 +44,8 @@
 %% API Function Definitions
 %% ------------------------------------------------------------------
 
--spec encode(Endpoint, Version, Module, Function, Args, Secret) -> {Request, RequestState}
+-spec encode(Endpoint, Module, Function, Args, Secret) -> {Request, RequestState}
             when Endpoint :: nonempty_binary(),
-                 Version :: unicode:chardata(),
                  Module :: module(),
                  Function :: atom(),
                  Args :: [term()],
@@ -54,11 +53,11 @@
                  Request :: t(),
                  RequestState :: state().
 
-encode(Endpoint, Version, Module, Function, Args, Secret) ->
+encode(Endpoint, Module, Function, Args, Secret) ->
     Body = backwater_media_etf:encode(Args),
     Arity = length(Args),
     Method = ?OPAQUE_BINARY(<<"POST">>),
-    Url = request_url(Endpoint, Version, Module, Function, Arity),
+    Url = request_url(Endpoint, Module, Function, Arity),
     MediaType = ?OPAQUE_BINARY(<<"application/x-erlang-etf">>),
     Headers =
         [{?OPAQUE_BINARY(<<"accept">>), ?OPAQUE_BINARY(<<MediaType/binary>>)},
@@ -70,12 +69,11 @@ encode(Endpoint, Version, Module, Function, Args, Secret) ->
 %% Internal Function Definitions
 %% ------------------------------------------------------------------
 
--spec request_url(nonempty_binary(), unicode:chardata(), module(), atom(), arity())
+-spec request_url(nonempty_binary(), module(), atom(), arity())
         -> nonempty_binary().
-request_url(Endpoint, Version, Module, Function, Arity) ->
+request_url(Endpoint, Module, Function, Arity) ->
     PathComponents =
-        [hackney_url:urlencode(unicode:characters_to_binary(Version)),
-         hackney_url:urlencode(atom_to_binary(Module, utf8)),
+        [hackney_url:urlencode(atom_to_binary(Module, utf8)),
          hackney_url:urlencode(atom_to_binary(Function, utf8)),
          integer_to_binary(Arity)],
     QueryString = <<>>,
@@ -116,7 +114,7 @@ url_encoded_path_with_qs(Url) ->
 
 -ifdef(TEST).
 %% @private
-'_encode'(Endpoint, Version, Module, Function, Args, Secret, Override) ->
+'_encode'(Endpoint, Module, Function, Args, Secret, Override) ->
     UpdateArityWith = maps:get(update_arity_with, Override, fun identity/1),
     UpdateUrlWith = maps:get(update_url_with, Override, fun identity/1),
     UpdateMethodWith = maps:get(update_method_with, Override, fun identity/1),
@@ -125,7 +123,7 @@ url_encoded_path_with_qs(Url) ->
 
     Arity = UpdateArityWith(length(Args)),
     Method1 = UpdateMethodWith(<<"POST">>),
-    Url1 = UpdateUrlWith(request_url(Endpoint, Version, Module, Function, Arity)),
+    Url1 = UpdateUrlWith(request_url(Endpoint, Module, Function, Arity)),
     MediaType = <<"application/x-erlang-etf">>,
     Headers1 = UpdateHeadersWith(
                  [{<<"accept">>, <<MediaType/binary>>},

@@ -7,7 +7,7 @@
 %% API Function Exports
 %% ------------------------------------------------------------------
 
--export([call/5]).                               -ignore_xref({call,5}).
+-export([call/4]).                               -ignore_xref({call,4}).
 -export([start/2]).                              -ignore_xref({start,2}).
 -export([stop/1]).                               -ignore_xref({stop,1}).
 
@@ -16,7 +16,7 @@
 %% ------------------------------------------------------------------
 
 -ifdef(TEST).
--export(['_call'/6]).
+-export(['_call'/5]).
 -endif.
 
 %% ------------------------------------------------------------------
@@ -56,17 +56,16 @@
 %% API Function Definitions
 %% ------------------------------------------------------------------
 
--spec call(Ref, Version, Module, Function, Args) -> Result
+-spec call(Ref, Module, Function, Args) -> Result
         when Ref :: term(),
-             Version :: unicode:chardata(),
              Module :: module(),
              Function :: atom(),
              Args :: [term()],
              Result :: result().
 
-call(Ref, Version, Module, Function, Args) ->
+call(Ref, Module, Function, Args) ->
     ConfigLookup = backwater_client_instances:find_client_config(Ref),
-    call_(ConfigLookup, Version, Module, Function, Args).
+    call_(ConfigLookup, Module, Function, Args).
 
 
 -spec start(Ref, Config) -> ok | {error, Error}
@@ -112,19 +111,19 @@ validate_config_pair({rethrow_remote_exceptions, RethrowRemoteExceptions}) ->
 validate_config_pair({_K, _V}) ->
     false.
 
--spec call_({ok, config()} | error, unicode:chardata(), module(), atom(), [term()])
+-spec call_({ok, config()} | error, module(), atom(), [term()])
         -> result().
-call_({ok, Config}, Version, Module, Function, Args) ->
-    encode_request(Config, Version, Module, Function, Args);
-call_(error, _Version, _Module, _Function, _Args) ->
+call_({ok, Config}, Module, Function, Args) ->
+    encode_request(Config, Module, Function, Args);
+call_(error, _Module, _Function, _Args) ->
     {error, not_started}.
 
--spec encode_request(config(), unicode:chardata(), module(), atom(), [term()])
+-spec encode_request(config(), module(), atom(), [term()])
         -> backwater_http_response:t(Error) when Error :: {hackney, term()}.
-encode_request(Config, Version, Module, Function, Args) ->
+encode_request(Config, Module, Function, Args) ->
     #{ endpoint := Endpoint, secret := Secret } = Config,
     {Request, State} =
-        backwater_http_request:encode(Endpoint, Version, Module, Function, Args, Secret),
+        backwater_http_request:encode(Endpoint, Module, Function, Args, Secret),
     call_hackney(Config, State, Request).
 
 -spec call_hackney(config(), backwater_http_request:state(), backwater_http_request:t())
@@ -151,12 +150,12 @@ handle_hackney_result(_Config, _RequestState, {error, Error}) ->
 
 -ifdef(TEST).
 %% @private
-'_call'(Ref, Version, Module, Function, Args, Override) ->
+'_call'(Ref, Module, Function, Args, Override) ->
     {ok, Config} = backwater_client_instances:find_client_config(Ref),
     #{ endpoint := Endpoint, secret := Secret } = Config,
     RequestEncodingOverride = maps:get(request, Override, #{}),
     {Request, State} =
-        backwater_http_request:'_encode'(Endpoint, Version, Module, Function, Args, Secret,
+        backwater_http_request:'_encode'(Endpoint, Module, Function, Args, Secret,
                                          RequestEncodingOverride),
     call_hackney(Config, State, Request).
 -endif.

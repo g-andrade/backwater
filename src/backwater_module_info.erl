@@ -13,7 +13,6 @@
 %% Macro Definitions
 %% ------------------------------------------------------------------
 
--define(DEFAULT_BACKWATER_MODULE_VERSION, <<"1">>).
 -define(DEFAULT_MODULE_EXPORTS, use_backwater_attributes).
 
 %% ------------------------------------------------------------------
@@ -43,11 +42,8 @@
 -type lookup_result() :: {true, {BinModule :: nonempty_binary(), module_info()}} | false.
 -export_type([lookup_result/0]).
 
--type module_info() :: #{ version := version(), exports := exports() }.
+-type module_info() :: #{ exports := exports() }.
 -export_type([module_info/0]).
-
--type version() :: binary().
--export_type([version/0]).
 
 -type raw_module_info() :: [{atom(), term()}].
 -type raw_module_attributes() :: [{atom(), term()}].
@@ -78,13 +74,10 @@ find_and_parse_module_info(ExposedModule) ->
     Module = exposed_module_name(ExposedModule),
     case find_module_info(Module) of
         {ok, RawModuleInfo} ->
-            {attributes, ModuleAttributes} = lists:keyfind(attributes, 1, RawModuleInfo),
-            BackwaterModuleVersion = module_attributes_get_backwater_module_version(ModuleAttributes),
             BackwaterExports = determine_module_exports(ExposedModule, RawModuleInfo),
             BinModule = atom_to_binary(Module, utf8),
             {true,
-             {BinModule, #{ version => BackwaterModuleVersion,
-                            exports => BackwaterExports }}};
+             {BinModule, #{ exports => BackwaterExports }}};
         error ->
             false
     end.
@@ -101,16 +94,6 @@ find_module_info(Module) ->
         {ok, Module:module_info()}
     catch
         error:undef -> error
-    end.
-
--spec module_attributes_get_backwater_module_version(raw_module_attributes())
-        -> version().
-module_attributes_get_backwater_module_version(ModuleAttributes) ->
-    case lists:keyfind(backwater_module_version, 1, ModuleAttributes) of
-        {backwater_module_version, RawVersion} ->
-            <<_/binary>> = unicode:characters_to_binary(RawVersion);
-        false ->
-            ?DEFAULT_BACKWATER_MODULE_VERSION
     end.
 
 -spec determine_module_exports(exposed_module(), raw_module_info()) -> exports().

@@ -34,7 +34,6 @@
         #{ config := config(),
 
            req => req(),
-           version => backwater_module_info:version(),
            bin_module => binary(),
            bin_function => binary(),
            arity => arity(),
@@ -232,20 +231,19 @@ check_method(#{ req := Req } = State) ->
 -spec parse_path(state()) -> {continue | stop, state()}.
 parse_path(#{ req := Req } = State) ->
     case cowboy_req:path_info(Req) of
-        [Version, BinModule, BinFunction, BinArity] ->
-            parse_path(Version, BinModule, BinFunction, BinArity, State);
+        [BinModule, BinFunction, BinArity] ->
+            parse_path(BinModule, BinFunction, BinArity, State);
         Other when is_list(Other) ->
             {stop, set_error_response(400, #{}, invalid_path, State)}
     end.
 
--spec parse_path(backwater_module_info:version(), binary(), binary(), binary(), state())
+-spec parse_path(binary(), binary(), binary(), state())
         -> {continue | stop, state()}.
-parse_path(Version, BinModule, BinFunction, BinArity, State1) ->
+parse_path(BinModule, BinFunction, BinArity, State1) ->
     case arity_from_binary(BinArity) of
         {ok, Arity} ->
             State2 =
-                State1#{ version => Version,
-                         bin_module => BinModule,
+                State1#{ bin_module => BinModule,
                          bin_function => BinFunction,
                          arity => Arity },
             {continue, State2};
@@ -300,8 +298,7 @@ check_existence(State) ->
 
 -spec find_function_properties(state())
         -> {found, backwater_module_info:fun_properties()} | Error
-             when Error :: (module_version_not_found |
-                            function_not_found |
+             when Error :: (function_not_found |
                             module_not_found).
 find_function_properties(State) ->
     CacheKey = function_properties_cache_key(State),
@@ -310,7 +307,6 @@ find_function_properties(State) ->
 
 -spec handle_cached_function_properties_lookup({ok, backwater_module_info:fun_properties()} | error, state())
         -> {found, backwater_module_info:fun_properties()} |
-           module_version_not_found |
            module_not_found |
            function_not_found.
 handle_cached_function_properties_lookup({ok, FunctionProperties}, _State) ->
@@ -324,12 +320,8 @@ handle_cached_function_properties_lookup(error, State) ->
 
 -spec handle_module_info_lookup({ok, backwater_module_info:module_info()}, state())
         -> {found, backwater_module_info:fun_properties()} |
-           module_version_not_found |
            module_not_found |
            function_not_found.
-handle_module_info_lookup({ok, #{ version := Version }}, #{ version := BinVersion })
-  when Version =/= BinVersion ->
-    module_version_not_found;
 handle_module_info_lookup({ok, Info}, State) ->
     #{ exports := Exports } = Info,
     #{ bin_function := BinFunction, arity := Arity } = State,
@@ -352,13 +344,12 @@ handle_function_properties_lookup(error, _State) ->
     function_not_found.
 
 -spec function_properties_cache_key(state())
-        -> {exposed_function_properties, binary(), binary(), binary(), arity()}.
+        -> {exposed_function_properties, binary(), binary(), arity()}.
 function_properties_cache_key(State) ->
-    #{ version := Version,
-       bin_module := BinModule,
+    #{ bin_module := BinModule,
        bin_function := BinFunction,
        arity := Arity } = State,
-    {exposed_function_properties, BinModule, Version, BinFunction, Arity}.
+    {exposed_function_properties, BinModule, BinFunction, Arity}.
 
 %% ------------------------------------------------------------------
 %% Internal Function Definitions - Validate Arguments Content Type
