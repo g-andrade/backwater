@@ -16,7 +16,6 @@
 -define(DEFAULT_PARAM_UNEXPORTED_TYPES, warn).
 -define(DEFAULT_PARAM_NAME_PREFIX, "rpc_").
 -define(DEFAULT_PARAM_OUTPUT_DIRECTORY__SUBDIR, "rpc").
--define(DEFAULT_BACKWATER_MODULE_VERSION, "1").
 -define(DUMMY_LINE_NUMBER, (erl_anno:from_term(1))).
 
 %% ------------------------------------------------------------------
@@ -219,11 +218,6 @@ parse_module({attribute, _Line, deprecated, Data}, Acc) when is_list(Data) ->
     dict:append_list(deprecation_attributes, Data, Acc);
 parse_module({attribute, _Line, deprecated, Data}, Acc) ->
     dict:append(deprecation_attributes, Data, Acc);
-parse_module({attribute, _Line, backwater_module_version, RawVersion}, Acc) ->
-    case unicode:characters_to_list(RawVersion) of
-        Version when is_list(Version) ->
-            dict:store(backwater_module_version, Version, Acc)
-    end;
 parse_module({attribute, _Line, backwater_export, {Name, Arity}}, Acc) ->
     dict:append(backwater_exports, {Name, Arity}, Acc);
 parse_module({attribute, _Line, backwater_exports, List}, Acc) when is_list(List) ->
@@ -252,7 +246,6 @@ generate_module_info(ModulePath, ParseResult) ->
            exports => sets:new(),
            type_exports => sets:new(),
            deprecation_attributes => sets:new(),
-           backwater_module_version => ?DEFAULT_BACKWATER_MODULE_VERSION,
            backwater_exports => sets:new(),
            function_specs => maps:new(),
            function_definitions => maps:new() },
@@ -269,8 +262,6 @@ generate_module_info(ModulePath, ParseResult) ->
                       sets:from_list(DeprecationAttributes);
                   (type_exports, TypeExports) ->
                       sets:from_list(TypeExports);
-                  (backwater_module_version, Version) ->
-                      Version;
                   (backwater_exports, BackwaterExports) ->
                       sets:from_list(BackwaterExports);
                   (function_specs, FunctionSpecs) ->
@@ -615,15 +606,14 @@ wrap_return_type(OriginalType) ->
     {type, ?DUMMY_LINE_NUMBER, union, [SuccessSpec, ErrorSpec]}.
 
 generate_module_source_function(ClientRef, {{Name, Arity}, Definitions}, ModuleInfo) ->
-    #{ original_module := OriginalModule,
-       backwater_module_version := BackwaterModuleVersion } = ModuleInfo,
+    #{ original_module := OriginalModule } = ModuleInfo,
     IndexedVarLists = generate_module_source_indexed_var_lists(Definitions),
     ArgNames = generate_module_source_arg_names(Arity, IndexedVarLists),
     UniqueArgNames = generate_module_source_unique_arg_names(Arity, ArgNames),
     ArgVars = [{var, ?DUMMY_LINE_NUMBER, list_to_atom(StringName)} || StringName <- UniqueArgNames],
     Guards = [],
     Body = generate_module_source_function_body(
-             ClientRef, OriginalModule, BackwaterModuleVersion, Name, ArgVars),
+             ClientRef, OriginalModule, Name, ArgVars),
     Clause = {clause, ?DUMMY_LINE_NUMBER, ArgVars, Guards, Body},
     erl_pp:function({function, ?DUMMY_LINE_NUMBER, Name, Arity, [Clause]}).
 
@@ -719,10 +709,10 @@ generate_module_source_unique_arg_names(Arity, ArgNames) ->
             generate_module_source_unique_arg_names(Arity, MappedArgNames)
     end.
 
-generate_module_source_function_body(ClientRef, OriginalModule, BackwaterModuleVersion, Name, ArgVars) ->
-    [fully_qualified_call_clause(ClientRef, OriginalModule, BackwaterModuleVersion, Name, ArgVars)].
+generate_module_source_function_body(ClientRef, OriginalModule, Name, ArgVars) ->
+    [fully_qualified_call_clause(ClientRef, OriginalModule, Name, ArgVars)].
 
-fully_qualified_call_clause(ClientRef, OriginalModule, BackwaterModuleVersion, Name, ArgVars) ->
+fully_qualified_call_clause(ClientRef, OriginalModule, Name, ArgVars) ->
     Call =
         {remote, ?DUMMY_LINE_NUMBER,
          {atom, ?DUMMY_LINE_NUMBER, backwater_client},
@@ -730,7 +720,6 @@ fully_qualified_call_clause(ClientRef, OriginalModule, BackwaterModuleVersion, N
     Args =
         [erl_syntax:revert( erl_syntax:abstract(ClientRef) ),
          {atom, ?DUMMY_LINE_NUMBER, OriginalModule},
-         erl_syntax:revert( erl_syntax:abstract(BackwaterModuleVersion) ),
          {atom, ?DUMMY_LINE_NUMBER, Name},
          fully_qualified_call_clause_args(ArgVars)],
     {call, ?DUMMY_LINE_NUMBER, Call, Args}.
