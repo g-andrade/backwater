@@ -453,13 +453,14 @@ validate_signed_headers(_Config, _Params, _Msg) ->
 -spec validate_mandatory_headers(config(), params(), message())
         -> message_validation_success() | {error, mandatory_headers_failure()}.
 validate_mandatory_headers(Config, #{ <<"headers">> := SignedHeaderNames } = Params, Msg) ->
+    Mandatory = list_pseudo_msg_header_names(Msg) ++ ?VALIDATION_MANDATORILY_SIGNED_HEADER_NAMES,
     MissingMandatory =
         backwater_util:lists_anymap(
           fun (Name) ->
                   (not lists:member(Name, SignedHeaderNames))
                   andalso {true, Name}
           end,
-          ?VALIDATION_MANDATORILY_SIGNED_HEADER_NAMES),
+          Mandatory),
 
     case MissingMandatory of
         {true, Name} ->
