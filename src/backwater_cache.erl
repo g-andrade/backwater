@@ -32,7 +32,11 @@
 -define(SERVER, ?MODULE).
 -define(TABLE, ?SERVER).
 
+-ifdef(TEST).
+-define(PURGE_EXPIRED_ENTRIES_INTERVAL, 50).
+-else.
 -define(PURGE_EXPIRED_ENTRIES_INTERVAL, (timer:seconds(5))).
+-endif.
 
 %% ------------------------------------------------------------------
 %% Record Definitions
