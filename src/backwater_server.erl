@@ -1,5 +1,7 @@
 -module(backwater_server).
 
+-include("backwater_http_api.hrl").
+
 %% ------------------------------------------------------------------
 %% API Function Exports
 %% ------------------------------------------------------------------
@@ -67,8 +69,7 @@ default_transport_options(Port) ->
 
 -spec cowboy_route_path(backwater_cowboy_handler:state()) -> route_path().
 cowboy_route_path(InitialHandlerState) ->
-    BasePath = "/", % We could make this configurable.
-    Path = BasePath ++ "[...]",
+    Path = io_lib:format("~s/~s/[...]", [?BACKWATER_HTTP_API_BASE_ENDPOINT, ?BACKWATER_HTTP_API_VERSION]),
     {Path, [], backwater_cowboy_handler, InitialHandlerState}.
 
 -spec cowboy_route_rule(backwater_cowboy_handler:state()) -> route_rule().

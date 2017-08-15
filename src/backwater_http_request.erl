@@ -3,6 +3,7 @@
 -include_lib("hackney/include/hackney_lib.hrl").
 -include("backwater_client.hrl").
 -include("backwater_common.hrl").
+-include("backwater_http_api.hrl").
 
 %% ------------------------------------------------------------------
 %% API Function Exports
@@ -73,7 +74,9 @@ encode(Endpoint, Module, Function, Args, Secret) ->
         -> nonempty_binary().
 request_url(Endpoint, Module, Function, Arity) ->
     PathComponents =
-        [hackney_url:urlencode(atom_to_binary(Module, utf8)),
+        [iolist_to_binary(?BACKWATER_HTTP_API_BASE_ENDPOINT),
+         iolist_to_binary(?BACKWATER_HTTP_API_VERSION),
+         hackney_url:urlencode(atom_to_binary(Module, utf8)),
          hackney_url:urlencode(atom_to_binary(Function, utf8)),
          integer_to_binary(Arity)],
     QueryString = <<>>,
