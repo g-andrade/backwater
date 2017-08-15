@@ -438,7 +438,7 @@ unsupported_accepted_content_encoding_grouptest(Config) ->
        {error, {remote_error, {not_acceptable, <<>>}}},
        backwater_client:'_call'(Ref, "1", erlang, '-', [Arg], Override)).
 
-malformed_request_body_grouptest(Config) ->
+malformed_arguments_grouptest(Config) ->
     {ref, Ref} = lists:keyfind(ref, 1, Config),
     Arg = rand:uniform(1000),
     Override =
@@ -449,7 +449,7 @@ malformed_request_body_grouptest(Config) ->
        {error, {remote_error, {bad_request, unable_to_decode_arguments}}},
        backwater_client:'_call'(Ref, "1", erlang, '-', [Arg], Override)).
 
-malformed_compressed_request_body_grouptest(Config) ->
+malformed_compressed_arguments_grouptest(Config) ->
     {ref, Ref} = lists:keyfind(ref, 1, Config),
     Arg = string:copies("foobar", 1000),
     Override =
