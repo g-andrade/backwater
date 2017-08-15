@@ -56,7 +56,7 @@ init_per_group(Name, Config) ->
 
 end_per_group(_Name, Config1) ->
     {value, {ref, Ref}, Config2} = lists:keytake(ref, 1, Config1),
-    Config3 = lists_keywithout([server_start_fun], 1, Config2),
+    Config3 = lists_keywithout([server_start_fun, name], 1, Config2),
     ok = backwater_server:stop_listener(Ref),
     ok = backwater_client:stop(Ref),
     Config3.
