@@ -43,12 +43,6 @@
      }.
 -export_type([config/0]).
 
--type config_error() ::
-    {invalid_config_parameter, {term(), term()}} |
-    {missing_mandatory_config_parameters, [endpoint | secret, ...]} |
-    invalid_config.
--export_type([config_error/0]).
-
 -type hackney_error() :: {hackney, term()}.
 -export_type([hackney_error/0]).
 
@@ -78,7 +72,7 @@ call(Ref, Version, Module, Function, Args) ->
 -spec start(Ref, Config) -> ok | {error, Error}
         when Ref :: term(),
              Config :: config(),
-             Error :: already_started | config_error().
+             Error :: already_started | backwater_util:config_validation_error().
 
 start(Ref, Config) ->
     case validate_config(Config) of
@@ -99,21 +93,9 @@ stop(Ref) ->
 %% Internal Function Definitions
 %% ------------------------------------------------------------------
 
--spec validate_config(term()) -> {ok, config()} | {error, config_error()}.
-validate_config(#{ endpoint := _, secret := _ } = Config) ->
-    ConfigList = maps:to_list(Config),
-    ValidationResult = backwater_util:lists_allmap(fun validate_config_pair/1, ConfigList),
-    case ValidationResult of
-        {true, ValidatedConfigList} ->
-            {ok, maps:from_list(ValidatedConfigList)};
-        {false, InvalidSetting} ->
-            {error, {invalid_config_parameter, InvalidSetting}}
-    end;
-validate_config(#{} = Config) ->
-    Missing = lists:sort([endpoint, secret] -- maps:keys(Config)),
-    {error, {missing_mandatory_config_parameters, Missing}};
-validate_config(_Config) ->
-    {error, invalid_config}.
+-spec validate_config(term()) -> {ok, config()} | {error, backwater_util:config_validation_error()}.
+validate_config(Config) ->
+    backwater_util:validate_config_map(Config, [endpoint, secret], fun validate_config_pair/1).
 
 -spec validate_config_pair({term(), term()}) -> boolean().
 validate_config_pair({endpoint, Endpoint}) ->

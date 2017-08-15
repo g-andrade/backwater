@@ -90,23 +90,17 @@
 %% API Function Definitions
 %% ------------------------------------------------------------------
 
--spec initial_state(config()) -> {ok, state()} | {error, term()}.
+-spec initial_state(config()) -> {ok, state()} | {error, backwater_util:config_validation_error()}.
 %% @private
-initial_state(#{ secret := _, exposed_modules := _ } = Config) ->
-    ConfigList = maps:to_list(Config),
-    ValidationResult = backwater_util:lists_allmap(fun validate_config_pair/1, ConfigList),
+initial_state(Config) ->
+    ValidationResult = backwater_util:validate_config_map(Config, [secret, exposed_modules],
+                                                          fun validate_config_pair/1),
     case ValidationResult of
-        {true, ValidatedConfigList} ->
-            InitialState = #{ config => maps:from_list(ValidatedConfigList) },
-            {ok, InitialState};
-        {false, InvalidOpt} ->
-            {error, {invalid_config_parameter, InvalidOpt}}
-    end;
-initial_state(Config) when is_map(Config) ->
-    Missing = [secret, exposed_modules] -- maps:keys(Config),
-    {error, {missing_mandatory_config_parameters, lists:sort(Missing)}};
-initial_state(_Config) ->
-    {error, invalid_config}.
+        {ok, ValidatedConfig} ->
+            {ok, #{ config => ValidatedConfig }};
+        {error, Error} ->
+            {error, Error}
+    end.
 
 %% ------------------------------------------------------------------
 %% cowboy_http_handler Function Definitions

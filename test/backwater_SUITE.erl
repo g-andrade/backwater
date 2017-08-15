@@ -81,7 +81,7 @@ bad_client_start_config_test(_Config) ->
     StartFun = fun (Config) -> backwater_client:start(Ref, Config) end,
 
     % not a map
-    ?assertEqual({error, invalid_config}, StartFun([])),
+    ?assertEqual({error, config_not_a_map}, StartFun([])),
 
     % missing parameters
     ?assertEqual(
@@ -151,7 +151,7 @@ bad_server_start_config_grouptest(Config, Name) ->
         end,
 
     % not a map
-    ?assertEqual({error, invalid_config}, WrappedStartFun([])),
+    ?assertEqual({error, config_not_a_map}, WrappedStartFun([])),
 
     % missing opts
     ?assertEqual(
