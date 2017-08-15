@@ -555,6 +555,28 @@ exception_error_result_grouptest(Config, ReturnExceptionStacktraces) ->
                backwater_client:call(Ref, "1", erlang, '/', [Arg1, Arg2]))
     end.
 
+exception_throwing_result_grouptest(Config) ->
+    {name, Name} = lists:keyfind(name, 1, Config),
+    {_Protocol, _DecodeUnsafeTerms, ReturnExceptionStacktraces} = decode_group_name(Name),
+    exception_throwing_result_grouptest(Config, ReturnExceptionStacktraces).
+
+exception_throwing_result_grouptest(Config, ReturnExceptionStacktraces) ->
+    {ref, BaseRef} = lists:keyfind(ref, 1, Config),
+    Ref = {remote_exceptions_rethrown, BaseRef},
+    Arg1 = rand:uniform(1000),
+    Arg2 = 0,
+    CaughtResult = (catch backwater_client:call(Ref, "1", erlang, '/', [Arg1, Arg2])),
+    case ReturnExceptionStacktraces of
+        true ->
+            ?assertMatch(
+               {'EXIT', {badarith, [{erlang, '/', [Arg1, Arg2], _}]}},
+               CaughtResult);
+        false ->
+            ?assertMatch(
+               {'EXIT', {badarith, []}},
+               CaughtResult)
+    end.
+
 unsafe_argument_grouptest(Config) ->
     {ref, Ref} = lists:keyfind(ref, 1, Config),
     {name, Name} = lists:keyfind(name, 1, Config),
