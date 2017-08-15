@@ -2,6 +2,7 @@
 -behaviour(cowboy_handler).
 
 -include("backwater_common.hrl").
+-include("backwater_cowboy_handler.hrl").
 
 %% ------------------------------------------------------------------
 %% API Function Exports
@@ -22,6 +23,7 @@
 
 -define(CACHED_FUNCTION_PROPERTIES_TTL, (timer:seconds(5))).
 -define(COMPRESSION_THRESHOLD, 300).
+-define(MAX_BODY_SIZE, (10 * (1 bsl 20))). % in bytes
 -define(KNOWN_CONTENT_ENCODINGS, [<<"gzip">>, <<"identity">>]).
 -define(DEFAULT_OPT_DECODE_UNSAFE_TERMS, false).
 -define(DEFAULT_OPT_RETURN_EXCEPTION_STACKTRACES, true).
@@ -508,7 +510,7 @@ negotiate_result_content_encoding(State) ->
 
 -spec read_and_decode_args(state()) -> {continue | stop, state()}.
 read_and_decode_args(#{ req := Req } = State) ->
-    case cowboy_req:read_body(Req) of
+    case cowboy_req:read_body(Req, #{ length => ?MAX_REQUEST_BODY_SIZE }) of
         {ok, Data, Req2} ->
             State2 = State#{ req := Req2 },
             validate_args_digest(Data, State2);
@@ -531,9 +533,11 @@ validate_args_digest(Data, State) ->
 decode_args_content_encoding(Data, #{ args_content_encoding := <<"identity">> } = State) ->
     decode_args_content_type(Data, State);
 decode_args_content_encoding(Data, #{ args_content_encoding := <<"gzip">> } = State) ->
-    case backwater_encoding_gzip:decode(Data) of
+    case backwater_encoding_gzip:decode(Data, ?MAX_REQUEST_BODY_SIZE) of
         {ok, UncompressedData} ->
             decode_args_content_type(UncompressedData, State);
+        {error, too_big} ->
+            {stop, set_bodyless_response(413, State)};
         {error, _} ->
             {stop, set_response(400, unable_to_uncompress_arguments, State)}
     end.

@@ -1,0 +1,1 @@
+-define(MAX_RESPONSE_BODY_SIZE, (10 * (1 bsl 20))). % in bytes

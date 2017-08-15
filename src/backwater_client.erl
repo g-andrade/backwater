@@ -1,5 +1,6 @@
 -module(backwater_client).
 
+-include("backwater_client.hrl").
 -include("backwater_common.hrl").
 
 %% ------------------------------------------------------------------
@@ -26,7 +27,7 @@
         [{pool, backwater_client},
          {connect_timeout, 8000}, % in milliseconds
          {recv_timeout, 5000}, % in milliseconds
-         {max_body, (10 * (1 bsl 20))} % in bytes
+         {max_body, ?MAX_RESPONSE_BODY_SIZE}
         ]).
 
 %% ------------------------------------------------------------------

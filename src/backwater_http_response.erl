@@ -1,6 +1,7 @@
 -module(backwater_http_response).
 
 -include_lib("hackney/include/hackney_lib.hrl").
+-include("backwater_client.hrl").
 -include("backwater_common.hrl").
 
 %% ------------------------------------------------------------------
@@ -199,7 +200,7 @@ status_code_name(Unknown) -> {http, Unknown}.
            {error, {unknown_content_encoding, binary()}} |
            {error, {unknown_content_type, nonempty_binary()}}.
 handle_body_content_encoding({ok, <<"gzip">>}, CiHeaders, Body, Options, SignedResponseMsg) ->
-    case backwater_encoding_gzip:decode(Body) of
+    case backwater_encoding_gzip:decode(Body, ?MAX_RESPONSE_BODY_SIZE) of
         {ok, UncompressedBody} ->
             ContentTypeLookup = find_content_type(CiHeaders, SignedResponseMsg),
             handle_body_content_type(ContentTypeLookup, UncompressedBody, Options);

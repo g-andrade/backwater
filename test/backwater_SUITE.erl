@@ -503,6 +503,17 @@ too_big_arguments_grouptest(Config) ->
        {error, {remote_error, {payload_too_large, <<>>}}},
        backwater_client:'_call'(Ref, "1", erlang, '-', [DummyArg], Override)).
 
+too_big_compressed_arguments_grouptest(Config) ->
+    {ref, Ref} = lists:keyfind(ref, 1, Config),
+    DummyArg = rand:uniform(1000),
+    EncodedArguments = ?ZEROES_PAYLOAD_50MiB,
+    Override =
+        #{ request =>
+            #{ {update_body_with, before_compression} => value_fun1(EncodedArguments) } },
+    ?assertEqual(
+       {error, {remote_error, {payload_too_large, <<>>}}},
+       backwater_client:'_call'(Ref, "1", erlang, '-', [DummyArg], Override)).
+
 exception_error_result_grouptest(Config) ->
     {name, Name} = lists:keyfind(name, 1, Config),
     {_Protocol, _DecodeUnsafeTerms, ReturnExceptionStacktraces} = decode_group_name(Name),
