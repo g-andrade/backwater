@@ -461,6 +461,17 @@ malformed_compressed_arguments_grouptest(Config) ->
        {error, {remote_error, {bad_request, unable_to_uncompress_arguments}}},
        backwater_client:'_call'(Ref, "1", erlang, length, [Arg], Override)).
 
+maliciously_compressed_arguments_grouptest(Config) ->
+    {ref, Ref} = lists:keyfind(ref, 1, Config),
+    % try to work around request and response limits by compressing when encoding
+    EncodedArguments = term_to_binary([?ZEROES_PAYLOAD_50MiB], [compressed]),
+    Override =
+        #{ request =>
+            #{ {update_body_with, before_compression} => value_fun1(EncodedArguments) } },
+    ?assertMatch(
+       {error, {remote_error, {bad_request, unable_to_decode_arguments}}},
+       backwater_client:'_call'(Ref, "1", erlang, length, [dummy], Override)).
+
 inconsistent_arguments_arity_grouptest(Config) ->
     {ref, Ref} = lists:keyfind(ref, 1, Config),
     Arg = rand:uniform(1000),
