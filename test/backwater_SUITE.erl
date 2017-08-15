@@ -4,6 +4,7 @@
 -define(CLEAR_PORT, 8080).
 -define(TLS_PORT, 8443).
 
+-include("backwater_SUITE.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
 all() ->
@@ -226,7 +227,7 @@ simple_call_grouptest(Config) ->
 
 compressed_arguments_grouptest(Config) ->
     {ref, Ref} = lists:keyfind(ref, 1, Config),
-    Arg = string:copies("foobar", 1000),
+    Arg = ?STRING_COPIES_FOOBAR_1000,
     ExpectedResult = length(Arg),
     ?assertEqual({ok, ExpectedResult}, backwater_client:call(Ref, "1", erlang, length, [Arg])).
 
@@ -234,12 +235,12 @@ compressed_result_grouptest(Config) ->
     {ref, Ref} = lists:keyfind(ref, 1, Config),
     Arg1 = "foobar",
     Arg2 = 1000,
-    ExpectedResult = string:copies(Arg1, Arg2),
+    ExpectedResult = ?STRING_COPIES_FOOBAR_1000,
     ?assertEqual({ok, ExpectedResult}, backwater_client:call(Ref, "1", string, copies, [Arg1, Arg2])).
 
 compressed_argument_and_result_grouptest(Config) ->
     {ref, Ref} = lists:keyfind(ref, 1, Config),
-    Arg = string:copies("foobar", 1000),
+    Arg = ?STRING_COPIES_FOOBAR_1000,
     ExpectedResult = list_to_binary(Arg),
     ?assertEqual({ok, ExpectedResult}, backwater_client:call(Ref, "1", erlang, list_to_binary, [Arg])).
 
@@ -451,7 +452,7 @@ malformed_arguments_grouptest(Config) ->
 
 malformed_compressed_arguments_grouptest(Config) ->
     {ref, Ref} = lists:keyfind(ref, 1, Config),
-    Arg = string:copies("foobar", 1000),
+    Arg = ?STRING_COPIES_FOOBAR_1000,
     Override =
         #{ request =>
             #{ {update_body_with, before_authentication} =>
@@ -479,6 +480,28 @@ wrong_arguments_type_grouptest(Config) ->
     ?assertMatch(
        {error, {remote_error, {bad_request, arguments_not_a_list}}},
        backwater_client:'_call'(Ref, "1", erlang, '-', [dummy], Override)).
+
+wrong_arguments_digest_grouptest(Config) ->
+    {ref, Ref} = lists:keyfind(ref, 1, Config),
+    DummyArg = rand:uniform(1000),
+    EncodedArguments = term_to_binary([math:pi()]),
+    Override =
+        #{ request =>
+            #{ {update_body_with, final} => value_fun1(EncodedArguments) } },
+    ?assertEqual(
+       {error, {remote_error, {unauthorized, wrong_arguments_digest}}},
+       backwater_client:'_call'(Ref, "1", erlang, '-', [DummyArg], Override)).
+
+too_big_arguments_grouptest(Config) ->
+    {ref, Ref} = lists:keyfind(ref, 1, Config),
+    DummyArg = rand:uniform(1000),
+    EncodedArguments = ?ZEROES_PAYLOAD_50MiB,
+    Override =
+        #{ request =>
+            #{ {update_body_with, final} => value_fun1(EncodedArguments) } },
+    ?assertEqual(
+       {error, {remote_error, {payload_too_large, <<>>}}},
+       backwater_client:'_call'(Ref, "1", erlang, '-', [DummyArg], Override)).
 
 exception_error_result_grouptest(Config) ->
     {name, Name} = lists:keyfind(name, 1, Config),

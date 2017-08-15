@@ -511,20 +511,20 @@ read_and_decode_args(#{ req := Req } = State) ->
     case cowboy_req:read_body(Req) of
         {ok, Data, Req2} ->
             State2 = State#{ req := Req2 },
-            validate_body_digest(Data, State2);
+            validate_args_digest(Data, State2);
         {more, _Data, Req2} ->
             State2 = State#{ req := Req2 },
             {stop, set_bodyless_response(413, State2)}
     end.
 
-validate_body_digest(Data, State) ->
+validate_args_digest(Data, State) ->
     #{ signed_request_msg := SignedRequestMsg } = State,
     case backwater_http_signatures:validate_signed_msg_body(SignedRequestMsg, Data) of
         true -> decode_args_content_encoding(Data, State);
         false ->
             AuthChallengeHeaders =
                 backwater_http_signatures:get_request_auth_challenge_headers(SignedRequestMsg),
-            {stop, set_response(401, AuthChallengeHeaders, wrong_body_digest, State)}
+            {stop, set_response(401, AuthChallengeHeaders, wrong_arguments_digest, State)}
     end.
 
 -spec decode_args_content_encoding(binary(), state()) -> {continue | stop, state()}.
