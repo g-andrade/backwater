@@ -130,7 +130,7 @@ decode_(200 = StatusCode, CiHeaders, Body, Options, SignedResponseMsg) ->
     StatusCodeName = status_code_name(StatusCode),
     RawResponseError = {StatusCodeName, Body},
     case decode_body(CiHeaders, Body, Options, SignedResponseMsg) of
-        {term, {success, ReturnValue}} ->
+        {term, {return, ReturnValue}} ->
             {ok, ReturnValue};
         {term, {exception, Class, Exception, Stacktrace}} when RethrowRemoteExceptions ->
             erlang:raise(Class, Exception, Stacktrace);

@@ -65,7 +65,7 @@
 
 -type accepted_content_encoding() :: {content_type(), Quality :: 0..1000}.
 
--type call_result() :: {success, term()} | call_exception().
+-type call_result() :: {return, term()} | call_exception().
 
 -type call_exception() :: {exception, raisable_class(), Exception :: term(), [erlang:stack_item()]}.
 
@@ -587,7 +587,7 @@ call_function(State) ->
     #{ function_properties := FunctionProperties, args := FunctionArgs } = State,
     #{ function_ref := FunctionRef } = FunctionProperties,
     try
-        {ok, {success, apply(FunctionRef, FunctionArgs)}}
+        {ok, {return, apply(FunctionRef, FunctionArgs)}}
     catch
         Class:Exception ->
             handle_possibly_undef_call_exception(Class, Exception, State, FunctionRef)
