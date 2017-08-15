@@ -176,7 +176,7 @@ check_authentication(#{ req := Req, config := #{ secret := Secret } } = State) -
         {error, Reason} ->
             AuthChallengeHeaders =
                 backwater_http_signatures:get_request_auth_challenge_headers(RequestMsg),
-            {stop, set_response(401, AuthChallengeHeaders, Reason, State)}
+            {stop, set_error_response(401, AuthChallengeHeaders, Reason, State)}
     end.
 
 -spec req_encoded_path_with_qs(req()) -> binary().
@@ -222,7 +222,7 @@ check_method(#{ req := Req } = State) ->
         true ->
             {continue, State};
         false ->
-            {stop, set_bodyless_response(405, State)}
+            {stop, set_error_response(405, State)}
     end.
 
 %% ------------------------------------------------------------------
@@ -235,7 +235,7 @@ parse_path(#{ req := Req } = State) ->
         [Version, BinModule, BinFunction, BinArity] ->
             parse_path(Version, BinModule, BinFunction, BinArity, State);
         Other when is_list(Other) ->
-            {stop, set_response(400, invalid_path, State)}
+            {stop, set_error_response(400, #{}, invalid_path, State)}
     end.
 
 -spec parse_path(backwater_module_info:version(), binary(), binary(), binary(), state())
@@ -250,7 +250,7 @@ parse_path(Version, BinModule, BinFunction, BinArity, State1) ->
                          arity => Arity },
             {continue, State2};
         error ->
-            {stop, set_response(400, invalid_arity, State1)}
+            {stop, set_error_response(400, #{}, invalid_arity, State1)}
     end.
 
 -spec arity_from_binary(binary()) -> {ok, arity()} | error.
@@ -282,7 +282,7 @@ check_authorization(State) ->
 
     case SearchResult of
         true -> {continue, State};
-        false -> {stop, set_bodyless_response(403, State)}
+        false -> {stop, set_error_response(403, State)}
     end.
 
 %% ------------------------------------------------------------------
@@ -295,7 +295,7 @@ check_existence(State) ->
         {found, FunctionProperties} ->
             {continue, State#{ function_properties => FunctionProperties }};
         Error ->
-            {stop, set_response(404, Error, State)}
+            {stop, set_error_response(404, #{}, Error, State)}
     end.
 
 -spec find_function_properties(state())
@@ -371,7 +371,7 @@ check_args_content_type(State) ->
             State2 = State#{ args_content_type => ContentType },
             {continue, State2};
         undefined ->
-            {stop, set_response(400, {bad_header, <<"content-type">>}, State)}
+            {stop, set_error_response(400, #{}, bad_content_type, State)}
     end.
 
 %% ------------------------------------------------------------------
@@ -428,7 +428,7 @@ negotiate_args_content_type(State) ->
         true ->
             {continue, State};
         false ->
-            {stop, set_response(415, unsupported_content_type, State)}
+            {stop, set_error_response(415, #{}, unsupported_content_type, State)}
     end.
 
 %% ------------------------------------------------------------------
@@ -442,7 +442,7 @@ negotiate_args_content_encoding(State) ->
         true ->
             {continue, State};
         false ->
-            {stop, set_response(415, unsupported_content_encoding, State)}
+            {stop, set_error_response(415, #{}, unsupported_content_encoding, State)}
     end.
 
 %% ------------------------------------------------------------------
@@ -468,7 +468,7 @@ negotiate_result_content_type(State) ->
             State2 = State#{ result_content_type => ContentType },
             {continue, State2};
         false ->
-            {stop, set_bodyless_response(406, State)}
+            {stop, set_error_response(406, State)}
     end.
 
 %% ------------------------------------------------------------------
@@ -508,7 +508,7 @@ read_and_decode_args(#{ req := Req } = State) ->
             validate_args_digest(Data, State2);
         {more, _Data, Req2} ->
             State2 = State#{ req := Req2 },
-            {stop, set_bodyless_response(413, State2)}
+            {stop, set_error_response(413, State2)}
     end.
 
 validate_args_digest(Data, State) ->
@@ -518,7 +518,7 @@ validate_args_digest(Data, State) ->
         false ->
             AuthChallengeHeaders =
                 backwater_http_signatures:get_request_auth_challenge_headers(SignedRequestMsg),
-            {stop, set_response(401, AuthChallengeHeaders, wrong_arguments_digest, State)}
+            {stop, set_error_response(401, AuthChallengeHeaders, wrong_arguments_digest, State)}
     end.
 
 -spec decode_args_content_encoding(binary(), state()) -> {continue | stop, state()}.
@@ -529,9 +529,9 @@ decode_args_content_encoding(Data, #{ args_content_encoding := <<"gzip">> } = St
         {ok, UncompressedData} ->
             decode_args_content_type(UncompressedData, State);
         {error, too_big} ->
-            {stop, set_bodyless_response(413, State)};
+            {stop, set_error_response(413, State)};
         {error, _} ->
-            {stop, set_response(400, unable_to_uncompress_arguments, State)}
+            {stop, set_error_response(400, #{}, unable_to_uncompress_arguments, State)}
     end.
 
 -spec decode_args_content_type(binary(), state()) -> {continue | stop, state()}.
@@ -547,7 +547,7 @@ decode_etf_args(Data, State) ->
     DecodeUnsafeTerms = should_decode_unsafe_terms(State),
     case backwater_media_etf:decode(Data, DecodeUnsafeTerms) of
         error ->
-            {stop, set_response(400, unable_to_decode_arguments, State)};
+            {stop, set_error_response(400, #{}, unable_to_decode_arguments, State)};
         {ok, UnvalidatedArgs} ->
             validate_args(UnvalidatedArgs, State)
     end.
@@ -555,10 +555,10 @@ decode_etf_args(Data, State) ->
 -spec validate_args(term(), state()) -> {continue | stop, state()}.
 validate_args(UnvalidatedArgs, State)
   when not is_list(UnvalidatedArgs) ->
-    {stop, set_response(400, arguments_not_a_list, State)};
+    {stop, set_error_response(400, #{}, arguments_not_a_list, State)};
 validate_args(UnvalidatedArgs, #{ arity := Arity } = State)
   when length(UnvalidatedArgs) =/= Arity ->
-    {stop, set_response(400, inconsistent_arguments_arity, State)};
+    {stop, set_error_response(400, #{}, inconsistent_arguments_arity, State)};
 validate_args(Args, State) ->
     {continue, State#{ args => Args }}.
 
@@ -575,11 +575,11 @@ should_decode_unsafe_terms(State) ->
 execute_call(State) ->
     case call_function(State) of
         {ok, Result} ->
-            {continue, set_response(200, Result, State)};
+            {continue, set_success_response(Result, State)};
         {error, undefined_module_or_function} ->
             % It's important to handle this situation gracefully, as the remote caller
             % really isn't to blame that we're bad at keeping track of module upgrades.
-            {stop, set_response(404, module_or_function_not_found, State)}
+            {stop, set_error_response(404, #{}, module_or_function_not_found, State)}
     end.
 
 -spec call_function(state()) -> {ok, call_result()} | {error, undefined_module_or_function}.
@@ -671,30 +671,38 @@ send_response(State1) ->
 %% Internal Function Definitions - Set Response
 %% ------------------------------------------------------------------
 
--spec set_bodyless_response(http_status(), state()) -> state().
-set_bodyless_response(StatusCode, State) ->
-    Response = encode_response(StatusCode, nocache_headers(), <<>>, State),
-    maps:put(response, Response, State).
+-spec set_error_response(http_status(), state()) -> state().
+set_error_response(StatusCode, State) ->
+    set_error_response(StatusCode, #{}, <<>>, State).
 
--spec set_response(http_status(), term(), state()) -> state().
-set_response(StatusCode, Value, State) ->
-    set_response(StatusCode, #{}, Value, State).
+-spec set_error_response(http_status(), http_headers(), term(), state()) -> state().
+set_error_response(StatusCode, Headers, Message, State1) ->
+    % force text/plain response
+    State2 = maps:without([result_content_encoding, result_content_type], State1),
+    Body = encode_error_message_body(Message),
+    Response = encode_response(StatusCode, Headers, Body, State2),
+    maps:put(response, Response, State2).
 
--spec set_response(http_status(), http_headers(), term(), state()) -> state().
-set_response(StatusCode, BaseHeaders, Value, #{ result_content_type := ResultContentType } = State) ->
+%-spec encode_error_message_body(term()) -> binary().
+encode_error_message_body(Message) ->
+    IoData =
+        case backwater_util:is_iodata(Message) of
+            true -> Message;
+            false -> io_lib:format("~p", [Message])
+        end,
+    iolist_to_binary(IoData).
+
+-spec set_success_response(term(), state()) -> state().
+set_success_response(Value, #{ result_content_type := ResultContentType } = State) ->
+    StatusCode = 200,
     {Type, SubType, _Params} = ResultContentType,
     ContentTypeHeaders = #{ <<"content-type">> => [Type, "/", SubType] },
-    Headers = backwater_util:maps_merge([nocache_headers(), BaseHeaders, ContentTypeHeaders]),
+    Headers = backwater_util:maps_merge([nocache_headers(), ContentTypeHeaders]),
     Body =
         case {Type, SubType} of
             {<<"application">>, <<"x-erlang-etf">>} ->
                 backwater_media_etf:encode(Value)
         end,
-    Response = encode_response(StatusCode, Headers, Body, State),
-    maps:put(response, Response, State);
-set_response(StatusCode, BaseHeaders, Value, State) ->
-    Headers = maps:merge(nocache_headers(), BaseHeaders),
-    Body = iolist_to_binary(io_lib:format("~p", [Value])),
     Response = encode_response(StatusCode, Headers, Body, State),
     maps:put(response, Response, State).
 

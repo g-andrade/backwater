@@ -10,6 +10,7 @@
 -export([lists_allmap/2]).
 -export([lists_anymap/2]).
 -export([lists_enumerate/1]).
+-export([is_iodata/1]).
 -export([maps_mapfold/3]).
 -export([maps_merge/1]).
 -export([proplists_sort_and_merge/1]).
@@ -73,6 +74,15 @@ lists_anymap(Fun, [H|T]) ->
 %% @private
 lists_enumerate(List) ->
     lists:zip(lists:seq(1, length(List)), List).
+
+-spec is_iodata(term()) -> boolean().
+%% @private
+is_iodata(Term) ->
+    try
+        iolist_size(Term) >= 0
+    catch
+        error:badarg -> false
+    end.
 
 -spec maps_mapfold(fun ((term(), term(), term()) -> {term(), term()}),
                    term(), map()) -> {map(), term()}.

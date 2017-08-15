@@ -31,6 +31,7 @@
         {{response_authentication, authentication_error()}, raw_error()} |
         {remote_exception, Class :: error | exit | throw, Reason :: term(), erlang:raise_stacktrace()} |
         {remote_error, raw_error()} |
+        {content_type_missing, raw_error()} |
         {{undecodable_response_body, binary()}, raw_error()} |
         {{unknown_content_encoding, binary()}, raw_error()} |
         {{unknown_content_type, nonempty_binary()}, raw_error()} |
@@ -45,7 +46,7 @@
            rethrow_remote_exceptions => boolean() }.
 -export_type([options/0]).
 
--type raw_error() :: {status_code_name(), (Error :: term()) | (RawBody :: binary())}.
+-type raw_error() :: {status_code_name(), RawBody :: binary()}.
 -export_type([raw_error/0]).
 
 -type status_code() :: pos_integer().
@@ -135,8 +136,8 @@ decode_(200 = StatusCode, CiHeaders, Body, Options, SignedResponseMsg) ->
             erlang:raise(Class, Exception, Stacktrace);
         {term, {exception, Class, Exception, Stacktrace}} ->
             {error, {remote_exception, Class, Exception, Stacktrace}};
-        {raw, Binary} ->
-            {error, {remote_error, {StatusCode, Binary}}};
+        {error, content_type_missing} ->
+            {error, {content_type_missing, RawResponseError}};
         {error, {unknown_content_encoding, ContentEncoding}} ->
             {error, {{unknown_content_encoding, ContentEncoding}, RawResponseError}};
         {error, {undecodable_response_body, Binary}} ->
@@ -146,28 +147,15 @@ decode_(200 = StatusCode, CiHeaders, Body, Options, SignedResponseMsg) ->
         {error, {invalid_content_type, RawContentType}} ->
             {error, {{invalid_content_type, RawContentType}, RawResponseError}}
     end;
-decode_(StatusCode, CiHeaders, Body, Options, SignedResponseMsg) ->
+decode_(StatusCode, _CiHeaders, Body, _Options, _SignedResponseMsg) ->
     StatusCodeName = status_code_name(StatusCode),
     RawResponseError = {StatusCodeName, Body},
-    case decode_body(CiHeaders, Body, Options, SignedResponseMsg) of
-        {term, Error} ->
-            {error, {remote_error, {StatusCodeName, Error}}};
-        {raw, Binary} ->
-            {error, {remote_error, {StatusCodeName, Binary}}};
-        {error, {unknown_content_encoding, ContentEncoding}} ->
-            {error, {{unknown_content_encoding, ContentEncoding}, RawResponseError}};
-        {error, {undecodable_response_body, Binary}} ->
-            {error, {{undecodable_response_body, Binary}, RawResponseError}};
-        {error, {unknown_content_type, RawContentType}} ->
-            {error, {{unknown_content_type, RawContentType}, RawResponseError}};
-        {error, {invalid_content_type, RawContentType}} ->
-            {error, {{invalid_content_type, RawContentType}, RawResponseError}}
-    end.
+    {error, {remote_error, RawResponseError}}.
 
 -spec decode_body(headers(), binary(), options(),
                            backwater_http_signatures:signed_message())
         -> {term, term()} |
-           {raw, binary()} |
+           {error, content_type_missing} |
            {error, {invalid_content_type, binary()}} |
            {error, {undecodable_response_body, binary()}} |
            {error, {unknown_content_encoding, binary()}} |
@@ -194,7 +182,7 @@ status_code_name(Unknown) -> {http, Unknown}.
                                    headers(), binary(), options(),
                                    backwater_http_signatures:signed_message())
         -> {term, term()} |
-           {raw, binary()} |
+           {error, content_type_missing} |
            {error, {invalid_content_type, binary()}} |
            {error, {undecodable_response_body, binary()}} |
            {error, {unknown_content_encoding, binary()}} |
@@ -227,7 +215,7 @@ find_content_encoding(CiHeaders, SignedResponseMsg) ->
                                {error, content_type_missing},
                                binary(), options())
         -> {term, term()} |
-           {raw, binary()} |
+           {error, content_type_missing} |
            {error, {undecodable_response_body, binary()}} |
            {error, {unknown_content_type, nonempty_binary()}} |
            {error, {invalid_content_type, binary()}}.
@@ -241,8 +229,8 @@ handle_body_content_type({ok, {OtherContentType, _Params}}, _Body, _Config) ->
     {error, {unknown_content_type, OtherContentType}};
 handle_body_content_type({error, {invalid_content_type, RawContentType}}, _Body, _Config) ->
     {error, {invalid_content_type, RawContentType}};
-handle_body_content_type({error, content_type_missing}, Body, _Config) ->
-    {raw, Body}.
+handle_body_content_type({error, content_type_missing}, _Body, _Config) ->
+    {error, content_type_missing}.
 
 -spec find_content_type(headers(), backwater_http_signatures:signed_message())
         -> {ok, {nonempty_binary(), [nonempty_binary()]}} |
