@@ -7,13 +7,16 @@
 -include_lib("eunit/include/eunit.hrl").
 
 all() ->
-    Groups = [{group, GroupName} || {GroupName, _Options, _TestCases} <- groups()],
-    all_individual_tests() ++ Groups.
+    [{group, GroupName} || {GroupName, _Options, _TestCases} <- groups()].
 
 groups() ->
     GroupNames = group_names(),
-    [{GroupName, [parallel, shuffle, {repeat,5}], all_group_tests()} || GroupName <- GroupNames].
+    [{individual_tests, [parallel], all_individual_tests()}
+     | [{GroupName, [parallel, {repeat,2}], all_group_tests()} || GroupName <- GroupNames]].
 
+init_per_group(individual_tests, Config) ->
+    {ok, _} = application:ensure_all_started(backwater),
+    Config;
 init_per_group(Name, Config) ->
     {ok, _} = application:ensure_all_started(backwater),
     {Endpoint, StartFun, ProtoOpts, HackneyOpts} = get_starting_params(Name),
@@ -54,6 +57,9 @@ init_per_group(Name, Config) ->
 
     [{ref, Name}, {name, Name}, {server_start_fun, StartFun} | Config].
 
+end_per_group(individual_tests, Config) ->
+    _ = application:stop(backwater),
+    Config;
 end_per_group(_Name, Config1) ->
     {value, {ref, Ref}, Config2} = lists:keytake(ref, 1, Config1),
     Config3 = lists_keywithout([server_start_fun, name], 1, Config2),
@@ -64,14 +70,8 @@ end_per_group(_Name, Config1) ->
        {wrong_endpoint, Ref},
        {wrong_secret, Ref},
        {remote_exceptions_rethrown, Ref}]),
+    _ = application:stop(backwater),
     Config3.
-
-init_per_suite(Config) ->
-    {ok, _} = application:ensure_all_started(backwater),
-    Config.
-
-end_per_suite(Config) ->
-    Config.
 
 %%%
 
