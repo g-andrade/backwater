@@ -12,7 +12,6 @@
 -export([lists_enumerate/1]).
 -export([is_iodata/1]).
 -export([maps_mapfold/3]).
--export([maps_merge/1]).
 -export([proplists_sort_and_merge/1]).
 -export([proplists_sort_and_merge/2]).
 -export([purge_stacktrace_below/2]).
@@ -99,11 +98,6 @@ maps_mapfold(Fun, Acc0, Map) ->
           List),
     MappedMap = maps:from_list(MappedList),
     {MappedMap, AccN}.
-
--spec maps_merge([map()]) -> map().
-%% @private
-maps_merge(Maps) ->
-    lists:foldl(fun (Map2, Map1) -> maps:merge(Map1, Map2) end, #{}, Maps).
 
 -spec proplists_sort_and_merge([proplist()]) -> proplist().
 %% @private

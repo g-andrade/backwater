@@ -254,9 +254,9 @@ wrong_secret_grouptest(Config) ->
     {ref, BaseRef} = lists:keyfind(ref, 1, Config),
     Ref = {wrong_secret, BaseRef},
     Arg = rand:uniform(1000),
-    ?assertEqual(
-       {error, {{response_authentication, missing_request_id},  % local error
-                {unauthorized, <<"invalid_signature">>}}},      % remote error
+    ?assertMatch(
+       {error, {{response_authentication, missing_request_id},
+                {unauthorized, _Headers, <<"invalid_signature">>}}},
        backwater_client:call(Ref, "1", erlang, '-', [Arg])).
 
 wrong_request_auth_type_grouptest(Config) ->
@@ -266,9 +266,9 @@ wrong_request_auth_type_grouptest(Config) ->
         #{ request =>
            #{ {update_headers_with, final} =>
                 update_header_fun(<<"authorization">>, <<"Basic blahblah">>) } },
-    ?assertEqual(
-       {error, {{response_authentication, missing_request_id},  % local error
-                {unauthorized, <<"invalid_auth_type">>}}},      % remote error
+    ?assertMatch(
+       {error, {{response_authentication, missing_request_id},
+                {unauthorized, _Headers, <<"invalid_auth_type">>}}},
        backwater_client:'_call'(Ref, "1", erlang, '-', [Arg], Override)).
 
 malformed_request_auth_not_params_grouptest(Config) ->
@@ -278,9 +278,9 @@ malformed_request_auth_not_params_grouptest(Config) ->
         #{ request =>
            #{ {update_headers_with, final} =>
                 update_header_fun(<<"authorization">>, <<"Signature blahblah;=;=;">>) } },
-    ?assertEqual(
-       {error, {{response_authentication, missing_request_id},  % local error
-                {unauthorized, <<"invalid_header_params">>}}},  % remote error
+    ?assertMatch(
+       {error, {{response_authentication, missing_request_id},
+                {unauthorized, _Headers, <<"invalid_header_params">>}}},
        backwater_client:'_call'(Ref, "1", erlang, '-', [Arg], Override)).
 
 malformed_request_auth_badly_quoted_params_grouptest(Config) ->
@@ -290,9 +290,9 @@ malformed_request_auth_badly_quoted_params_grouptest(Config) ->
         #{ request =>
            #{ {update_headers_with, final} =>
                 update_header_fun(<<"authorization">>, <<"Signature blah=">>) } },
-    ?assertEqual(
-       {error, {{response_authentication, missing_request_id},  % local error
-                {unauthorized, <<"invalid_header_params">>}}},  % remote error
+    ?assertMatch(
+       {error, {{response_authentication, missing_request_id},
+                {unauthorized, _Headers, <<"invalid_header_params">>}}},
        backwater_client:'_call'(Ref, "1", erlang, '-', [Arg], Override)).
 
 missing_request_auth_grouptest(Config) ->
@@ -301,9 +301,9 @@ missing_request_auth_grouptest(Config) ->
     Override =
         #{ request =>
             #{ {update_headers_with, final} => remove_header_fun(<<"authorization">>) } },
-    ?assertEqual(
-       {error, {{response_authentication, missing_request_id},        % local error
-                {unauthorized, <<"missing_authorization_header">>}}}, % remote error
+    ?assertMatch(
+       {error, {{response_authentication, missing_request_id},
+                {unauthorized, _Headers, <<"missing_authorization_header">>}}},
        backwater_client:'_call'(Ref, "1", erlang, '-', [Arg], Override)).
 
 missing_request_digest_grouptest(Config) ->
@@ -312,9 +312,9 @@ missing_request_digest_grouptest(Config) ->
     Override =
         #{ request =>
             #{ {update_headers_with, final} => remove_header_fun(<<"digest">>) } },
-    ?assertEqual(
-       {error, {{response_authentication, missing_request_id},           % local error
-                {unauthorized, <<"{missing_header,<<\"digest\">>}">>}}}, % remote error
+    ?assertMatch(
+       {error, {{response_authentication, missing_request_id},
+                {unauthorized, _Headers, <<"{missing_header,<<\"digest\">>}">>}}},
        backwater_client:'_call'(Ref, "1", erlang, '-', [Arg], Override)).
 
 missing_request_request_id_grouptest(Config) ->
@@ -323,9 +323,9 @@ missing_request_request_id_grouptest(Config) ->
     Override =
         #{ request =>
             #{ {update_headers_with, final} => remove_header_fun(<<"x-request-id">>) } },
-    ?assertEqual(
-       {error, {{response_authentication, missing_request_id},                 % local error
-                {unauthorized, <<"{missing_header,<<\"x-request-id\">>}">>}}}, % remote error
+    ?assertMatch(
+       {error, {{response_authentication, missing_request_id},
+                {unauthorized, _Headers, <<"{missing_header,<<\"x-request-id\">>}">>}}},
        backwater_client:'_call'(Ref, "1", erlang, '-', [Arg], Override)).
 
 invalid_path_grouptest(Config) ->
@@ -335,7 +335,7 @@ invalid_path_grouptest(Config) ->
         #{ request =>
             #{ update_url_with => append_to_binary_fun(<<"/blah">>) } },
     ?assertMatch(
-       {error, {remote_error, {bad_request, _}}},
+       {error, {remote, {bad_request, _Headers, _Body}}},
        backwater_client:'_call'(Ref, "1", erlang, '-', [Arg], Override)).
 
 negative_url_arity_grouptest(Config) ->
@@ -345,7 +345,7 @@ negative_url_arity_grouptest(Config) ->
         #{ request =>
             #{ update_url_with => replace_url_part_fun(<<"-1">>, -1) } },
     ?assertMatch(
-       {error, {remote_error, {bad_request, _}}},
+       {error, {remote, {bad_request, _Headers, _Body}}},
        backwater_client:'_call'(Ref, "1", erlang, '-', [Arg], Override)).
 
 big_url_arity_grouptest(Config) ->
@@ -355,7 +355,7 @@ big_url_arity_grouptest(Config) ->
         #{ request =>
             #{ update_url_with => replace_url_part_fun(<<"256">>, -1) } },
     ?assertMatch(
-       {error, {remote_error, {bad_request, _}}},
+       {error, {remote, {bad_request, _Headers, _body}}},
        backwater_client:'_call'(Ref, "1", erlang, '-', [Arg], Override)).
 
 nonnumeric_url_arity_grouptest(Config) ->
@@ -365,7 +365,7 @@ nonnumeric_url_arity_grouptest(Config) ->
         #{ request =>
             #{ update_url_with => replace_url_part_fun(<<"foobar">>, -1) } },
     ?assertMatch(
-       {error, {remote_error, {bad_request, _}}},
+       {error, {remote, {bad_request, _Headers, _Body}}},
        backwater_client:'_call'(Ref, "1", erlang, '-', [Arg], Override)).
 
 unallowed_method_grouptest(Config) ->
@@ -375,35 +375,35 @@ unallowed_method_grouptest(Config) ->
         #{ request =>
             #{ update_method_with => value_fun1(<<"GET">>) } },
     ?assertMatch(
-       {error, {remote_error, {method_not_allowed, _}}},
+       {error, {remote, {method_not_allowed, _Headers, _Body}}},
        backwater_client:'_call'(Ref, "1", erlang, '-', [Arg], Override)).
 
 unauthorized_module_grouptest(Config) ->
     {ref, Ref} = lists:keyfind(ref, 1, Config),
     Arg = rand:uniform(1000),
     ?assertMatch(
-       {error, {remote_error, {forbidden, _}}},
+       {error, {remote, {forbidden, _Headers, _Body}}},
        backwater_client:call(Ref, "1", erlangsssss, '-', [Arg])).
 
 non_existing_module_grouptest(Config) ->
     {ref, Ref} = lists:keyfind(ref, 1, Config),
     Arg = rand:uniform(1000),
     ?assertMatch(
-       {error, {remote_error, {not_found, _}}},
+       {error, {remote, {not_found, _Headers, _Body}}},
        backwater_client:call(Ref, "1", non_existing_module, '-', [Arg])).
 
 non_existing_module_version_grouptest(Config) ->
     {ref, Ref} = lists:keyfind(ref, 1, Config),
     Arg = rand:uniform(1000),
     ?assertMatch(
-       {error, {remote_error, {not_found, _}}},
+       {error, {remote, {not_found, _Headers, _Body}}},
        backwater_client:call(Ref, "2", erlang, '-', [Arg])).
 
 non_existing_function_grouptest(Config) ->
     {ref, Ref} = lists:keyfind(ref, 1, Config),
     Arg = rand:uniform(1000),
     ?assertMatch(
-       {error, {remote_error, {not_found, _}}},
+       {error, {remote, {not_found, _Headers, _Body}}},
        backwater_client:call(Ref, "1", erlang, '-----', [Arg])).
 
 unsupported_content_type_grouptest(Config) ->
@@ -414,7 +414,7 @@ unsupported_content_type_grouptest(Config) ->
             #{ {update_headers_with, before_compression} =>
                     update_header_fun(<<"content-type">>, <<"text/plain">>) } },
     ?assertMatch(
-       {error, {remote_error, {unsupported_media_type, _}}},
+       {error, {remote, {unsupported_media_type, _Headers, _Body}}},
        backwater_client:'_call'(Ref, "1", erlang, '-', [Arg], Override)).
 
 unsupported_content_encoding_grouptest(Config) ->
@@ -425,7 +425,7 @@ unsupported_content_encoding_grouptest(Config) ->
             #{ {update_headers_with, before_authentication} =>
                     update_header_fun(<<"content-encoding">>, <<"deflate">>) } },
     ?assertMatch(
-       {error, {remote_error, {unsupported_media_type, _}}},
+       {error, {remote, {unsupported_media_type, _Headers, _Body}}},
        backwater_client:'_call'(Ref, "1", erlang, '-', [Arg], Override)).
 
 unsupported_accepted_content_encoding_grouptest(Config) ->
@@ -436,7 +436,7 @@ unsupported_accepted_content_encoding_grouptest(Config) ->
             #{ {update_headers_with, before_compression} =>
                     update_header_fun(<<"accept">>, <<"text/plain">>) } },
     ?assertMatch(
-       {error, {remote_error, {not_acceptable, <<>>}}},
+       {error, {remote, {not_acceptable, _Headers, _Body}}},
        backwater_client:'_call'(Ref, "1", erlang, '-', [Arg], Override)).
 
 malformed_arguments_grouptest(Config) ->
@@ -447,7 +447,7 @@ malformed_arguments_grouptest(Config) ->
             #{ {update_body_with, before_compression} =>
                     value_fun1(crypto:strong_rand_bytes(100)) } },
     ?assertMatch(
-       {error, {remote_error, {bad_request, _}}},
+       {error, {remote, {bad_request, _Headers, _Body}}},
        backwater_client:'_call'(Ref, "1", erlang, '-', [Arg], Override)).
 
 malformed_compressed_arguments_grouptest(Config) ->
@@ -458,7 +458,7 @@ malformed_compressed_arguments_grouptest(Config) ->
             #{ {update_body_with, before_authentication} =>
                     value_fun1(crypto:strong_rand_bytes(100)) } },
     ?assertMatch(
-       {error, {remote_error, {bad_request, _}}},
+       {error, {remote, {bad_request, _Headers, _Body}}},
        backwater_client:'_call'(Ref, "1", erlang, length, [Arg], Override)).
 
 maliciously_compressed_arguments_grouptest(Config) ->
@@ -469,7 +469,7 @@ maliciously_compressed_arguments_grouptest(Config) ->
         #{ request =>
             #{ {update_body_with, before_compression} => value_fun1(EncodedArguments) } },
     ?assertMatch(
-       {error, {remote_error, {bad_request, _}}},
+       {error, {remote, {bad_request, _Headers, _Body}}},
        backwater_client:'_call'(Ref, "1", erlang, length, [dummy], Override)).
 
 inconsistent_arguments_arity_grouptest(Config) ->
@@ -479,7 +479,7 @@ inconsistent_arguments_arity_grouptest(Config) ->
         #{ request =>
             #{ update_arity_with => value_fun1(2) } },
     ?assertMatch(
-       {error, {remote_error, {bad_request, _}}},
+       {error, {remote, {bad_request, _Headers, _Body}}},
        backwater_client:'_call'(Ref, "1", erlang, '-', [Arg], Override)).
 
 wrong_arguments_type_grouptest(Config) ->
@@ -489,7 +489,7 @@ wrong_arguments_type_grouptest(Config) ->
         #{ request =>
             #{ {update_body_with,before_compression} => value_fun1(EncodedArguments) } },
     ?assertMatch(
-       {error, {remote_error, {bad_request, _}}},
+       {error, {remote, {bad_request, _Headers, _Body}}},
        backwater_client:'_call'(Ref, "1", erlang, '-', [dummy], Override)).
 
 wrong_arguments_digest_grouptest(Config) ->
@@ -500,7 +500,7 @@ wrong_arguments_digest_grouptest(Config) ->
         #{ request =>
             #{ {update_body_with, final} => value_fun1(EncodedArguments) } },
     ?assertMatch(
-       {error, {remote_error, {unauthorized, _}}},
+       {error, {remote, {unauthorized, _Headers, _Body}}},
        backwater_client:'_call'(Ref, "1", erlang, '-', [DummyArg], Override)).
 
 too_big_arguments_grouptest(Config) ->
@@ -511,7 +511,7 @@ too_big_arguments_grouptest(Config) ->
         #{ request =>
             #{ {update_body_with, final} => value_fun1(EncodedArguments) } },
     ?assertMatch(
-       {error, {remote_error, {payload_too_large, _}}},
+       {error, {remote, {payload_too_large, _Headers, _Body}}},
        backwater_client:'_call'(Ref, "1", erlang, '-', [DummyArg], Override)).
 
 too_big_compressed_arguments_grouptest(Config) ->
@@ -522,7 +522,7 @@ too_big_compressed_arguments_grouptest(Config) ->
         #{ request =>
             #{ {update_body_with, before_compression} => value_fun1(EncodedArguments) } },
     ?assertMatch(
-       {error, {remote_error, {payload_too_large, _}}},
+       {error, {remote, {payload_too_large, _Headers, _Body}}},
        backwater_client:'_call'(Ref, "1", erlang, '-', [DummyArg], Override)).
 
 exception_error_result_grouptest(Config) ->
@@ -537,11 +537,11 @@ exception_error_result_grouptest(Config, ReturnExceptionStacktraces) ->
     case ReturnExceptionStacktraces of
         true ->
             ?assertMatch(
-               {error, {remote_exception, error, badarith, [{erlang,'/',[Arg1, Arg2], _}]}},
+               {error, {exception, {error, badarith, [{erlang,'/',[Arg1, Arg2], _}]}}},
                backwater_client:call(Ref, "1", erlang, '/', [Arg1, Arg2]));
         false ->
             ?assertMatch(
-               {error, {remote_exception, error, badarith, []}},
+               {error, {exception, {error, badarith, []}}},
                backwater_client:call(Ref, "1", erlang, '/', [Arg1, Arg2]))
     end.
 
@@ -565,7 +565,7 @@ unsafe_argument_grouptest(Config) ->
         true ->
             ?assertEqual({ok, AtomName}, Result);
         false ->
-            ?assertMatch({error, {remote_error, {bad_request, _}}}, Result)
+            ?assertMatch({error, {remote, {bad_request, _Headers, _Body}}}, Result)
     end.
 
 %%%

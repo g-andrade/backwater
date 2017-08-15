@@ -67,7 +67,7 @@
 
 -type call_result() :: {return, term()} | call_exception().
 
--type call_exception() :: {exception, raisable_class(), Exception :: term(), [erlang:stack_item()]}.
+-type call_exception() :: {exception, {raisable_class(), Exception :: term(), [erlang:stack_item()]}}.
 
 -type content_type() :: {Type :: binary(), SubType :: binary(), content_type_params()}.
 
@@ -633,7 +633,7 @@ return_call_exception(Class, Exception, Stacktrace) ->
     % Hide all calls previous to the one made to the target function (cowboy stuff, etc.)
     % This works under the assumption that *no sensible call* would ever go through 'call_function/1' again.
     PurgedStacktrace = backwater_util:purge_stacktrace_below({?MODULE,call_function,1}, Stacktrace),
-    {ok, {exception, Class, Exception, PurgedStacktrace}}.
+    {ok, {exception, {Class, Exception, PurgedStacktrace}}}.
 
 -spec should_return_exception_stack_traces(state()) -> boolean().
 should_return_exception_stack_traces(State) ->
@@ -676,9 +676,10 @@ set_error_response(StatusCode, State) ->
     set_error_response(StatusCode, #{}, <<>>, State).
 
 -spec set_error_response(http_status(), http_headers(), term(), state()) -> state().
-set_error_response(StatusCode, Headers, Message, State1) ->
+set_error_response(StatusCode, BaseHeaders, Message, State1) ->
     % force text/plain response
     State2 = maps:without([result_content_encoding, result_content_type], State1),
+    Headers = maps:merge(BaseHeaders, #{ <<"content-type">> => <<"text/plain">> }),
     Body = encode_error_message_body(Message),
     Response = encode_response(StatusCode, Headers, Body, State2),
     maps:put(response, Response, State2).
@@ -697,7 +698,7 @@ set_success_response(Value, #{ result_content_type := ResultContentType } = Stat
     StatusCode = 200,
     {Type, SubType, _Params} = ResultContentType,
     ContentTypeHeaders = #{ <<"content-type">> => [Type, "/", SubType] },
-    Headers = backwater_util:maps_merge([nocache_headers(), ContentTypeHeaders]),
+    Headers = maps:merge(nocache_headers(), ContentTypeHeaders),
     Body =
         case {Type, SubType} of
             {<<"application">>, <<"x-erlang-etf">>} ->
