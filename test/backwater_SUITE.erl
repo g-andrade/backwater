@@ -126,7 +126,17 @@ bad_client_start_config_test(_Config) ->
     ?assertEqual(
        {error, {invalid_config_parameter, {unknown_setting, some_value}}},
        StartFun(#{ endpoint => <<"https://blah">>, secret => <<>>,
-                   unknown_setting => some_value })).
+                   unknown_setting => some_value })),
+
+    % already started
+    ?assertEqual(
+       ok,
+       StartFun(#{ endpoint => <<"https://blah">>, secret => <<>> })),
+    ?assertEqual(
+       {error, already_started},
+       StartFun(#{ endpoint => <<"https://blah">>, secret => <<>> })),
+
+    ?assertEqual(ok, backwater_client:stop(Ref)).
 
 not_started_client_stop_test(_Config) ->
     ?assertEqual({error, not_found}, backwater_client:stop(non_existing_client_ref)).
