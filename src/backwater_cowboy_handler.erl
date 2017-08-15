@@ -22,7 +22,6 @@
 %% ------------------------------------------------------------------
 
 -define(CACHED_FUNCTION_PROPERTIES_TTL, (timer:seconds(5))).
--define(COMPRESSION_THRESHOLD, 300).
 -define(KNOWN_CONTENT_ENCODINGS, [<<"gzip">>, <<"identity">>]).
 -define(DEFAULT_OPT_DECODE_UNSAFE_TERMS, false).
 -define(DEFAULT_OPT_RETURN_EXCEPTION_STACKTRACES, true).
@@ -707,7 +706,7 @@ set_response(StatusCode, BaseHeaders, Value, State) ->
 
 -spec encode_response(http_status(), http_headers(), binary(), state()) -> response().
 encode_response(StatusCode, Headers1, Body1, #{ result_content_encoding := <<"gzip">> })
-  when byte_size(Body1) >= ?COMPRESSION_THRESHOLD ->
+  when byte_size(Body1) >= ?RESPONSE_COMPRESSION_THRESHOLD ->
     Body2 = backwater_encoding_gzip:encode(Body1),
     Headers2 = Headers1#{ <<"content-encoding">> => <<"gzip">> },
     #{ status_code => StatusCode, headers => Headers2, body => Body2 };

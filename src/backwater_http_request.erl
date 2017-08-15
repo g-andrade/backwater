@@ -1,6 +1,7 @@
 -module(backwater_http_request).
 
 -include_lib("hackney/include/hackney_lib.hrl").
+-include("backwater_client.hrl").
 -include("backwater_common.hrl").
 
 %% ------------------------------------------------------------------
@@ -21,7 +22,6 @@
 %% Macro Definitions
 %% ------------------------------------------------------------------
 
--define(COMPRESSION_THRESHOLD, 300). % in bytes
 -define(REQUEST_ID_SIZE, 16).        % in bytes; before being encoded using base64
 
 %% ------------------------------------------------------------------
@@ -83,7 +83,7 @@ request_url(Endpoint, Version, Module, Function, Arity) ->
 
 -spec compress(nonempty_binary(), nonempty_binary(), nonempty_headers(), binary(), binary())
         -> stateful_request().
-compress(Method, Url, Headers, Body, Secret) when byte_size(Body) > ?COMPRESSION_THRESHOLD ->
+compress(Method, Url, Headers, Body, Secret) when byte_size(Body) > ?REQUEST_COMPRESSION_THRESHOLD ->
     CompressedBody = backwater_encoding_gzip:encode(Body),
     UpdatedHeaders = [{<<"content-encoding">>, <<"gzip">>} | Headers],
     authenticate(Method, Url, UpdatedHeaders, CompressedBody, Secret);
@@ -135,7 +135,8 @@ url_encoded_path_with_qs(Url) ->
 
     '_compress'(Method1, Url1, Headers1, Body1, Secret, Override).
 
-'_compress'(Method, Url, Headers1, Body1, Secret, Override) when byte_size(Body1) > ?COMPRESSION_THRESHOLD ->
+'_compress'(Method, Url, Headers1, Body1, Secret, Override)
+   when byte_size(Body1) > ?REQUEST_COMPRESSION_THRESHOLD ->
     UpdateHeadersWith = maps:get({update_headers_with, before_authentication}, Override, fun identity/1),
     UpdateBodyWith = maps:get({update_body_with, before_authentication}, Override, fun identity/1),
     Headers2 = UpdateHeadersWith([{<<"content-encoding">>, <<"gzip">>} | Headers1]),

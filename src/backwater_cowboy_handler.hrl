@@ -1,1 +1,2 @@
 -define(MAX_REQUEST_BODY_SIZE, (10 * (1 bsl 20))). % in bytes
+-define(RESPONSE_COMPRESSION_THRESHOLD, 300). % in bytes
