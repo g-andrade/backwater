@@ -23,8 +23,8 @@ init_per_group(Name, Config) ->
         #{ secret => Secret,
            exposed_modules =>
                 [{erlang, [{exports, all}]},
-                 {string, [{exports, all}]},
-                 {non_existing_module, [{exports, all}]}],
+                 {string, [{exports, [{copies,2}]}]},
+                 non_existing_module],
            decode_unsafe_terms => DecodeUnsafeTerms,
            return_exception_stacktraces => ReturnExceptionStacktraces
          },
