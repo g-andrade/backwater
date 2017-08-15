@@ -2,6 +2,10 @@
 
 -include_lib("backwater_common.hrl").
 
+-ifdef(TEST).
+-include_lib("eunit/include/eunit.hrl").
+-endif.
+
 %% @doc The code in this module is based on the "http signatures"[1]
 %% IETF draft, version nr. 7, by M. Cavage, published on July 17, 2017.
 %%
@@ -583,3 +587,175 @@ build_signature_iodata(SignedHeaderNames, Msg) ->
             OnePerLine = lists:join("\n", Parts),
             {ok, OnePerLine}
     end.
+
+%% ------------------------------------------------------------------
+%% Internal Function Definitions - Unit Tests
+%% ------------------------------------------------------------------
+-ifdef(TEST).
+
+test_config() ->
+    config(crypto:strong_rand_bytes(32)).
+
+test_request_msg() ->
+    Config = test_config(),
+    {Config, new_request_msg(<<"POST">>, <<"/path">>, #{})}.
+
+test_signed_request_msg() ->
+    {Config, RequestMsg} = test_request_msg(),
+    RequestId = crypto:strong_rand_bytes(16),
+    SignedRequestMsg = sign_request(Config, RequestMsg, <<"request body">>, RequestId),
+    {Config, SignedRequestMsg}.
+
+valid_response_test() ->
+    {Config, SignedRequestMsg} = test_signed_request_msg(),
+    ResponseMsg = new_response_msg(200, #{}),
+    SignedResponseMsg = sign_response(Config, ResponseMsg, <<"response body">>, SignedRequestMsg),
+    ?assertMatch(
+       {ok, #{} = _SignedResponseMsg},
+       validate_response_signature(SignedRequestMsg, SignedResponseMsg)).
+
+mismatched_request_id_test() ->
+    {Config, SignedRequestMsg} = test_signed_request_msg(),
+    CorruptSignedRequestMsg = SignedRequestMsg#{ request_id := crypto:strong_rand_bytes(16) },
+    ResponseMsg = new_response_msg(200, #{}),
+    SignedResponseMsg = sign_response(Config, ResponseMsg, <<"response body">>, CorruptSignedRequestMsg),
+    ?assertMatch(
+       {error, mismatched_request_id},
+       validate_response_signature(SignedRequestMsg, SignedResponseMsg)).
+
+missing_request_id_test() ->
+    {Config, SignedRequestMsg} = test_signed_request_msg(),
+    ResponseMsg = new_response_msg(200, #{}),
+    SignedResponseMsg = sign_response(Config, ResponseMsg, <<"response body">>, SignedRequestMsg),
+    CorruptSignedResponseMsg = remove_real_msg_header(<<"x-request-id">>, SignedResponseMsg),
+    ?assertMatch(
+       {error, missing_request_id},
+       validate_response_signature(SignedRequestMsg, CorruptSignedResponseMsg)).
+
+missing_signature_header_test() ->
+    {Config, SignedRequestMsg} = test_signed_request_msg(),
+    ResponseMsg = new_response_msg(200, #{}),
+    SignedResponseMsg = sign_response(Config, ResponseMsg, <<"response body">>, SignedRequestMsg),
+    CorruptSignedResponseMsg = remove_real_msg_header(<<"signature">>, SignedResponseMsg),
+    ?assertMatch(
+       {error, missing_signature_header},
+       validate_response_signature(SignedRequestMsg, CorruptSignedResponseMsg)).
+
+invalid_header_params_test() ->
+    {Config, SignedRequestMsg} = test_signed_request_msg(),
+    ResponseMsg = new_response_msg(200, #{}),
+    SignedResponseMsg = sign_response(Config, ResponseMsg, <<"response body">>, SignedRequestMsg),
+    CorruptSignedResponseMsg =
+        add_real_msg_headers(#{ <<"signature">> => <<"bla=ble;;;">> }, SignedResponseMsg),
+    ?assertMatch(
+       {error, invalid_header_params},
+       validate_response_signature(SignedRequestMsg, CorruptSignedResponseMsg)).
+
+unknown_key_id_test() ->
+    {Config, SignedRequestMsg} = test_signed_request_msg(),
+    ResponseMsg = new_response_msg(200, #{}),
+    SignedResponseMsg = sign_response(Config, ResponseMsg, <<"response body">>, SignedRequestMsg),
+    CorruptSignedResponseMsg =
+        add_real_msg_headers(#{ <<"signature">> => <<"keyId=\"unknown\"">> }, SignedResponseMsg),
+    ?assertMatch(
+       {error, unknown_key},
+       validate_response_signature(SignedRequestMsg, CorruptSignedResponseMsg)).
+
+unknown_algorithm_test() ->
+    {Config, SignedRequestMsg} = test_signed_request_msg(),
+    ResponseMsg = new_response_msg(200, #{}),
+    SignedResponseMsg = sign_response(Config, ResponseMsg, <<"response body">>, SignedRequestMsg),
+    CorruptSignedResponseMsg =
+        add_real_msg_headers(#{ <<"signature">> => <<"keyId=\"", ?KEY_ID/binary, "\","
+                                                     "algorithm=\"unknown\"">>
+                              },
+                             SignedResponseMsg),
+    ?assertMatch(
+       {error, unknown_algorithm},
+       validate_response_signature(SignedRequestMsg, CorruptSignedResponseMsg)).
+
+missing_signed_header_list_test() ->
+    {Config, SignedRequestMsg} = test_signed_request_msg(),
+    ResponseMsg = new_response_msg(200, #{}),
+    SignedResponseMsg = sign_response(Config, ResponseMsg, <<"response body">>, SignedRequestMsg),
+    CorruptSignedResponseMsg =
+        add_real_msg_headers(#{ <<"signature">> => <<"keyId=\"", ?KEY_ID/binary, "\","
+                                                     "algorithm=\"", ?ALGORITHM/binary, "\"">>
+                              },
+                             SignedResponseMsg),
+    ?assertMatch(
+       {error, missing_signed_header_list},
+       validate_response_signature(SignedRequestMsg, CorruptSignedResponseMsg)).
+
+missing_mandatory_pseudo_header_test() ->
+    {Config, SignedRequestMsg} = test_signed_request_msg(),
+    ResponseMsg = new_response_msg(200, #{}),
+    SignedResponseMsg = sign_response(Config, ResponseMsg, <<"response body">>, SignedRequestMsg),
+    CorruptSignedResponseMsg =
+        add_real_msg_headers(#{ <<"signature">> => <<"keyId=\"", ?KEY_ID/binary, "\","
+                                                     "algorithm=\"", ?ALGORITHM/binary, "\",",
+                                                     "headers=\"\"">>
+                              },
+                             SignedResponseMsg),
+
+    MissingHeaderName = <<"(response-status)">>,
+    ?assertMatch(
+       {error, {missing_mandatory_header, MissingHeaderName}},
+       validate_response_signature(SignedRequestMsg, CorruptSignedResponseMsg)).
+
+missing_mandatory_real_header_test() ->
+    {Config, SignedRequestMsg} = test_signed_request_msg(),
+    ResponseMsg = new_response_msg(200, #{}),
+    SignedResponseMsg = sign_response(Config, ResponseMsg, <<"response body">>, SignedRequestMsg),
+    CorruptSignedResponseMsg =
+        add_real_msg_headers(#{ <<"signature">> => <<"keyId=\"", ?KEY_ID/binary, "\","
+                                                     "algorithm=\"", ?ALGORITHM/binary, "\",",
+                                                     "headers=\"(response-status)\"">>
+                              },
+                             SignedResponseMsg),
+
+    MissingHeaderName = hd(?VALIDATION_MANDATORILY_SIGNED_HEADER_NAMES),
+    ?assertMatch(
+       {error, {missing_mandatory_header, MissingHeaderName}},
+       validate_response_signature(SignedRequestMsg, CorruptSignedResponseMsg)).
+
+missing_mandatorily_signed_headers_test() ->
+    {Config, SignedRequestMsg} = test_signed_request_msg(),
+    ResponseMsg = new_response_msg(200, #{}),
+    SignedResponseMsg = sign_response(Config, ResponseMsg, <<"response body">>, SignedRequestMsg),
+    EncodedSignatureHeaders =
+        iolist_to_binary(
+          lists:join(" ", (list_pseudo_msg_header_names(SignedResponseMsg) ++
+                           ?VALIDATION_MANDATORILY_SIGNED_HEADER_NAMES))),
+
+    ExtraHeaderName = hd(?VALIDATION_MANDATORILY_SIGNED_HEADER_NAMES_IF_PRESENT),
+    CorruptSignedResponseMsg =
+        add_real_msg_headers(#{ <<"signature">> => <<"keyId=\"", ?KEY_ID/binary, "\","
+                                                     "algorithm=\"", ?ALGORITHM/binary, "\",",
+                                                     "headers=\"", EncodedSignatureHeaders/binary, "\"">>,
+                                ExtraHeaderName => <<"blah">>
+                              },
+                             SignedResponseMsg),
+    ?assertMatch(
+       {error, {missing_mandatorily_signed_header, ExtraHeaderName}},
+       validate_response_signature(SignedRequestMsg, CorruptSignedResponseMsg)).
+
+missing_header_test() ->
+    {Config, SignedRequestMsg} = test_signed_request_msg(),
+    ResponseMsg = new_response_msg(200, #{ <<"some_header">> => <<"bla">> }),
+    SignedResponseMsg = sign_response(Config, ResponseMsg, <<"response body">>, SignedRequestMsg),
+    CorruptSignedResponseMsg = remove_real_msg_header(<<"some_header">>, SignedResponseMsg),
+    ?assertEqual(
+       {error, {missing_header, <<"some_header">>}},
+       validate_response_signature(SignedRequestMsg, CorruptSignedResponseMsg)).
+
+invalid_signature_test() ->
+    {Config, SignedRequestMsg} = test_signed_request_msg(),
+    ResponseMsg = new_response_msg(200, #{}),
+    SignedResponseMsg = sign_response(Config, ResponseMsg, <<"response body">>, SignedRequestMsg),
+    CorruptSignedResponseMsg = add_real_msg_headers(#{ <<"digest">> => <<>> }, SignedResponseMsg),
+    ?assertMatch(
+       {error, invalid_signature},
+       validate_response_signature(SignedRequestMsg, CorruptSignedResponseMsg)).
+
+-endif.
