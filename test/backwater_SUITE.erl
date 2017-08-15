@@ -12,7 +12,7 @@ all() ->
 
 groups() ->
     GroupNames = group_names(),
-    [{GroupName, [parallel], all_group_tests()} || GroupName <- GroupNames].
+    [{GroupName, [parallel, shuffle, {repeat,5}], all_group_tests()} || GroupName <- GroupNames].
 
 init_per_group(Name, Config) ->
     {ok, _} = application:ensure_all_started(backwater),
