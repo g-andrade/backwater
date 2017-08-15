@@ -19,10 +19,6 @@
 %% Type Definitions
 %% ------------------------------------------------------------------
 
-%-type route_constraints() :: [{version, nonempty} | {module | function | arity, fun ()}, ...].
-
-%-type route_path() :: {nonempty_string(), route_constraints(),
-%                       backwater_cowboy_handler, backwater_cowboy_handler:state()}.
 -type route_path() :: {nonempty_string(), [],
                        backwater_cowboy_handler, backwater_cowboy_handler:state()}.
 
