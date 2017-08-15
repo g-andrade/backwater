@@ -34,7 +34,7 @@ xref:
 	@$(REBAR3) as development xref
 
 test:
-	@$(REBAR3) as test ct, eunit, cover
+	@$(REBAR3) as test eunit, ct, cover
 
 #publish:
 #	@$(REBAR3) as publication hex publish
