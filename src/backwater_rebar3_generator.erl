@@ -54,7 +54,7 @@ generate(State) ->
 
 generate(CurrentAppInfo, SourceDirectoriesPerApp) ->
     RebarOpts = rebar_app_info:opts(CurrentAppInfo),
-    {ok, BackwaterOpts} = dict:find(backwater_opts, RebarOpts), % TODO don't crash when missing?
+    {ok, BackwaterOpts} = dict:find(backwater_gen, RebarOpts), % TODO don't crash when missing?
     UnprocessedTargets = proplists:get_all_values(target, BackwaterOpts),
     CurrentAppName = binary_to_atom(rebar_app_info:name(CurrentAppInfo), utf8),
 
