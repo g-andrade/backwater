@@ -279,9 +279,10 @@ generate_module_info(ModulePath, ParseResult) ->
 
 transform_module(GenerationParams, ModuleInfo1) ->
     ModuleInfo2 = transform_exports(GenerationParams, ModuleInfo1),
-    ModuleInfo3 = trim_functions_and_specs(ModuleInfo2),
-    ModuleInfo4 = externalize_function_specs_user_types(GenerationParams, ModuleInfo3),
-    rename_module(GenerationParams, ModuleInfo4).
+    ModuleInfo3 = trim_deprecation_attributes(ModuleInfo2),
+    ModuleInfo4 = trim_functions_and_specs(ModuleInfo3),
+    ModuleInfo5 = externalize_function_specs_user_types(GenerationParams, ModuleInfo4),
+    rename_module(GenerationParams, ModuleInfo5).
 
 transform_exports(GenerationParams, ModuleInfo1) ->
     #{ target_opts := TargetOpts } = GenerationParams,
@@ -297,6 +298,34 @@ transform_exports(GenerationParams, ModuleInfo1) ->
             List when is_list(List) -> sets:intersection(Exports2, sets:from_list(List))
         end,
     ModuleInfo2#{ exports := Exports3 }.
+
+trim_deprecation_attributes(ModuleInfo) ->
+    #{ exports := Exports, deprecation_attributes := DeprecationAttributes1 } = ModuleInfo,
+    ExportsList = sets:to_list(Exports),
+    ExportedNamesList = [Function || {Function, _Arity} <- ExportsList],
+    ExportedNames = sets:from_list(ExportedNamesList),
+
+    List = sets:to_list(DeprecationAttributes1),
+    Flattened = lists:flatten(List),
+    Filtered =
+        lists:filter(
+          fun (Tuple) when is_tuple(Tuple), tuple_size(Tuple) >= 2 ->
+                  Function = element(1, Tuple),
+                  Arity = element(2, Tuple),
+                  if Function =:= '_' ->
+                         sets:size(Exports) > 0;
+                     Arity =:= '_' ->
+                         sets:is_element(Function, ExportedNames);
+                     true ->
+                         sets:is_element({Function, Arity}, Exports)
+                  end;
+              (Other) when is_atom(Other); is_tuple(Other) ->
+                  true
+          end,
+          Flattened),
+
+    DeprecationAttributes2 = sets:from_list(Filtered),
+    ModuleInfo#{ deprecation_attributes := DeprecationAttributes2 }.
 
 trim_functions_and_specs(ModuleInfo) ->
     #{ exports := Exports,
