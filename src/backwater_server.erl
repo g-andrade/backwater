@@ -65,7 +65,7 @@ stop_listener(Ref) ->
 %% ------------------------------------------------------------------
 
 default_transport_options(Port) ->
-    [{port, Port}, {reuseaddr, true}].
+    [{port, Port}].
 
 -spec cowboy_route_path(backwater_cowboy_handler:state()) -> route_path().
 cowboy_route_path(InitialHandlerState) ->
