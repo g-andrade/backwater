@@ -18,6 +18,41 @@
 -define(DUMMY_LINE_NUMBER, (erl_anno:from_term(1))).
 
 %% ------------------------------------------------------------------
+%% Type Definitions
+%% ------------------------------------------------------------------
+
+-type opt() ::
+    {target, target()} |
+    overridable_opt().
+-export_type([opt/0]).
+
+-type target() ::
+        module() | % search under current app
+        {module(), [target_module_opt() | overridable_opt()]} | % search under current app
+        {AppName :: atom(), module()} |
+        {AppName :: atom(), module(), [target_module_opt() | overridable_opt()]}.
+-export_type([target/0]).
+
+-type target_module_opt() ::
+        {exports, target_exports()}.
+-export_type([target_module_opt/0]).
+
+-type target_exports() ::
+        all |                       % all exported functions
+        use_backwater_attributes |  % use custom backwater attributes
+        [atom()].                   % use custom list
+-export_type([target_exports/0]).
+
+-type overridable_opt() ::
+        {client_ref, term()} | % 'default' by default
+        {exports, target_exports()} | % 'use_backwater_attributes' by default
+        {module_name_prefix, file:name_all()} | % "rpc_" by default
+        {module_name_suffix, file:name_all()} | % "" by default
+        {unexported_types, ignore | warn | error | abort} | % warn by default
+        {output_directory, file:name_all()}.
+-export_type([overridable_opt/0]).
+
+%% ------------------------------------------------------------------
 %% API Function Definitions
 %% ------------------------------------------------------------------
 
