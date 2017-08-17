@@ -1,4 +1,3 @@
-%% @private
 -module(backwater_rebar3_generator).
 
 %% ------------------------------------------------------------------
@@ -22,7 +21,8 @@
 %% API Function Definitions
 %% ------------------------------------------------------------------
 
--spec generate(State :: rebar_state:t()) -> ok.
+-spec generate(State :: rebar_state:t()) -> ok | {error, term()}.
+%% @private
 generate(State) ->
     AppInfos =
         case rebar_state:current_app(State) of
@@ -42,7 +42,7 @@ generate(State) ->
           dict:new(),
           AppInfos ++ rebar_state:all_deps(State)),
 
-    lists:foreach(
+    backwater_util:lists_foreach_until_error(
       fun (AppInfo) ->
               generate(AppInfo, SourceDirectoriesPerApp)
       end,
@@ -54,7 +54,12 @@ generate(State) ->
 
 generate(CurrentAppInfo, SourceDirectoriesPerApp) ->
     RebarOpts = rebar_app_info:opts(CurrentAppInfo),
-    {ok, BackwaterOpts} = dict:find(backwater_gen, RebarOpts), % TODO don't crash when missing?
+    BackwaterOptsLookup = dict:find(backwater_gen, RebarOpts),
+    generate(CurrentAppInfo, SourceDirectoriesPerApp, BackwaterOptsLookup).
+
+generate(_CurrentAppInfo, _SourceDirectoriesPerApp, error) ->
+    {error, {missing_options, backwater_gen}};
+generate(CurrentAppInfo, SourceDirectoriesPerApp, {ok, BackwaterOpts}) ->
     UnprocessedTargets = proplists:get_all_values(target, BackwaterOpts),
     CurrentAppName = binary_to_atom(rebar_app_info:name(CurrentAppInfo), utf8),
 
@@ -80,23 +85,29 @@ generate(CurrentAppInfo, SourceDirectoriesPerApp) ->
           end,
           UnprocessedTargets),
 
-    lists:foreach(
+    backwater_util:lists_foreach_until_error(
       fun ({AppName, Module, TargetOpts}) ->
-              {ok, GenerationParams1} = find_module_name_or_path(AppName, Module, SourceDirectoriesPerApp),
-              GenerationParams2 =
-                    GenerationParams1#{
-                      current_app_info => CurrentAppInfo,
-                      target_opts => TargetOpts },
-              ok = generate_backwater_code(GenerationParams2)
+              backwater_util:with_success(
+                fun (GenerationParams1) ->
+                        GenerationParams2 =
+                            GenerationParams1#{
+                              current_app_info => CurrentAppInfo,
+                              target_opts => TargetOpts },
+                            generate_backwater_code(GenerationParams2)
+                end,
+                find_module_name_or_path(AppName, Module, SourceDirectoriesPerApp))
       end,
       Targets).
 
 generate_backwater_code(GenerationParams) ->
-    {ok, ModulePath, Forms} = read_forms(GenerationParams),
-    ParseResult = lists:foldl(fun parse_module/2, dict:new(), Forms),
-    ModuleInfo = generate_module_info(ModulePath, ParseResult),
-    TransformedModuleInfo = transform_module(GenerationParams, ModuleInfo),
-    write_module(GenerationParams, TransformedModuleInfo).
+    backwater_util:with_success(
+      fun (ModulePath, Forms) ->
+              ParseResult = lists:foldl(fun parse_module/2, dict:new(), Forms),
+              ModuleInfo = generate_module_info(ModulePath, ParseResult),
+              TransformedModuleInfo = transform_module(GenerationParams, ModuleInfo),
+              write_module(GenerationParams, TransformedModuleInfo)
+      end,
+      read_forms(GenerationParams)).
 
 %% ------------------------------------------------------------------
 %% Internal Function Definitions - Finding the Code
@@ -125,36 +136,50 @@ find_module_name_or_path(AppName, Module, SourceDirectoriesPerApp) ->
 
 find_module_path(Module, SourceDirectories) ->
     ModuleStr = atom_to_list(Module),
-    Result =
-        backwater_util:lists_anymap(
+    MaybeSourceDirectoriesWithFiles =
+        backwater_util:lists_map_until_error(
           fun (SourceDirectory) ->
-                  SourceFiles = directory_source_files(SourceDirectory),
-                  ExpectedPrefix = filename:join(SourceDirectory, ModuleStr) ++ ".",
-                  backwater_util:lists_anymap(
-                    fun (SourceFile) ->
-                            length(SourceFile) =:= length(ExpectedPrefix) + 3
-                            andalso lists:prefix(ExpectedPrefix, SourceFile)
+                  backwater_util:with_success(
+                    fun (SourceFiles) ->
+                            {ok, {SourceDirectory, SourceFiles}}
                     end,
-                    SourceFiles)
+                    directory_source_files(SourceDirectory))
           end,
           SourceDirectories),
 
-    case Result of
-        {true, SourceFile} ->
-            {ok, #{ module_path => SourceFile }};
-        false ->
-            {error, module_not_found}
-    end.
+    backwater_util:with_success(
+      fun (SourceDirectoriesWithFiles) ->
+              SearchResult =
+                backwater_util:lists_anymap(
+                  fun ({SourceDirectory, SourceFiles}) ->
+                          ExpectedPrefix = filename:join(SourceDirectory, ModuleStr) ++ ".",
+                          backwater_util:lists_anymap(
+                            fun (SourceFile) ->
+                                    length(SourceFile) =:= length(ExpectedPrefix) + 3
+                                    andalso lists:prefix(ExpectedPrefix, SourceFile)
+                            end,
+                            SourceFiles)
+                  end,
+                  SourceDirectoriesWithFiles),
+
+              case SearchResult of
+                  {true, SourceFile} ->
+                      {ok, #{ module_path => SourceFile }};
+                  false ->
+                      {error, {module_not_found, Module}}
+              end
+      end,
+      MaybeSourceDirectoriesWithFiles).
 
 directory_source_files(SrcDir) ->
     case file:list_dir(SrcDir) of
         {ok, Filenames} ->
             FilteredFilenames = filter_filenames_by_extension(Filenames, "erl"),
-            full_paths(SrcDir, FilteredFilenames);
+            {ok, full_paths(SrcDir, FilteredFilenames)};
         {error, enotdir} ->
-            [];
+            {ok, []};
         {error, OtherError} ->
-            error({cant_list_directory, SrcDir, OtherError})
+            {error, {cant_list_directory, SrcDir, OtherError}}
     end.
 
 filter_filenames_by_extension(Filenames, Extension) ->
@@ -189,8 +214,8 @@ read_forms(#{ module_name := Module })  ->
             {ok, ModulePath, Forms};
         {ok, {no_debug_info, _}} ->
             {error, forms_not_found};
-        {error, beam_lib, {file_error, _, enoent}} ->
-            {error, {module_not_found, Module}}
+        {error, beam_lib, BeamLibError} ->
+            {error, {beam_lib, BeamLibError}}
     catch
         Class:Error ->
             {error, {Class, Error}}
@@ -364,7 +389,7 @@ write_module(GenerationParams, ModuleInfo) ->
     ModuleSrc = generate_module_source(ClientRef, ModuleInfo),
     case file:write_file(ModuleFilename, ModuleSrc) of
         ok -> ok;
-        {error, Error} -> error({couldnt_save_module, Error})
+        {error, Error} -> {error, {couldnt_save_module, Error}}
     end.
 
 target_client_ref(GenerationParams) ->

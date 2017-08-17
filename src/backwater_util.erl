@@ -10,12 +10,15 @@
 -export([lists_allmap/2]).
 -export([lists_anymap/2]).
 -export([lists_enumerate/1]).
+-export([lists_foreach_until_error/2]).
+-export([lists_map_until_error/2]).
 -export([is_iodata/1]).
 -export([maps_mapfold/3]).
 -export([proplists_sort_and_merge/1]).
 -export([proplists_sort_and_merge/2]).
 -export([purge_stacktrace_below/2]).
 -export([validate_config_map/3]).
+-export([with_success/2]).
 
 %% ------------------------------------------------------------------
 %% Type Definitions
@@ -73,6 +76,42 @@ lists_anymap(Fun, [H|T]) ->
 %% @private
 lists_enumerate(List) ->
     lists:zip(lists:seq(1, length(List)), List).
+
+-spec lists_foreach_until_error(fun ((term()) -> ok | {error, term()}), [term()])
+        -> ok | {error, term()}.
+lists_foreach_until_error(Fun, List) ->
+    AnyError =
+        lists_anymap(
+          fun (Element) ->
+                  case Fun(Element) of
+                      ok -> false;
+                      {error, Error} -> {true, Error}
+                  end
+          end,
+          List),
+
+    case AnyError of
+        false -> ok;
+        {true, Error} -> {error, Error}
+    end.
+
+-spec lists_map_until_error(fun ((term()) -> {ok, term()} | {error, term()}), [term()])
+        -> {ok, [term()]} | {error, term()}.
+lists_map_until_error(Fun, List) ->
+    AllSuccesses =
+        lists_allmap(
+          fun (Element) ->
+                  case Fun(Element) of
+                      {ok, Success} -> {true, Success};
+                      {error, Error} -> {false, Error}
+                  end
+          end,
+          List),
+
+    case AllSuccesses of
+        {true, Successes} -> {ok, Successes};
+        {false, Error} -> {error, Error}
+    end.
 
 -spec is_iodata(term()) -> boolean().
 %% @private
@@ -152,6 +191,18 @@ validate_config_map(Config, MandatoryKeys, PairValidationFun) when is_map(Config
     end;
 validate_config_map(_Config, _MandatoryKeys, _PairValidationFun) ->
     {error, config_not_a_map}.
+
+-spec with_success(fun() | fun((term()) -> term()), ok | {ok | error, term()}) -> term().
+with_success(Fun, Success) when is_tuple(Success),
+                                tuple_size(Success) > 0,
+                                element(1, Success) =:= ok,
+                                is_function(Fun, tuple_size(Success) - 1) ->
+    [ok | Args] = tuple_to_list(Success),
+    apply(Fun, Args);
+with_success(Fun, ok) when is_function(Fun, 0) ->
+    Fun();
+with_success(_Fun, {error, Error}) ->
+    {error, Error}.
 
 %% ------------------------------------------------------------------
 %% Internal Function Definitions

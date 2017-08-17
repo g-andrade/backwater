@@ -27,18 +27,11 @@ init(State) ->
         ]),
     {ok, rebar_state:add_provider(State, Provider)}.
 
--spec do(rebar_state:t()) -> {ok, rebar_state:t()}.
+-spec do(rebar_state:t()) -> {ok, rebar_state:t()} | {error, term()}.
 do(State) ->
-    %Apps =
-    %    case rebar_state:current_app(State) of
-    %        undefined ->
-    %            rebar_state:project_apps(State);
-    %        AppInfo ->
-    %            [AppInfo]
-    %    end,
-    %lists:foreach(fun backwater_rebar3_generator:generate/1, Apps),
-    backwater_rebar3_generator:generate(State),
-    {ok, State}.
+    backwater_util:with_success(
+      fun () -> {ok, State} end,
+      backwater_rebar3_generator:generate(State)).
 
 -spec format_error(any()) ->  iolist().
 format_error(Reason) ->
