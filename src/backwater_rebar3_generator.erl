@@ -1,5 +1,7 @@
 -module(backwater_rebar3_generator).
 
+-include("backwater_common.hrl").
+
 %% ------------------------------------------------------------------
 %% API Function Exports
 %% ------------------------------------------------------------------
@@ -28,10 +30,14 @@
 
 -type target() ::
         module() | % search under current app
-        {module(), [target_module_opt() | overridable_opt()]} | % search under current app
+        {module(), [target_opt()]} | % search under current app
         {AppName :: atom(), module()} |
-        {AppName :: atom(), module(), [target_module_opt() | overridable_opt()]}.
+        {AppName :: atom(), module(), [target_opt()]}.
 -export_type([target/0]).
+
+-type target_opt() ::
+        target_module_opt() |
+        overridable_opt().
 
 -type target_module_opt() ::
         {exports, target_exports()}.
@@ -45,12 +51,39 @@
 
 -type overridable_opt() ::
         {client_ref, term()} | % 'default' by default
-        {exports, target_exports()} | % 'use_backwater_attributes' by default
         {module_name_prefix, file:name_all()} | % "rpc_" by default
         {module_name_suffix, file:name_all()} | % "" by default
         {unexported_types, ignore | warn | error | abort} | % warn by default
         {output_directory, file:name_all()}.
 -export_type([overridable_opt/0]).
+
+-type generation_params() ::
+        #{ (module_name | module_path) := (atom() | file:name_all()), % compiled vs. source modules
+           current_app_info => rebar_app_info:t(),
+           target_opts => [target_opt()] }.
+
+-type module_info() ::
+        #{ module := module(),
+           original_path := file:name_all(),
+           exports := sets:set(name_arity()),
+           type_exports := sets:set(name_arity()),
+           deprecation_attributes := sets:set(tuple() | [tuple()]),
+           backwater_exports := sets:set(name_arity()),
+           function_specs := #{ name_arity() => [erl_parse:abstract_form()]  },
+           function_definitions := #{ name_arity() => [function_definition()] },
+           original_module => atom(),
+           missing_types_messages => sets:set(missing_types_message())
+         }.
+
+-type name_arity() :: {Name :: atom(), arity()}.
+
+-type function_definition() :: #{ vars := [term()] }.
+
+-type missing_types_message() ::
+        {ModulePath :: file:name_all(),
+         Line :: pos_integer(),
+         Fmt :: nonempty_string(),
+         FmtArgs :: list()}.
 
 %% ------------------------------------------------------------------
 %% API Function Definitions
@@ -87,11 +120,14 @@ generate(State) ->
 %% Internal Function Definitions
 %% ------------------------------------------------------------------
 
+-spec generate(rebar_app_info:t(), dict:dict(atom(), file:name_all())) -> ok | {error, term()}.
 generate(CurrentAppInfo, SourceDirectoriesPerApp) ->
     RebarOpts = rebar_app_info:opts(CurrentAppInfo),
     BackwaterOptsLookup = dict:find(backwater_gen, RebarOpts),
     generate(CurrentAppInfo, SourceDirectoriesPerApp, BackwaterOptsLookup).
 
+-spec generate(rebar_app_info:t(), dict:dict(atom(), file:name_all()), error | {ok, [opt()]})
+        -> ok | {error, term()}.
 generate(_CurrentAppInfo, _SourceDirectoriesPerApp, error) ->
     {error, {missing_options, backwater_gen}};
 generate(CurrentAppInfo, SourceDirectoriesPerApp, {ok, BackwaterOpts}) ->
@@ -134,6 +170,7 @@ generate(CurrentAppInfo, SourceDirectoriesPerApp, {ok, BackwaterOpts}) ->
       end,
       Targets).
 
+-spec generate_backwater_code(generation_params()) -> ok | {error, term()}.
 generate_backwater_code(GenerationParams) ->
     backwater_util:with_success(
       fun (ModulePath, Forms) ->
@@ -148,12 +185,15 @@ generate_backwater_code(GenerationParams) ->
 %% Internal Function Definitions - Finding the Code
 %% ------------------------------------------------------------------
 
+-spec app_info_src_directories(rebar_app_info:t()) -> [file:name_all()].
 app_info_src_directories(AppInfo) ->
     BaseDir = rebar_app_info:dir(AppInfo),
     Opts = rebar_app_info:opts(AppInfo),
     RelDirs = rebar_opts:get(Opts, src_dir, ["src"]),
     [filename:join(ec_cnv:to_list(BaseDir), RelDir) || RelDir <- RelDirs].
 
+-spec find_module_name_or_path(atom(), module(), dict:dict(atom(), [file:name_all()]))
+        -> {ok, generation_params()} | {error, term()}.
 find_module_name_or_path(AppName, Module, SourceDirectoriesPerApp) ->
     case dict:find(AppName, SourceDirectoriesPerApp) of
         {ok, SourceDirectories} ->
@@ -169,6 +209,8 @@ find_module_name_or_path(AppName, Module, SourceDirectoriesPerApp) ->
             end
     end.
 
+-spec find_module_path(module(), [file:name_all()])
+        -> {ok, generation_params()} | {error, term()}.
 find_module_path(Module, SourceDirectories) ->
     ModuleStr = atom_to_list(Module),
     MaybeSourceDirectoriesWithFiles =
@@ -206,10 +248,12 @@ find_module_path(Module, SourceDirectories) ->
       end,
       MaybeSourceDirectoriesWithFiles).
 
+-spec directory_source_files(file:name_all()) -> {ok, [file:name_all()]} | {error, term()}.
 directory_source_files(SrcDir) ->
     case file:list_dir(SrcDir) of
         {ok, Filenames} ->
-            FilteredFilenames = filter_filenames_by_extension(Filenames, "erl"),
+            Extension = binary_to_list(?OPAQUE_BINARY(<<"erl">>)),
+            FilteredFilenames = filter_filenames_by_extension(Filenames, Extension),
             {ok, full_paths(SrcDir, FilteredFilenames)};
         {error, enotdir} ->
             {ok, []};
@@ -217,6 +261,7 @@ directory_source_files(SrcDir) ->
             {error, {cant_list_directory, SrcDir, OtherError}}
     end.
 
+-spec filter_filenames_by_extension([file:name_all()], nonempty_string()) -> [file:name_all()].
 filter_filenames_by_extension(Filenames, Extension) ->
     ExtensionWithDot = [$. | Extension],
     lists:filter(
@@ -226,6 +271,7 @@ filter_filenames_by_extension(Filenames, Extension) ->
       end,
       Filenames).
 
+-spec full_paths(file:name_all(), [file:name_all()]) -> [file:name_all()].
 full_paths(Dir, Names) ->
     [filename:join(Dir, Name) || Name <- Names].
 
@@ -239,9 +285,10 @@ full_paths(Dir, Names) ->
 %%
 %% [1]: https://github.com/efcasado/forms
 %%
-%-spec read_forms(atom() | iolist()) -> [erl_parse:abstract_form()].
+-spec read_forms(generation_params())
+        -> {ok, file:name_all(), [erl_parse:abstract_form()]} |
+           {error, term()}.
 read_forms(#{ module_name := Module })  ->
-    %ModulePath = code:which(Module),
     ModuleStr = atom_to_list(Module),
     ModulePath = code:where_is_file(ModuleStr ++ ".beam"),
     try beam_lib:chunks(ModulePath, [abstract_code]) of
@@ -268,6 +315,7 @@ read_forms(#{ module_path := ModulePath }) ->
             {error, {Class, Error}}
     end.
 
+-spec parse_module(erl_parse:abstract_form(), dict:dict()) -> dict:dict().
 parse_module({attribute, _Line, module, Module}, Acc) ->
     dict:store(module, Module, Acc);
 parse_module({attribute, _Line, export, Pairs}, Acc) ->
@@ -300,6 +348,7 @@ parse_module({function, _Line, Name, Arity, Clauses}, Acc) ->
 parse_module(_Other, Acc) ->
     Acc.
 
+-spec generate_module_info(file:name_all(), dict:dict()) -> module_info().
 generate_module_info(ModulePath, ParseResult) ->
     BaseModuleInfo =
         #{ original_path => ModulePath,
@@ -337,6 +386,7 @@ generate_module_info(ModulePath, ParseResult) ->
 %% Internal Function Definitions - Transforming the Code
 %% ------------------------------------------------------------------
 
+-spec transform_module(generation_params(), module_info()) -> module_info().
 transform_module(GenerationParams, ModuleInfo1) ->
     ModuleInfo2 = transform_exports(GenerationParams, ModuleInfo1),
     ModuleInfo3 = trim_deprecation_attributes(ModuleInfo2),
@@ -344,6 +394,7 @@ transform_module(GenerationParams, ModuleInfo1) ->
     ModuleInfo5 = externalize_function_specs_user_types(GenerationParams, ModuleInfo4),
     rename_module(GenerationParams, ModuleInfo5).
 
+-spec transform_exports(generation_params(), module_info()) -> module_info().
 transform_exports(GenerationParams, ModuleInfo1) ->
     #{ target_opts := TargetOpts } = GenerationParams,
     #{ exports := Exports1, backwater_exports := BackwaterExports } = ModuleInfo1,
@@ -359,6 +410,7 @@ transform_exports(GenerationParams, ModuleInfo1) ->
         end,
     ModuleInfo2#{ exports := Exports3 }.
 
+-spec trim_deprecation_attributes(module_info()) -> module_info().
 trim_deprecation_attributes(ModuleInfo) ->
     #{ exports := Exports, deprecation_attributes := DeprecationAttributes1 } = ModuleInfo,
     ExportsList = sets:to_list(Exports),
@@ -387,6 +439,7 @@ trim_deprecation_attributes(ModuleInfo) ->
     DeprecationAttributes2 = sets:from_list(Filtered),
     ModuleInfo#{ deprecation_attributes := DeprecationAttributes2 }.
 
+-spec trim_functions_and_specs(module_info()) -> module_info().
 trim_functions_and_specs(ModuleInfo) ->
     #{ exports := Exports,
        function_definitions := FunctionDefinitions,
@@ -395,6 +448,7 @@ trim_functions_and_specs(ModuleInfo) ->
       function_definitions => maps:with(sets:to_list(Exports), FunctionDefinitions),
       function_specs => maps:with(sets:to_list(Exports), FunctionSpecs) }.
 
+-spec rename_module(generation_params(), module_info()) -> module_info().
 rename_module(GenerationParams, ModuleInfo) ->
     #{ target_opts := TargetOpts } = GenerationParams,
     #{ module := Module1 } = ModuleInfo,
@@ -415,6 +469,7 @@ rename_module(GenerationParams, ModuleInfo) ->
     Module2 = list_to_atom(Module2Str),
     ModuleInfo#{ module => Module2, original_module => Module1 }.
 
+-spec write_module(generation_params(), module_info()) -> ok | {error, term()}.
 write_module(GenerationParams, ModuleInfo) ->
     ClientRef = target_client_ref(GenerationParams),
     OutputDirectory = target_output_directory(GenerationParams),
@@ -427,10 +482,12 @@ write_module(GenerationParams, ModuleInfo) ->
         {error, Error} -> {error, {couldnt_save_module, Error}}
     end.
 
+-spec target_client_ref(generation_params()) -> term().
 target_client_ref(GenerationParams) ->
     #{ target_opts := TargetOpts } = GenerationParams,
     proplists:get_value(client_ref, TargetOpts, ?DEFAULT_PARAM_CLIENT_REF).
 
+-spec target_output_directory(generation_params()) -> file:name_all().
 target_output_directory(GenerationParams) ->
     #{ target_opts := TargetOpts } = GenerationParams,
     case proplists:get_value(output_directory, TargetOpts) of
@@ -442,11 +499,14 @@ target_output_directory(GenerationParams) ->
             OutputDirectory
     end.
 
+-spec ensure_directory_exists(file:name_all()) -> ok.
 ensure_directory_exists(Path) ->
     AbsPath = filename:absname(Path),
     Parts = filename:split(AbsPath),
     ensure_directory_exists_recur(Parts, "").
 
+-spec ensure_directory_exists_recur([file:name_all()], file:name_all())
+        -> ok | {error, atom()}.
 ensure_directory_exists_recur([], _) ->
     ok;
 ensure_directory_exists_recur([H|T], Acc) ->
@@ -457,6 +517,8 @@ ensure_directory_exists_recur([H|T], Acc) ->
         {error, _} = Error -> Error
     end.
 
+-spec externalize_function_specs_user_types(generation_params(), module_info())
+        -> module_info().
 externalize_function_specs_user_types(GenerationParams, ModuleInfo1) ->
     % do it
     #{ function_specs := FunctionSpecs1 } = ModuleInfo1,
@@ -490,9 +552,14 @@ externalize_function_specs_user_types(GenerationParams, ModuleInfo1) ->
 
     ModuleInfo3.
 
+-spec externalize_function_spec_definitions_user_types(name_arity(), [erl_parse:abstract_form()],
+                                                       module_info())
+        -> {[erl_parse:abstract_form()], module_info()}.
 externalize_function_spec_definitions_user_types({_Name, _Arity}, Definitions, Acc) ->
     lists:mapfoldl(fun externalize_user_types/2, Acc, Definitions).
 
+%-spec externalize_user_types(erl_parse:abstract_form(), module_info())
+%        -> {erl_parse:abstract_form(), module_info()}.
 externalize_user_types({type, Line, record, Args}, Acc1) ->
     {atom, _NameLine, Name} = hd(Args),
     Acc2 = handle_unexported_record_reference(Line, Name, Acc1),
@@ -546,6 +613,8 @@ externalize_user_types({type, _Line, _Builtin} = T, Acc) ->
 externalize_user_types({var, _Line, _Name} = T, Acc) ->
     {T, Acc}.
 
+-spec handle_unexported_record_reference(pos_integer(), atom(), module_info())
+        -> module_info().
 handle_unexported_record_reference(Line, Name, Acc) ->
     maps:update_with(
       missing_types_messages,
@@ -556,6 +625,8 @@ handle_unexported_record_reference(Line, Name, Acc) ->
       end,
       Acc).
 
+-spec handle_unexported_type(pos_integer(), atom(), arity(), module_info())
+        -> module_info().
 handle_unexported_type(Line, Name, Arity, Acc) ->
     maps:update_with(
       missing_types_messages,
@@ -566,6 +637,8 @@ handle_unexported_type(Line, Name, Arity, Acc) ->
       end,
       Acc).
 
+-spec missing_type_msg_function(ignore | warn | error | abort)
+        -> fun((nonempty_string(), list()) -> ok).
 missing_type_msg_function(ignore) ->
     fun rebar_api:debug/2;
 missing_type_msg_function(warn) ->
@@ -579,6 +652,7 @@ missing_type_msg_function(abort) ->
 %% Internal Function Definitions - Generating the New Code
 %% ------------------------------------------------------------------
 
+%-spec generate_module_source(term(), module_info()) -> iolist().
 generate_module_source(ClientRef, ModuleInfo) ->
     Header = generate_module_source_header(ModuleInfo),
     Exports = generate_module_source_exports(ModuleInfo),
@@ -592,10 +666,12 @@ generate_module_source(ClientRef, ModuleInfo) ->
      generate_module_source_section("Specifications", FunctionSpecs),
      generate_module_source_section("Definitions", FunctionDefinitions)].
 
+-spec generate_module_source_header(module_info()) -> iolist().
 generate_module_source_header(ModuleInfo) ->
     #{ module := Module } = ModuleInfo,
     erl_pp:attribute({attribute, ?DUMMY_LINE_NUMBER, module, Module}).
 
+-spec generate_module_source_exports(module_info()) -> [iolist()].
 generate_module_source_exports(ModuleInfo) ->
     #{ exports := Exports } = ModuleInfo,
     ExportsList = lists:sort( sets:to_list(Exports) ),
@@ -605,6 +681,7 @@ generate_module_source_exports(ModuleInfo) ->
       end,
       ExportsList).
 
+%-spec generate_module_source_xref_attributes(module_info()) -> [iolist()].
 generate_module_source_xref_attributes(ModuleInfo) ->
     #{ exports := Exports, deprecation_attributes := DeprecationAttributes } = ModuleInfo,
     ExportsList = lists:sort( sets:to_list(Exports) ),
@@ -631,6 +708,7 @@ generate_module_source_xref_attributes(ModuleInfo) ->
      end,
      AbstractDeprecationAttributes].
 
+-spec generate_module_source_function_specs(module_info()) -> [iolist()].
 generate_module_source_function_specs(ModuleInfo) ->
     #{ function_definitions := FunctionDefinitions } = ModuleInfo,
     FunctionNameArities = lists:keysort(1, maps:keys(FunctionDefinitions)),
@@ -642,6 +720,7 @@ generate_module_source_function_specs(ModuleInfo) ->
           FunctionNameArities),
     lists:join("\n", List).
 
+-spec generate_module_source_function_spec(name_arity(), module_info()) -> iolist().
 generate_module_source_function_spec({Name, Arity}, ModuleInfo) ->
     #{ function_specs := FunctionSpecs } = ModuleInfo,
     Attribute =
@@ -656,6 +735,7 @@ generate_module_source_function_spec({Name, Arity}, ModuleInfo) ->
         end,
     erl_pp:attribute(Attribute).
 
+-spec generate_module_source_function_definitions(term(), module_info()) -> [iolist()].
 generate_module_source_function_definitions(ClientRef, ModuleInfo) ->
     #{ function_definitions := FunctionDefinitions } = ModuleInfo,
     FunctionDefinitionsList = lists:keysort(1, maps:to_list(FunctionDefinitions)),
@@ -694,6 +774,8 @@ wrap_return_type(OriginalType) ->
          [{atom, ?DUMMY_LINE_NUMBER, error}, ErrorValueSpec]},
     {type, ?DUMMY_LINE_NUMBER, union, [SuccessSpec, ErrorSpec]}.
 
+-spec generate_module_source_function(term(), {name_arity(), [function_definition()]}, module_info())
+        -> iolist().
 generate_module_source_function(ClientRef, {{Name, Arity}, Definitions}, ModuleInfo) ->
     #{ original_module := OriginalModule } = ModuleInfo,
     IndexedVarLists = generate_module_source_indexed_var_lists(Definitions),
@@ -706,6 +788,8 @@ generate_module_source_function(ClientRef, {{Name, Arity}, Definitions}, ModuleI
     Clause = {clause, ?DUMMY_LINE_NUMBER, ArgVars, Guards, Body},
     erl_pp:function({function, ?DUMMY_LINE_NUMBER, Name, Arity, [Clause]}).
 
+-spec generate_module_source_indexed_var_lists([function_definition()])
+        -> [{pos_integer(), [term()]}].
 generate_module_source_indexed_var_lists(Definitions) ->
     IndexedVarListsDict =
         lists:foldl(
@@ -722,6 +806,8 @@ generate_module_source_indexed_var_lists(Definitions) ->
           Definitions),
     orddict:to_list(IndexedVarListsDict).
 
+-spec generate_module_source_arg_names(arity(), [{pos_integer(), [term()]}])
+        -> [nonempty_string()].
 generate_module_source_arg_names(Arity, IndexedVarLists) ->
     lists:map(
       fun ({Index, Vars}) ->
@@ -742,6 +828,7 @@ generate_module_source_arg_names(Arity, IndexedVarLists) ->
       end,
       IndexedVarLists).
 
+-spec filter_arg_names_from_function_vars([term()]) -> [nonempty_string()].
 filter_arg_names_from_function_vars(Vars) ->
     lists:foldr(
       fun F({var, _Line, AtomName}, Acc) ->
@@ -755,19 +842,24 @@ filter_arg_names_from_function_vars(Vars) ->
       [],
       Vars).
 
+-spec clean_arg_name(nonempty_string()) -> string().
 clean_arg_name(ArgName1) ->
     ArgName2 = lists:dropwhile(fun (C) -> C =:= $_ end, ArgName1), % drop prefixing underscores
     lists:takewhile(fun (C) -> C =/= $_ end, ArgName2).            % drop trailing underscores
 
+-spec is_valid_arg_name(string()) -> boolean().
 is_valid_arg_name(ArgName) ->
     length(ArgName) > 0 andalso                        % non-empty
     [hd(ArgName)] =:= string:to_upper([hd(ArgName)]).  % first character is upper case
 
+-spec generated_arg_name(arity(), pos_integer()) -> nonempty_string().
 generated_arg_name(FunctionArity, Index) when FunctionArity =:= 1, Index =:= 1 ->
     "Arg";
 generated_arg_name(_FunctionArity, Index) ->
     "Arg" ++ integer_to_list(Index).
 
+-spec generate_module_source_unique_arg_names(arity(), [nonempty_string()])
+        -> [nonempty_string()].
 generate_module_source_unique_arg_names(Arity, ArgNames) ->
     CountPerArgName =
         lists:foldl(
