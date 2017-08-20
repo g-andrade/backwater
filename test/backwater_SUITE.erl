@@ -61,6 +61,7 @@ init_per_group(Name, Config) ->
 
 end_per_group(individual_tests, Config) ->
     _ = application:stop(backwater),
+    _ = application:stop(cowboy),
     Config;
 end_per_group(_Name, Config1) ->
     {value, {ref, Ref}, Config2} = lists:keytake(ref, 1, Config1),
@@ -73,6 +74,7 @@ end_per_group(_Name, Config1) ->
        {wrong_secret, Ref},
        {remote_exceptions_rethrown, Ref}]),
     _ = application:stop(backwater),
+    _ = application:stop(cowboy),
     Config3.
 
 %%%

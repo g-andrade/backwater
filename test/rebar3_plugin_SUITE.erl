@@ -17,6 +17,7 @@ init_per_group(_Name, Config) ->
 
 end_per_group(_Name, Config) ->
     _ = application:stop(backwater),
+    _ = application:stop(cowboy),
     Config.
 
 %%%
