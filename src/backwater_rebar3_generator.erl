@@ -328,7 +328,7 @@ parse_module({attribute, _Line, deprecated, Data}, Acc) ->
     dict:append(deprecation_attributes, Data, Acc);
 parse_module({attribute, _Line, backwater_export, {Name, Arity}}, Acc) ->
     dict:append(backwater_exports, {Name, Arity}, Acc);
-parse_module({attribute, _Line, backwater_exports, List}, Acc) when is_list(List) ->
+parse_module({attribute, _Line, backwater_export, List}, Acc) when is_list(List) ->
     dict:append_list(backwater_exports, List, Acc);
 parse_module({attribute, _Line, spec, {{_Name, _Arity}, _Definitions} = Spec}, Acc) ->
     dict:append(function_specs, Spec, Acc);
