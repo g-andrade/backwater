@@ -28,7 +28,8 @@ init_per_group(Name, Config) ->
            exposed_modules =>
                 [{erlang, [{exports, all}]},
                  {string, [{exports, [{copies,2}]}]},
-                 non_existing_module],
+                 non_existing_module,
+                 module_with_backwater_attributes],
            decode_unsafe_terms => DecodeUnsafeTerms,
            return_exception_stacktraces => ReturnExceptionStacktraces
          },
@@ -595,6 +596,48 @@ unsafe_argument_grouptest(Config) ->
         false ->
             ?assertMatch({error, {remote, {bad_request, _Headers, _Body}}}, Result)
     end.
+
+backwater_attributes_exported_grouptest(Config) ->
+    {ref, Ref} = lists:keyfind(ref, 1, Config),
+
+    % exported both regularly and through backwater attribute
+    ?assertEqual(
+       {ok, {foobar}},
+       backwater_client:call(Ref, module_with_backwater_attributes, 'exported_functionA',
+                             [])),
+
+    % exported only regularly
+    ArgB = rand:uniform(1000),
+    ?assertMatch(
+       {error, {remote, {not_found, _Headers, _Body}}},
+       backwater_client:call(Ref, module_with_backwater_attributes, 'exported_functionB',
+                             [ArgB])),
+
+    % exported both regularly and through backwater attribute
+    ?assertEqual(
+       {ok, {barfoo}},
+       backwater_client:call(Ref, module_with_backwater_attributes, 'exported_functionC',
+                             [])),
+
+    % exported both regularly and through backwater attribute
+    ArgD = rand:uniform(1000),
+    ?assertEqual(
+       {ok, {ArgD}},
+       backwater_client:call(Ref, module_with_backwater_attributes, 'exported_functionD',
+                             [ArgD])),
+
+    % exported only through backwater attribute
+    ?assertMatch(
+       {error, {remote, {not_found, _Headers, _Body}}},
+       backwater_client:call(Ref, module_with_backwater_attributes, 'exported_functionE',
+                             [])),
+
+    ArgInternal = rand:uniform(1000),
+    % existing internal function
+    ?assertMatch(
+       {error, {remote, {not_found, _Headers, _Body}}},
+       backwater_client:call(Ref, module_with_backwater_attributes, 'internal_function',
+                             [ArgInternal])).
 
 %%%
 all_individual_tests() ->
