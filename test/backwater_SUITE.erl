@@ -38,7 +38,7 @@ init_per_group(Name, Config) ->
     BaseClientConfig =
         #{ endpoint => Endpoint,
            secret => Secret,
-           hackney_options => HackneyOpts },
+           hackney_opts => HackneyOpts },
     ok = backwater_client:start(Name, BaseClientConfig),
 
     ClientConfigWithWrongEndpoint =
@@ -107,11 +107,11 @@ bad_client_start_config_test(_Config) ->
        {error, {invalid_config_parameter, {secret, invalid_secret}}},
        StartFun(#{ endpoint => <<"https://blah">>, secret => invalid_secret })),
 
-    % invalid hackney_options (optional)
+    % invalid hackney_opts (optional)
     ?assertEqual(
-       {error, {invalid_config_parameter, {hackney_options, invalid_hackney_options}}},
+       {error, {invalid_config_parameter, {hackney_opts, invalid_hackney_opts}}},
        StartFun(#{ endpoint => <<"https://blah">>, secret => <<>>,
-                   hackney_options => invalid_hackney_options })),
+                   hackney_opts => invalid_hackney_opts })),
 
     % invalid decode_unsafe_terms (optional)
     ?assertEqual(

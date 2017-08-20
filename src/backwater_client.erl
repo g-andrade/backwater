@@ -23,7 +23,7 @@
 %% Macro Definitions
 %% ------------------------------------------------------------------
 
--define(DEFAULT_HACKNEY_OPTIONS,
+-define(DEFAULT_HACKNEY_OPTS,
         [{pool, backwater_client},
          {connect_timeout, 8000}, % in milliseconds
          {recv_timeout, 5000}, % in milliseconds
@@ -37,7 +37,7 @@
 -type config() ::
     #{ endpoint := nonempty_binary(),
        secret := binary(),
-       hackney_options => [hackney_option()],
+       hackney_opts => [hackney_option()],
        decode_unsafe_terms => boolean(),
        rethrow_remote_exceptions => boolean()
      }.
@@ -101,9 +101,9 @@ validate_config_pair({endpoint, Endpoint}) ->
     is_binary(Endpoint) andalso byte_size(Endpoint) > 0;
 validate_config_pair({secret, Secret}) ->
     is_binary(Secret);
-validate_config_pair({hackney_options, HackneyOptions}) ->
+validate_config_pair({hackney_opts, HackneyOpts}) ->
     % TODO deeper validation
-    is_list(HackneyOptions);
+    is_list(HackneyOpts);
 validate_config_pair({decode_unsafe_terms, DecodeUnsafeTerms}) ->
     is_boolean(DecodeUnsafeTerms);
 validate_config_pair({rethrow_remote_exceptions, RethrowRemoteExceptions}) ->
@@ -130,12 +130,12 @@ encode_request(Config, Module, Function, Args) ->
         -> backwater_http_response:t(Error) when Error :: {hackney, term()}.
 call_hackney(Config, RequestState, Request) ->
     {Method, Url, Headers, Body} = Request,
-    DefaultHackneyOptions = ?DEFAULT_HACKNEY_OPTIONS,
-    ConfigHackneyOptions = maps:get(hackney_options, Config, []),
-    MandatoryHackneyOptions = [with_body],
-    HackneyOptions = backwater_util:proplists_sort_and_merge(
-                       [DefaultHackneyOptions, ConfigHackneyOptions, MandatoryHackneyOptions]),
-    Result = hackney:request(Method, Url, Headers, Body, HackneyOptions),
+    DefaultHackneyOpts = ?DEFAULT_HACKNEY_OPTS,
+    ConfigHackneyOpts = maps:get(hackney_opts, Config, []),
+    MandatoryHackneyOpts = [with_body],
+    HackneyOpts = backwater_util:proplists_sort_and_merge(
+                       [DefaultHackneyOpts, ConfigHackneyOpts, MandatoryHackneyOpts]),
+    Result = hackney:request(Method, Url, Headers, Body, HackneyOpts),
     handle_hackney_result(Config, RequestState, Result).
 
 handle_hackney_result(Config, RequestState, {ok, StatusCode, Headers, Body}) ->
