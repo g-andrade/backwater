@@ -115,12 +115,35 @@ determine_module_exports(ExposedModule, RawModuleInfo) ->
             maps:from_list([backwater_export_entry_pair(Module, Pair) || Pair <- AtomKeyedExports]);
         use_backwater_attributes ->
             Exports = [{atom_to_binary(K, utf8), V} || {K, V} <- AtomKeyedExports],
-            BackwaterExports = module_attributes_get_backwater_exports(Module, ModuleAttributes),
+            BackwaterExports = module_info_get_backwater_exports(Module, ModuleAttributes, AtomKeyedExports),
             maps:with(Exports, BackwaterExports);
         List when is_list(List) ->
             maps:from_list(
               [backwater_export_entry_pair(Module, Pair) || Pair <- AtomKeyedExports,
                lists:member(Pair, List)])
+    end.
+
+-spec module_info_get_backwater_exports(module(), raw_module_attributes(), [{atom(),arity()}])
+        -> exports().
+module_info_get_backwater_exports(Module, ModuleAttributes, AtomKeyedExports) ->
+    ModuleStr = atom_to_list(Module),
+    IsLikelyElixirModule =
+        lists:prefix("Elixir.", ModuleStr) andalso lists:member({'__info__',1}, AtomKeyedExports),
+    UseExportFunction =
+        IsLikelyElixirModule andalso lists:member({backwater_export,0}, AtomKeyedExports),
+
+    case UseExportFunction of
+        false ->
+            module_attributes_get_backwater_exports(Module, ModuleAttributes);
+        true ->
+            case Module:backwater_export() of
+                Tuple when is_tuple(Tuple) ->
+                    {FA, Properties} = backwater_export_entry_pair(Module, Tuple),
+                    #{ FA => Properties };
+                List when is_list(List) ->
+                    EntryPairs = [backwater_export_entry_pair(Module, Tuple) || Tuple <- List],
+                    maps:from_list(EntryPairs)
+            end
     end.
 
 -spec module_attributes_get_backwater_exports(module(), raw_module_attributes()) -> exports().
