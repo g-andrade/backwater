@@ -81,7 +81,7 @@ current_app_module_test(_Config) ->
                     {ok, backwater_util:latin1_binary_to_lower(<<"Hello">>)},
                     rpc_backwater_util:latin1_binary_to_lower(<<"Hello">>))
          end,
-         [{source_directory, filename:join(source_directory(), "..")}])).
+         [{output_directory, filename:join(source_directory(), "..")}])).
 
 current_app_module_presuming_attributes_test(_Config) ->
     ?assertOk(
@@ -93,7 +93,7 @@ current_app_module_presuming_attributes_test(_Config) ->
                     [],
                     exported_functions(rpc_backwater_util))
          end,
-         [{source_directory, filename:join(source_directory(), "..")}])).
+         [{output_directory, filename:join(source_directory(), "..")}])).
 
 unloaded_application_test(_Config) ->
     ?assertOk(
@@ -193,25 +193,28 @@ generate_and_load(Ref, Targets, ExtraOpts) ->
                            return_exception_stacktraces => true },
                    [{port, 8080}], #{}),
 
-    SourceDirectory = proplists:get_value(source_directory, ExtraOpts, source_directory()),
+    OutputDirectory = proplists:get_value(output_directory, ExtraOpts, source_directory()),
+    SourceDirectory = proplists:get_value(src_dir, ExtraOpts),
     % code
     Opts =
         [{backwater_gen,
           [{client_ref, Ref},
-           {output_directory, SourceDirectory}
+           {output_directory, OutputDirectory}
            | [{target, Target} || Target <- Targets]]
-         }],
-    generate_and_load_code_with_opts(Opts, SourceDirectory).
+         },
+         {src_dir, SourceDirectory}],
+    FilteredOpts = lists_keyfilter(fun is_defined/1, 2, Opts),
+    generate_and_load_code_with_opts(FilteredOpts, OutputDirectory).
 
 
 stop(Ref) ->
     ok = backwater_server:stop_listener(Ref),
     ok = backwater_client:stop(Ref).
 
-generate_and_load_code_with_opts(OptsList, SourceDirectory) ->
+generate_and_load_code_with_opts(OptsList, Outputdirectory) ->
     {backwater_gen, BackwaterOpts} = lists:keyfind(backwater_gen, 1, OptsList),
     Targets = [Target || {target, Target} <- BackwaterOpts],
-    TargetModules = 
+    TargetModules =
         lists:map(
           fun ({_App, Module, _TargetOpts}) ->
                   Module;
@@ -229,14 +232,14 @@ generate_and_load_code_with_opts(OptsList, SourceDirectory) ->
               TargetModuleStr = atom_to_list(TargetModule),
               ModuleStr = "rpc_" ++ TargetModuleStr,
               ModuleFilename = ModuleStr ++ ".erl",
-              _ = file:delete(filename:join(SourceDirectory, ModuleFilename)),
-              _ = file:delete(filename:join(SourceDirectory, ModuleStr ++ ".beam"))
+              _ = file:delete(filename:join(Outputdirectory, ModuleFilename)),
+              _ = file:delete(filename:join(Outputdirectory, ModuleStr ++ ".beam"))
       end,
       TargetModules),
 
-    ok = file:set_cwd(SourceDirectory),
+    ok = file:set_cwd(Outputdirectory),
     RebarState1 = rebar_state:new(),
-    {ok, RebarAppInfo1} = rebar_app_info:new(basic_rpc_test, "0.0.0", SourceDirectory),
+    {ok, RebarAppInfo1} = rebar_app_info:new(basic_rpc_test, "0.0.0", Outputdirectory),
     Opts = dict:from_list(OptsList),
     RebarAppInfo2 = rebar_app_info:opts(RebarAppInfo1, Opts),
     RebarState2 = rebar_state:current_app(RebarState1, RebarAppInfo2),
@@ -249,8 +252,8 @@ generate_and_load_code_with_opts(OptsList, SourceDirectory) ->
                         ModuleStr = "rpc_" ++ TargetModuleStr,
                         ModuleFilename = ModuleStr ++ ".erl",
                         Module = list_to_atom(ModuleStr),
-                        {ok, Module} = compile:file(filename:join(SourceDirectory, ModuleFilename)),
-                        {module, Module} = code:load_abs(filename:join(SourceDirectory, ModuleStr))
+                        {ok, Module} = compile:file(filename:join(Outputdirectory, ModuleFilename)),
+                        {module, Module} = code:load_abs(filename:join(Outputdirectory, ModuleStr))
                 end,
                 TargetModules)
       end,
@@ -294,3 +297,5 @@ lists_keywith(Keys, N, List) ->
 
 lists_keyfilter(Fun, N, List) ->
     [Tuple || Tuple <- List, Fun(element(N, Tuple))].
+
+is_defined(V) -> V =/= undefined.
