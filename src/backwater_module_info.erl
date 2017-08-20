@@ -134,6 +134,8 @@ module_attributes_get_backwater_exports(Module, ModuleAttributes) ->
 -spec backwater_export_entry_pair(module(), {atom(), arity()})
         -> {fun_arity_pair(), fun_properties()}.
 backwater_export_entry_pair(Module, {AtomF,A}) ->
+    % XXX if we ever want to support custom marshalling (e.g. JSON),
+    % this would be a good point to start
     Properties =
         #{ known_content_types => [{<<"application">>, <<"x-erlang-etf">>}],
            function_ref => fun Module:AtomF/A },
