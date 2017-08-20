@@ -189,7 +189,8 @@ generate_backwater_code(GenerationParams) ->
 app_info_src_directories(AppInfo) ->
     BaseDir = rebar_app_info:dir(AppInfo),
     Opts = rebar_app_info:opts(AppInfo),
-    RelDirs = rebar_opts:get(Opts, src_dir, ["src"]),
+    ErlOpts = rebar_opts:get(Opts, erl_opts, []),
+    RelDirs = rebar_opts:get(Opts, src_dirs, proplists:get_value(src_dirs, ErlOpts, ["src"])),
     [filename:join(ec_cnv:to_list(BaseDir), RelDir) || RelDir <- RelDirs].
 
 -spec find_module_name_or_path(atom(), module(), dict:dict(atom(), [file:name_all()]))

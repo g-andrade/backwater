@@ -159,7 +159,7 @@ module_with_backwater_attributes_test(_Config) ->
                     {ok, {ArgD}},
                     rpc_module_with_backwater_attributes:exported_functionD(ArgD))
          end,
-         [{src_dir, [source_directory()]}])).
+         [{src_dirs, [source_directory()]}])).
 
 %%%
 
@@ -220,7 +220,7 @@ generate_and_load(Ref, Targets, ExtraOpts) ->
                    [{port, 8080}], #{}),
 
     OutputDirectory = proplists:get_value(output_directory, ExtraOpts, source_directory()),
-    SourceDirectory = proplists:get_value(src_dir, ExtraOpts),
+    SourceDirectories = proplists:get_value(src_dirs, ExtraOpts),
     % code
     Opts =
         [{backwater_gen,
@@ -228,7 +228,7 @@ generate_and_load(Ref, Targets, ExtraOpts) ->
            {output_directory, OutputDirectory}
            | [{target, Target} || Target <- Targets]]
          },
-         {src_dir, SourceDirectory}],
+         {src_dirs, SourceDirectories}],
     FilteredOpts = lists_keyfilter(fun is_defined/1, 2, Opts),
     generate_and_load_code_with_opts(FilteredOpts, OutputDirectory).
 
