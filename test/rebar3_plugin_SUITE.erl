@@ -121,7 +121,8 @@ missing_application_test(_Config) ->
 
 missing_module_test(_Config) ->
     ?assertMatch(
-       {error, {backwater_rebar3_prv_generate, {beam_lib, {file_error, _, enoent}}}},
+       {error, {backwater_rebar3_prv_generate,
+                {{beam_lib, {file_error, _, enoent}}, some_made_up_module}}},
        with_ref(
          [{stdlib, some_made_up_module}],
          fun () -> error(not_supposed_to_run) end,
@@ -129,7 +130,8 @@ missing_module_test(_Config) ->
 
 module_packed_in_escript_test(_Config) ->
     ?assertMatch(
-       {error, {backwater_rebar3_prv_generate, {beam_lib, {file_error, _ModulePath, enotdir}}}},
+       {error, {backwater_rebar3_prv_generate,
+                {{beam_lib, {file_error, _ModulePath, enotdir}}, rebar_app_info}}},
        with_ref(
          [{rebar, rebar_app_info}],
          fun () -> error(not_supposed_to_run) end,

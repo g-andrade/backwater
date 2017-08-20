@@ -13,6 +13,7 @@
 %% Macro Definitions
 %% ------------------------------------------------------------------
 
+-define(NAMESPACE, backwater).
 -define(PROVIDER, generate).
 -define(DEPS, [{default, app_discovery},
                {default, install_deps} % crucial in order for source paths of dependencies to be available
@@ -31,15 +32,19 @@
 
 -spec init(rebar_state:t()) -> {ok, rebar_state:t()}.
 init(State) ->
+    Example =
+        backwater_util:iodata_to_list(
+          io_lib:format("rebar3 ~s ~s", [?NAMESPACE, ?PROVIDER])),
+
     Provider =
         providers:create(
-          [{name, ?PROVIDER},            % The 'user friendly' name of the task
-           {namespace, backwater},
+          [{namespace, ?NAMESPACE},
+           {name, ?PROVIDER},            % The 'user friendly' name of the task
            {module, ?MODULE},            % The module implementation of the task
            {bare, true},                 % The task can be run by the user, always true
            {deps, ?DEPS},                % The list of dependencies
            {opts, []},                   % list of options understood by the plugin
-           {example, "rebar3 backwater generate"},
+           {example, Example},
            {short_desc, ?SHORT_DESC},
            {desc, ?DESC}]),
     {ok, rebar_state:add_provider(State, Provider)}.
@@ -54,4 +59,4 @@ do(State) ->
 
 -spec format_error(any()) ->  iolist().
 format_error(Error) ->
-    io_lib:format("~p", [Error]).
+    io_lib:format("~s ~s: ~p", [?NAMESPACE, ?PROVIDER, Error]).

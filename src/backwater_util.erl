@@ -12,6 +12,7 @@
 -export([lists_enumerate/1]).
 -export([lists_foreach_until_error/2]).
 -export([lists_map_until_error/2]).
+-export([iodata_to_list/1]).
 -export([is_iodata/1]).
 -export([maps_mapfold/3]).
 -export([proplists_sort_and_merge/1]).
@@ -112,6 +113,10 @@ lists_map_until_error(Fun, List) ->
         {true, Successes} -> {ok, Successes};
         {false, Error} -> {error, Error}
     end.
+
+-spec iodata_to_list(iodata()) -> [byte()].
+iodata_to_list(Data) ->
+    binary_to_list( iolist_to_binary(Data) ).
 
 -spec is_iodata(term()) -> boolean().
 %% @private

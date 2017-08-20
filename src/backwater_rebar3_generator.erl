@@ -296,12 +296,12 @@ read_forms(#{ module_name := Module })  ->
         {ok, {Module, [{abstract_code, {raw_abstract_v1, Forms}}]}} ->
             {ok, ModulePath, Forms};
         {ok, {no_debug_info, _}} ->
-            {error, forms_not_found};
+            {error, {debug_info_not_found, Module}};
         {error, beam_lib, BeamLibError} ->
-            {error, {beam_lib, BeamLibError}}
+            {error, {{beam_lib, BeamLibError}, Module}}
     catch
         Class:Error ->
-            {error, {Class, Error}}
+            {error, {{Class, Error}, Module}}
     end;
 read_forms(#{ module_path := ModulePath }) ->
     try epp:parse_file(ModulePath, []) of
@@ -310,10 +310,10 @@ read_forms(#{ module_path := ModulePath }) ->
         {ok, Forms, _Extra} ->
             {ok, Forms};
         {error, enoent} ->
-            {error, file_not_found}
+            {error, {file_not_found, ModulePath}}
     catch
         Class:Error ->
-            {error, {Class, Error}}
+            {error, {{Class, Error}, ModulePath}}
     end.
 
 -spec parse_module(erl_parse:abstract_form(), dict:dict()) -> dict:dict().
