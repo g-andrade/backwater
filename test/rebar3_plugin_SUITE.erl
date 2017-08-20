@@ -135,6 +135,32 @@ module_packed_in_escript_test(_Config) ->
          fun () -> error(not_supposed_to_run) end,
          [])).
 
+module_with_backwater_attributes_test(_Config) ->
+    ?assertOk(
+       with_ref(
+         [module_with_backwater_attributes],
+         fun () ->
+                 ?assertEqual(
+                    [{exported_functionA,0},
+                     {exported_functionC,0},
+                     {exported_functionD,1}],
+                    exported_functions(rpc_module_with_backwater_attributes)),
+
+                 ?assertEqual(
+                    {ok, {foobar}},
+                    rpc_module_with_backwater_attributes:exported_functionA()),
+
+                 ?assertEqual(
+                    {ok, {barfoo}},
+                    rpc_module_with_backwater_attributes:exported_functionC()),
+
+                 ArgD = rand:uniform(1 bsl 32),
+                 ?assertEqual(
+                    {ok, {ArgD}},
+                    rpc_module_with_backwater_attributes:exported_functionD(ArgD))
+         end,
+         [{src_dir, [source_directory()]}])).
+
 %%%
 
 compare_original_and_rpc_calls(Module, RpcModule, Function, Args) ->
