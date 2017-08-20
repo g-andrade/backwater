@@ -54,7 +54,7 @@
         {module_name_prefix, file:name_all()} | % "rpc_" by default
         {module_name_suffix, file:name_all()} | % "" by default
         {unexported_types, ignore | warn | error | abort} | % warn by default
-        {output_directory, file:name_all()}.
+        {output_src_dir, file:name_all()}. % "src/rpc" by default
 -export_type([overridable_opt/0]).
 
 -type generation_params() ::
@@ -491,7 +491,7 @@ target_client_ref(GenerationParams) ->
 -spec target_output_directory(generation_params()) -> file:name_all().
 target_output_directory(GenerationParams) ->
     #{ target_opts := TargetOpts } = GenerationParams,
-    case proplists:get_value(output_directory, TargetOpts) of
+    case proplists:get_value(output_src_dir, TargetOpts) of
         undefined ->
             #{ current_app_info := CurrentAppInfo } = GenerationParams,
             CurrentAppSourceDirectories = app_info_src_directories(CurrentAppInfo),

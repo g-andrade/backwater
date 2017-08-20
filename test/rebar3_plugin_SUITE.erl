@@ -81,7 +81,7 @@ current_app_module_test(_Config) ->
                     {ok, backwater_util:latin1_binary_to_lower(<<"Hello">>)},
                     rpc_backwater_util:latin1_binary_to_lower(<<"Hello">>))
          end,
-         [{output_directory, filename:join(source_directory(), "..")}])).
+         [{output_src_dir, filename:join(source_directory(), "..")}])).
 
 current_app_module_presuming_attributes_test(_Config) ->
     ?assertOk(
@@ -93,7 +93,7 @@ current_app_module_presuming_attributes_test(_Config) ->
                     [],
                     exported_functions(rpc_backwater_util))
          end,
-         [{output_directory, filename:join(source_directory(), "..")}])).
+         [{output_src_dir, filename:join(source_directory(), "..")}])).
 
 unloaded_application_test(_Config) ->
     ?assertOk(
@@ -219,13 +219,13 @@ generate_and_load(Ref, Targets, ExtraOpts) ->
                            return_exception_stacktraces => true },
                    [{port, 8080}], #{}),
 
-    OutputDirectory = proplists:get_value(output_directory, ExtraOpts, source_directory()),
+    OutputDirectory = proplists:get_value(output_src_dir, ExtraOpts, source_directory()),
     SourceDirectories = proplists:get_value(src_dirs, ExtraOpts),
     % code
     Opts =
         [{backwater_gen,
           [{client_ref, Ref},
-           {output_directory, OutputDirectory}
+           {output_src_dir, OutputDirectory}
            | [{target, Target} || Target <- Targets]]
          },
          {src_dirs, SourceDirectories}],
