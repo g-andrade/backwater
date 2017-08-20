@@ -1,6 +1,7 @@
 -module(backwater_module_info).
 
 -include("backwater_common.hrl").
+-include("backwater_module_info.hrl").
 
 %% ------------------------------------------------------------------
 %% API Function Exports
@@ -75,9 +76,14 @@ find_and_parse_module_info(ExposedModule) ->
     case find_module_info(Module) of
         {ok, RawModuleInfo} ->
             BackwaterExports = determine_module_exports(ExposedModule, RawModuleInfo),
+            FilteredBackwaterExports =
+                maps:filter(
+                  fun ({_,_} = FunctionArity, _Info) ->
+                          not lists:member(FunctionArity, ?METADATA_EXPORT_LIST)
+                  end,
+                  BackwaterExports),
             BinModule = atom_to_binary(Module, utf8),
-            {true,
-             {BinModule, #{ exports => BackwaterExports }}};
+            {true, {BinModule, #{ exports => FilteredBackwaterExports }}};
         error ->
             false
     end.

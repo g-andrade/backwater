@@ -1,6 +1,7 @@
 -module(backwater_rebar3_generator).
 
 -include("backwater_common.hrl").
+-include("backwater_module_info.hrl").
 
 %% ------------------------------------------------------------------
 %% API Function Exports
@@ -399,16 +400,15 @@ transform_module(GenerationParams, ModuleInfo1) ->
 transform_exports(GenerationParams, ModuleInfo1) ->
     #{ target_opts := TargetOpts } = GenerationParams,
     #{ exports := Exports1, backwater_exports := BackwaterExports } = ModuleInfo1,
-    CommonExclusionList = [{module_info, 0}, {behaviour_info, 1}],
-    Exports2 = sets:subtract(Exports1, sets:from_list(CommonExclusionList)),
     ModuleInfo2 = maps:remove(backwater_exports, ModuleInfo1),
-    Exports3 =
+    Exports2 =
         case proplists:get_value(exports, TargetOpts, ?DEFAULT_PARAM_EXPORTS)
         of
-            all -> Exports2;
-            use_backwater_attributes -> sets:intersection(Exports2, BackwaterExports);
-            List when is_list(List) -> sets:intersection(Exports2, sets:from_list(List))
+            all -> Exports1;
+            use_backwater_attributes -> sets:intersection(Exports1, BackwaterExports);
+            List when is_list(List) -> sets:intersection(Exports1, sets:from_list(List))
         end,
+    Exports3 = sets:subtract(Exports2, sets:from_list(?METADATA_EXPORT_LIST)),
     ModuleInfo2#{ exports := Exports3 }.
 
 -spec trim_deprecation_attributes(module_info()) -> module_info().
