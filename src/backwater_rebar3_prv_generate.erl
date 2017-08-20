@@ -44,12 +44,14 @@ init(State) ->
            {desc, ?DESC}]),
     {ok, rebar_state:add_provider(State, Provider)}.
 
--spec do(rebar_state:t()) -> {ok, rebar_state:t()} | {error, term()}.
+-spec do(rebar_state:t()) -> {ok, rebar_state:t()} | {error, {?MODULE, term()}}.
 do(State) ->
-    backwater_util:with_success(
-      fun () -> {ok, State} end,
-      backwater_rebar3_generator:generate(State)).
+    case backwater_rebar3_generator:generate(State) of
+        ok -> {ok, State};
+        {error, Error} ->
+            {error, {?MODULE, Error}}
+    end.
 
 -spec format_error(any()) ->  iolist().
-format_error(Reason) ->
-    io_lib:format("~p", [Reason]).
+format_error(Error) ->
+    io_lib:format("~p", [Error]).
