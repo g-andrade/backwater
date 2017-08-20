@@ -3,6 +3,8 @@
 
 -include_lib("eunit/include/eunit.hrl").
 
+-define(assertOk(Result), ?assertEqual(Result, ok)).
+
 all() ->
     [{group, GroupName} || {GroupName, _Options, _TestCases} <- groups()].
 
@@ -20,88 +22,94 @@ end_per_group(_Name, Config) ->
 %%%
 
 single_module_function_test(_Config) ->
-    with_ref(
-      [{crypto, crypto, [{exports, [{version,0}]}]}],
-      fun () ->
-              ?assertEqual(
-                 [{version, 0}],
-                 exported_functions(rpc_crypto)),
+    ?assertOk(
+       with_ref(
+         [{crypto, crypto, [{exports, [{version,0}]}]}],
+         fun () ->
+                 ?assertEqual(
+                    [{version, 0}],
+                    exported_functions(rpc_crypto)),
 
-              ?assertEqual(
-                 {ok, crypto:version()},
-                 rpc_crypto:version())
-      end,
-      []).
+                 ?assertEqual(
+                    {ok, crypto:version()},
+                    rpc_crypto:version())
+         end,
+         [])).
 
 whole_module_test(_Config) ->
-    with_ref(
-      [{stdlib, math, [{exports, all}]}],
-      fun () ->
-              ExportedFunctions = exported_functions(math),
-              ?assertEqual(
-                 ExportedFunctions,
-                 exported_functions(rpc_math)),
+    ?assertOk(
+       with_ref(
+         [{stdlib, math, [{exports, all}]}],
+         fun () ->
+                 ExportedFunctions = exported_functions(math),
+                 ?assertEqual(
+                    ExportedFunctions,
+                    exported_functions(rpc_math)),
 
-              lists:foreach(
-                fun ({Function, Arity}) ->
-                        Args = [rand:uniform() || _ <- lists:seq(1, Arity)],
-                        compare_original_and_rpc_calls(math, rpc_math, Function, Args)
-                end,
-                ExportedFunctions)
-      end,
-      []).
+                 lists:foreach(
+                   fun ({Function, Arity}) ->
+                           Args = [rand:uniform() || _ <- lists:seq(1, Arity)],
+                           compare_original_and_rpc_calls(math, rpc_math, Function, Args)
+                   end,
+                   ExportedFunctions)
+         end,
+         [])).
 
 whole_module_presuming_attributes_test(_Config) ->
-    with_ref(
-      [{stdlib, math}],
-      fun () ->
-              % no attributes, so no functions are to be exported
-              ?assertEqual(
-                 [],
-                 exported_functions(rpc_math))
-      end,
-      []).
+    ?assertOk(
+       with_ref(
+         [{stdlib, math}],
+         fun () ->
+                 % no attributes, so no functions are to be exported
+                 ?assertEqual(
+                    [],
+                    exported_functions(rpc_math))
+         end,
+         [])).
 
 current_app_module_test(_Config) ->
-    with_ref(
-      [{backwater_util, [{exports, all}]}],
-      fun () ->
-              ExportedFunctions = exported_functions(backwater_util),
-              ?assertEqual(
-                 ExportedFunctions,
-                 exported_functions(rpc_backwater_util)),
+    ?assertOk(
+       with_ref(
+         [{backwater_util, [{exports, all}]}],
+         fun () ->
+                 ExportedFunctions = exported_functions(backwater_util),
+                 ?assertEqual(
+                    ExportedFunctions,
+                    exported_functions(rpc_backwater_util)),
 
-              ?assertEqual(
-                 {ok, backwater_util:latin1_binary_to_lower(<<"Hello">>)},
-                 rpc_backwater_util:latin1_binary_to_lower(<<"Hello">>))
-      end,
-      [{source_directory, filename:join(source_directory(), "..")}]).
+                 ?assertEqual(
+                    {ok, backwater_util:latin1_binary_to_lower(<<"Hello">>)},
+                    rpc_backwater_util:latin1_binary_to_lower(<<"Hello">>))
+         end,
+         [{source_directory, filename:join(source_directory(), "..")}])).
 
 current_app_module_presuming_attributes_test(_Config) ->
-    with_ref(
-      [backwater_util],
-      fun () ->
-              % no attributes, so no functions are to be exported
-              ?assertEqual(
-                 [],
-                 exported_functions(rpc_backwater_util))
-      end,
-      [{source_directory, filename:join(source_directory(), "..")}]).
+    ?assertOk(
+       with_ref(
+         [backwater_util],
+         fun () ->
+                 % no attributes, so no functions are to be exported
+                 ?assertEqual(
+                    [],
+                    exported_functions(rpc_backwater_util))
+         end,
+         [{source_directory, filename:join(source_directory(), "..")}])).
 
 unloaded_application_test(_Config) ->
-    with_ref(
-      [{eldap, eldap, [{exports, all}]}],
-      fun () ->
-              ExportedFunctions = exported_functions(eldap),
-              ?assertEqual(
-                 ExportedFunctions,
-                 exported_functions(rpc_eldap)),
+    ?assertOk(
+       with_ref(
+         [{eldap, eldap, [{exports, all}]}],
+         fun () ->
+                 ExportedFunctions = exported_functions(eldap),
+                 ?assertEqual(
+                    ExportedFunctions,
+                    exported_functions(rpc_eldap)),
 
-              ?assertEqual(
-                 {ok, eldap:substrings("cn", [{any,"V"}])},
-                 rpc_eldap:substrings("cn", [{any,"V"}]))
-      end,
-      []).
+                 ?assertEqual(
+                    {ok, eldap:substrings("cn", [{any,"V"}])},
+                    rpc_eldap:substrings("cn", [{any,"V"}]))
+         end,
+         [])).
 
 missing_application_test(_Config) ->
     ?assertMatch(
