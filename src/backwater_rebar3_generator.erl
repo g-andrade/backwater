@@ -617,6 +617,7 @@ externalize_user_types({var, _Line, _Name} = T, Acc) ->
 -spec handle_unexported_record_reference(pos_integer(), atom(), module_info())
         -> module_info().
 handle_unexported_record_reference(Line, Name, Acc) ->
+    % XXX consider using this: http://erlang.org/doc/man/erl_expand_records.html
     maps:update_with(
       missing_types_messages,
       fun (Prev) ->
