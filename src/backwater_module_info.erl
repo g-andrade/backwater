@@ -78,8 +78,9 @@ find_and_parse_module_info(ExposedModule) ->
             BackwaterExports = determine_module_exports(ExposedModule, RawModuleInfo),
             FilteredBackwaterExports =
                 maps:filter(
-                  fun ({_,_} = FunctionArity, _Info) ->
-                          not lists:member(FunctionArity, ?METADATA_EXPORT_LIST)
+                  fun ({BinFunction, Arity}, _Info) ->
+                          Function = binary_to_existing_atom(BinFunction, utf8),
+                          not lists:member({Function, Arity}, ?METADATA_EXPORT_LIST)
                   end,
                   BackwaterExports),
             BinModule = atom_to_binary(Module, utf8),
