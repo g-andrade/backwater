@@ -731,7 +731,8 @@ get_starting_params_(https) ->
          {certfile, ssl_certificate_path()},
          {keyfile, ssl_key_path()}],
     HackneyOpts =
-        [insecure],
+        [insecure,
+         {ssl_options, [{server_name_indication, disable}]}],
     {Endpoint, start_tls, ProtoOpts, HackneyOpts}.
 
 ssl_certificate_path() ->
