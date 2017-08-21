@@ -171,7 +171,7 @@ put(Table, Key, Value, TTL) ->
 
 -spec now_milliseconds() -> integer().
 now_milliseconds() ->
-    erlang:monotonic_time(millisecond).
+    erlang:monotonic_time(milli_seconds). % from 19.1 and up it can be just 'millisecond'
 
 %% ------------------------------------------------------------------
 %% Unit Tests
