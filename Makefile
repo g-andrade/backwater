@@ -10,8 +10,7 @@ ifeq ($(REBAR3),)
 	REBAR3 = $(CURDIR)/rebar3
 endif
 
-.PHONY: all build clean check dialyzer xref run test cover travis doc
-#publish
+.PHONY: all build clean check dialyzer xref run test cover travis doc publish
 
 all: build
 
@@ -44,5 +43,5 @@ travis: test
 doc: build
 	./scripts/hackish_make_docs.sh
 
-#publish:
-#	@$(REBAR3) as publication hex publish
+publish:
+	@$(REBAR3) as publication hex publish
