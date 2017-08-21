@@ -2,6 +2,8 @@
 
 # backwater #
 
+[![Build Status](https://travis-ci.org/g-andrade/backwater.png?branch=master)](https://travis-ci.org/g-andrade/backwater)
+
 Backwater is an no-frills RPC framework for remote Erlang and Elixir modules,
 built on top of [cowboy](https://github.com/ninenines/cowboy) and
 [hackney](https://github.com/benoitc/hackney).
@@ -24,7 +26,7 @@ The client interface is made up of start/stop calls for management and an apply/
 
 The rebar3 code generation plugin is still not as polished as it could be but it works fairly well.
 
-Some simple examples are under 'examples/'; for all possible configuration options, check the [documentation](https://github.com/g-andrade/backwater/blob/release/1.0.0/doc/README.md#modules).
+Some simple examples are under 'examples/'; for all possible configuration options, check the [documentation](https://github.com/g-andrade/backwater/blob/master/doc/README.md#modules).
 
 
 ### <a name="Example_1_-_Remote_'string'_module_and_client_code_generation_(Erlang)">Example 1 - Remote 'string' module and client code generation (Erlang)</a> ###
@@ -270,13 +272,13 @@ ok = backwater_client:start(
 
 
 <table width="100%" border="0" summary="list of modules">
-<tr><td><a href="https://github.com/g-andrade/backwater/blob/release/1.0.0/doc/backwater_client.md" class="module">backwater_client</a></td></tr>
-<tr><td><a href="https://github.com/g-andrade/backwater/blob/release/1.0.0/doc/backwater_cowboy_handler.md" class="module">backwater_cowboy_handler</a></td></tr>
-<tr><td><a href="https://github.com/g-andrade/backwater/blob/release/1.0.0/doc/backwater_http_request.md" class="module">backwater_http_request</a></td></tr>
-<tr><td><a href="https://github.com/g-andrade/backwater/blob/release/1.0.0/doc/backwater_http_response.md" class="module">backwater_http_response</a></td></tr>
-<tr><td><a href="https://github.com/g-andrade/backwater/blob/release/1.0.0/doc/backwater_http_signatures.md" class="module">backwater_http_signatures</a></td></tr>
-<tr><td><a href="https://github.com/g-andrade/backwater/blob/release/1.0.0/doc/backwater_module_info.md" class="module">backwater_module_info</a></td></tr>
-<tr><td><a href="https://github.com/g-andrade/backwater/blob/release/1.0.0/doc/backwater_rebar3_generator.md" class="module">backwater_rebar3_generator</a></td></tr>
-<tr><td><a href="https://github.com/g-andrade/backwater/blob/release/1.0.0/doc/backwater_server.md" class="module">backwater_server</a></td></tr>
-<tr><td><a href="https://github.com/g-andrade/backwater/blob/release/1.0.0/doc/backwater_util.md" class="module">backwater_util</a></td></tr></table>
+<tr><td><a href="https://github.com/g-andrade/backwater/blob/master/doc/backwater_client.md" class="module">backwater_client</a></td></tr>
+<tr><td><a href="https://github.com/g-andrade/backwater/blob/master/doc/backwater_cowboy_handler.md" class="module">backwater_cowboy_handler</a></td></tr>
+<tr><td><a href="https://github.com/g-andrade/backwater/blob/master/doc/backwater_http_request.md" class="module">backwater_http_request</a></td></tr>
+<tr><td><a href="https://github.com/g-andrade/backwater/blob/master/doc/backwater_http_response.md" class="module">backwater_http_response</a></td></tr>
+<tr><td><a href="https://github.com/g-andrade/backwater/blob/master/doc/backwater_http_signatures.md" class="module">backwater_http_signatures</a></td></tr>
+<tr><td><a href="https://github.com/g-andrade/backwater/blob/master/doc/backwater_module_info.md" class="module">backwater_module_info</a></td></tr>
+<tr><td><a href="https://github.com/g-andrade/backwater/blob/master/doc/backwater_rebar3_generator.md" class="module">backwater_rebar3_generator</a></td></tr>
+<tr><td><a href="https://github.com/g-andrade/backwater/blob/master/doc/backwater_server.md" class="module">backwater_server</a></td></tr>
+<tr><td><a href="https://github.com/g-andrade/backwater/blob/master/doc/backwater_util.md" class="module">backwater_util</a></td></tr></table>
 
