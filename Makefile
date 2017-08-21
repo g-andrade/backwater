@@ -44,4 +44,6 @@ doc: build
 	./scripts/hackish_make_docs.sh
 
 publish:
+	rm rebar.lock || echo
 	@$(REBAR3) as publication hex publish
+	git checkout rebar.lock
