@@ -175,3 +175,5 @@ ok = backwater_client:start(
 {ok, world} = backwater_client:call(foobar, hello, []),
 {ok, 43} = backwater_client:call(foobar, increment, [42]).
 </pre>
+
+@end
