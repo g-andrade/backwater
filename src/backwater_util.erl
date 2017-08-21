@@ -1,3 +1,23 @@
+%% Copyright (c) 2017 Guilherme Andrade <backwater@gandrade.net>
+%%
+%% Permission is hereby granted, free of charge, to any person obtaining a
+%% copy  of this software and associated documentation files (the "Software"),
+%% to deal in the Software without restriction, including without limitation
+%% the rights to use, copy, modify, merge, publish, distribute, sublicense,
+%% and/or sell copies of the Software, and to permit persons to whom the
+%% Software is furnished to do so, subject to the following conditions:
+%%
+%% The above copyright notice and this permission notice shall be included in
+%% all copies or substantial portions of the Software.
+%%
+%% THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+%% IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+%% FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+%% AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+%% LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+%% FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+%% DEALINGS IN THE SOFTWARE.
+
 -module(backwater_util).
 
 %% ------------------------------------------------------------------
@@ -80,6 +100,7 @@ lists_enumerate(List) ->
 
 -spec lists_foreach_until_error(fun ((term()) -> ok | {error, term()}), [term()])
         -> ok | {error, term()}.
+%% @private
 lists_foreach_until_error(Fun, List) ->
     AnyError =
         lists_anymap(
@@ -98,6 +119,7 @@ lists_foreach_until_error(Fun, List) ->
 
 -spec lists_map_until_error(fun ((term()) -> {ok, term()} | {error, term()}), [term()])
         -> {ok, [term()]} | {error, term()}.
+%% @private
 lists_map_until_error(Fun, List) ->
     AllSuccesses =
         lists_allmap(
@@ -115,6 +137,7 @@ lists_map_until_error(Fun, List) ->
     end.
 
 -spec iodata_to_list(iodata()) -> [byte()].
+%% @private
 iodata_to_list(Data) ->
     binary_to_list( iolist_to_binary(Data) ).
 
@@ -198,6 +221,7 @@ validate_config_map(_Config, _MandatoryKeys, _PairValidationFun) ->
     {error, config_not_a_map}.
 
 -spec with_success(fun() | fun((term()) -> term()), ok | {ok | error, term()}) -> term().
+%% @private
 with_success(Fun, Success) when is_tuple(Success),
                                 tuple_size(Success) > 0,
                                 element(1, Success) =:= ok,
