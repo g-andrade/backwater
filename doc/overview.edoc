@@ -5,30 +5,56 @@
 [![Build Status](https://travis-ci.org/g-andrade/backwater.png?branch=master)](https://travis-ci.org/g-andrade/backwater)
 [![Hex pm](http://img.shields.io/hexpm/v/backwater.svg?style=flat)](https://hex.pm/packages/backwater)
 
-Backwater is an no-frills RPC framework for remote Erlang and Elixir modules,
+Backwater is a no-frills RPC framework for remote Erlang and Elixir modules,
 built on top of <a href="https://github.com/ninenines/cowboy">cowboy</a> and
 <a href="https://github.com/benoitc/hackney">hackney</a>.
 
+Jump directly to some <a href="#examples">quick examples</a> or to the <a href="#modules">function reference</a>.
+
+Requirements:
+* Erlang/OTP 19 and up
+* rebar3
+
+Features:
 * Arbitrary modules can be wholly or partially exposed
-* Which functions to expose/export can be specified using custom attributes (default behaviour)
 * Module-specific wrappers for remote calls can be generated using a bundled rebar3 plugin (Erlang only)
-* Arguments and return values are encoded using <a href="http://erlang.org/doc/apps/erts/erl_ext_dist">External Term Format</a>; unsafe arguments and return values are not decoded by default
+* Functions to be exposed are, by default, specified using custom module attributes (Erlang) or a custom export function (Elixir)
+* Arguments and return values are encoded using <a href="http://erlang.org/doc/apps/erts/erl_ext_dist">external term format</a>; if <a href="http://erlang.org/doc/man/erlang#binary_to_term-2">unsafe</a>, they're rejected by default
 * Multiple instances of both client and server can be launched and managed independently
 * Remote exceptions are returned as errors but can be locally rethrown if so desired
 * (Purged) stacktraces of remote exceptions are returned by default
 * All calls and responses are authenticated and signed using a modified version of <a href="https://tools.ietf.org/id/draft-cavage-http-signatures-07.txt">HTTP signatures</a>; nevertheless, it's <b>strongly</b> recommended to use HTTPS, as this doesn't protect against replay attacks (besides the potential exposure of sensitive data)
 
-Requirements:
-* Erlang/OTP 19 and up
+Details:
+* The server start/stop interface is very similar to cowboy's, and all cowboy settings, excluding routing, are available for tweaking
+* The client interface is made up of start/stop calls for management and an apply/3-esque function; hackney settings can be arbitrarily tweaked or overridden
+* The rebar3 code generation plugin is still not as polished as it could be but it works fairly well
+* You can use a custom HTTP client by <a href="backwater_http_request.html">encoding</a> and <a href="backwater_http_response.html">decoding</a> requests directly
 
-The server start/stop interface is very similar to cowboy's, and all cowboy settings, excluding routing, are available for tweaking.
+Defaults, limits and thresholds:
+* The default client connect timeout is 8s
+* The default client receive timeout is 5s
+* The compression threshold for encoded arguments and return values is 300 byte
+* The maximum request and response body size is 8 MiB (whether compressed or uncompressed)
+* Unsafe arguments and return values are not decoded by default
+* Remote exceptions are returned as errors by default
+* Remote exception stacktraces are returned by default
 
-The client interface is made up of start/stop calls for management and an apply/3-esque function; hackney settings can be arbitrarily tweaked or overridden.
+Security concerns:
+* Replay attacks can't be prevented when using HTTP over untrusted networks
+* Atom (non-)existence can be inferred by an authenticated attacker when the service is configured to reject unsafe terms (which happens by default)
 
-The rebar3 code generation plugin is still not as polished as it could be but it works fairly well.
+To do:
+* Polishing the rebar3 plugin code and funcionality
+* Supporting generation of code wrappers under Elixir / Mix
 
-Some simple examples are under 'examples/'; for all possible configuration options, check the <a href="#modules">documentation</a>.
+Some more examples are under 'examples/'; for all possible configuration options, check the <a href="#modules">function reference</a>.
 
+
+<a name="examples"></a>
+
+
+<hr/>
 == Example 1 - Remote 'string' module and client code generation (Erlang) ==
 
 === 1.1. Configure dependencies and the rebar3 plugin ===
@@ -80,7 +106,9 @@ ok = backwater_client:start(
 {ok, {3.14, ""}} = rpc_string:to_float("3.14").
 </pre>
 
-== Example 2 - A remote simple calculator using Kernel functions (Elixir) ==
+
+<hr/>
+== Example 2 - A basic remote calculator using Kernel functions (Elixir) ==
 
 === 2.1. Add backwater dependency to Mix ===
 <pre lang="elixir">
@@ -118,13 +146,14 @@ secret = :crypto.strong_rand_bytes(32)
 
 === 2.5 Execute remote calls ===
 <pre lang="elixir">
-{:ok, 5}   = :backwater_client.call(:example2, :+, [3, 2])
-{:ok, 1}   = :backwater_client.call(:example2, :-, [3, 2])
-{:ok, 6}   = :backwater_client.call(:example2, :*, [3, 2])
-{:ok, 1.5} = :backwater_client.call(:example2, :/, [3, 2])
+{:ok, 5}   = :backwater_client.call(:example2, Kernel, :+, [3, 2])
+{:ok, 1}   = :backwater_client.call(:example2, Kernel, :-, [3, 2])
+{:ok, 6}   = :backwater_client.call(:example2, Kernel, :*, [3, 2])
+{:ok, 1.5} = :backwater_client.call(:example2, Kernel, :/, [3, 2])
 </pre>
 
 
+<hr/>
 == Example 3 - Exposure of a module using custom attributes (Erlang) ==
 
 === 3.1. Add backwater dependency to rebar3 ===
@@ -176,8 +205,71 @@ ok = backwater_client:start(
 
 === 3.6. Execute remote calls ===
 <pre lang="erlang">
-{ok, world} = backwater_client:call(foobar, hello, []),
-{ok, 43} = backwater_client:call(foobar, increment, [42]).
+{ok, world} = backwater_client:call(example3, foobar, hello, []),
+{ok, 43} = backwater_client:call(example3, foobar, increment, [42]).
+</pre>
+
+
+<hr/>
+== Example 4 - Exposure of a module using export function (Elixir) ==
+
+=== 4.1. Add backwater dependency to Mix ===
+<pre lang="elixir">
+#mix.exs
+# [...]
+  defp deps do
+    [{:backwater, "-> 1.0"}]
+  end
+# [...]
+</pre>
+
+=== 4.2. Add custom export function to module within your application ===
+<pre lang="elixir">
+# foobar.ex
+defmodule Foobar do
+  def backwater_export do
+    [{:hello,0},
+     {:increment,1}]
+  end
+
+  def hello do
+    :world
+  end
+
+  def increment(number) do
+    number + 1
+  end
+end
+</pre>
+
+=== 4.3. Generate unique secret ===
+<pre lang="elixir">
+secret = :crypto.strong_rand_bytes(32)
+</pre>
+
+=== 4.4. Start server ===
+<pre lang="elixir">
+{:ok, _pid} =
+    :backwater_server.start_clear(
+        :example4,
+        %{ :secret =&gt; secret,
+           :exposed_modules =&gt; [Foobar] }, # function exposure is determined by custom export function
+        [{:port, 8080}],
+        %{})
+</pre>
+
+=== 4.5 Start client ===
+<pre lang="elixir">
+:ok = backwater_client.start(
+        :example4,
+        %{ :endpoint =&gt; "http://127.0.0.1:8080/",
+           :secret =&gt; secret })
+</pre>
+
+=== 4.6 Execute remote calls ===
+<pre lang="elixir">
+{:ok, :world} = :backwater_client.call(example4, Foobar, :hello, [])
+{:ok, 43} = :backwater_client.call(example4, Foobar, :increment, [42])
 </pre>
 
 @end
