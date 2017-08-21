@@ -3,6 +3,7 @@
 # backwater #
 
 [![Build Status](https://travis-ci.org/g-andrade/backwater.png?branch=master)](https://travis-ci.org/g-andrade/backwater)
+[![Hex pm](http://img.shields.io/hexpm/v/backwater.svg?style=flat)](https://hex.pm/packages/backwater)
 
 Backwater is an no-frills RPC framework for remote Erlang and Elixir modules,
 built on top of [cowboy](https://github.com/ninenines/cowboy) and
