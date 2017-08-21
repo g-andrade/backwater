@@ -1,0 +1,6 @@
+%% encoding: UTF-8
+{application,backwater}.
+{modules,[backwater_client,backwater_cowboy_handler,backwater_http_request,
+          backwater_http_response,backwater_http_signatures,
+          backwater_module_info,backwater_rebar3_generator,backwater_server,
+          backwater_util]}.

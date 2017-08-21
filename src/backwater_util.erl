@@ -1,4 +1,4 @@
-%% @copyright 2017 Guilherme Andrade <backwater@gandrade.net>
+%% Copyright (c) 2017 Guilherme Andrade <backwater@gandrade.net>
 %%
 %% Permission is hereby granted, free of charge, to any person obtaining a
 %% copy  of this software and associated documentation files (the "Software"),
@@ -100,6 +100,7 @@ lists_enumerate(List) ->
 
 -spec lists_foreach_until_error(fun ((term()) -> ok | {error, term()}), [term()])
         -> ok | {error, term()}.
+%% @private
 lists_foreach_until_error(Fun, List) ->
     AnyError =
         lists_anymap(
@@ -118,6 +119,7 @@ lists_foreach_until_error(Fun, List) ->
 
 -spec lists_map_until_error(fun ((term()) -> {ok, term()} | {error, term()}), [term()])
         -> {ok, [term()]} | {error, term()}.
+%% @private
 lists_map_until_error(Fun, List) ->
     AllSuccesses =
         lists_allmap(
@@ -135,6 +137,7 @@ lists_map_until_error(Fun, List) ->
     end.
 
 -spec iodata_to_list(iodata()) -> [byte()].
+%% @private
 iodata_to_list(Data) ->
     binary_to_list( iolist_to_binary(Data) ).
 
@@ -218,6 +221,7 @@ validate_config_map(_Config, _MandatoryKeys, _PairValidationFun) ->
     {error, config_not_a_map}.
 
 -spec with_success(fun() | fun((term()) -> term()), ok | {ok | error, term()}) -> term().
+%% @private
 with_success(Fun, Success) when is_tuple(Success),
                                 tuple_size(Success) > 0,
                                 element(1, Success) =:= ok,

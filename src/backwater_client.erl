@@ -1,4 +1,4 @@
-%% @copyright 2017 Guilherme Andrade <backwater@gandrade.net>
+%% Copyright (c) 2017 Guilherme Andrade <backwater@gandrade.net>
 %%
 %% Permission is hereby granted, free of charge, to any person obtaining a
 %% copy  of this software and associated documentation files (the "Software"),
@@ -76,7 +76,7 @@
 %% API Function Definitions
 %% ------------------------------------------------------------------
 
--spec call(Ref, Module, Function, Args) -> Result
+-spec call(Ref, Module, Function, Args) -> Result | no_return()
         when Ref :: term(),
              Module :: module(),
              Function :: atom(),

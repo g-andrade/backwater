@@ -1,4 +1,4 @@
-%% @copyright 2017 Guilherme Andrade <backwater@gandrade.net>
+%% Copyright (c) 2017 Guilherme Andrade <backwater@gandrade.net>
 %%
 %% Permission is hereby granted, free of charge, to any person obtaining a
 %% copy  of this software and associated documentation files (the "Software"),
@@ -105,7 +105,7 @@
 %% API Function Definitions
 %% ------------------------------------------------------------------
 
--spec decode(StatusCode, Headers, Body, RequestState) -> Response
+-spec decode(StatusCode, Headers, Body, RequestState) -> Response | no_return()
             when StatusCode :: status_code(),
                  Headers :: headers(),
                  Body :: binary(),
