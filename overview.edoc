@@ -14,6 +14,9 @@ built on top of <a href="https://github.com/ninenines/cowboy">cowboy</a> and
 * (Purged) stacktraces of remote exceptions are returned by default
 * All calls and responses are authenticated and signed using a modified version of <a href="https://tools.ietf.org/id/draft-cavage-http-signatures-07.txt">HTTP signatures</a>; nevertheless, it's <b>strongly</b> recommended to use HTTPS, as this doesn't protect against replay attacks (besides the potential exposure of sensitive data)
 
+Requirements:
+* Erlang/OTP 19 and up
+
 The server start/stop interface is very similar to cowboy's, and all cowboy settings, excluding routing, are available for tweaking.
 
 The client interface is made up of start/stop calls for management and an apply/3-esque function; hackney settings can be arbitrarily tweaked or overridden.
