@@ -529,10 +529,12 @@ wrong_arguments_type_grouptest(Config) ->
 wrong_arguments_digest_grouptest(Config) ->
     {ref, Ref} = lists:keyfind(ref, 1, Config),
     DummyArg = rand:uniform(1000),
-    EncodedArguments = term_to_binary([math:pi()]),
     Override =
         #{ request =>
-            #{ {update_body_with, final} => value_fun1(EncodedArguments) } },
+            #{ {update_body_with, final} =>
+                    fun (RealBody) ->
+                            crypto:strong_rand_bytes( byte_size(RealBody) )
+                    end} },
     ?assertMatch(
        {error, {remote, {unauthorized, _Headers, _Body}}},
        backwater_client:'_call'(Ref, erlang, '-', [DummyArg], Override)).
