@@ -521,7 +521,11 @@ read_and_decode_args(BodySize, State) when BodySize > ?MAX_REQUEST_BODY_SIZE ->
     {stop, set_error_response(413, State)};
 read_and_decode_args(BodySize, State) ->
     #{ req := Req } = State,
-    case cowboy_req:read_body(Req, #{ length => BodySize }) of
+    ReadBodyOpts =
+        #{ length => BodySize,
+           period => ?REQUEST_BODY_RECV_TIMEOUT },
+
+    case cowboy_req:read_body(Req, ReadBodyOpts) of
         {ok, Data, Req2} when byte_size(Data) =< BodySize ->
             State2 = State#{ req := Req2 },
             validate_args_digest(Data, State2);
