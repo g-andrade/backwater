@@ -549,7 +549,7 @@ too_big_arguments_grouptest(Config) ->
     EncodedArguments = ?ZEROES_PAYLOAD_20MiB,
     Override =
         #{ request =>
-            #{ {update_body_with, final} => value_fun1(EncodedArguments) } },
+            #{ {update_body_with, before_authentication} => value_fun1(EncodedArguments) } },
     ?assertMatch(
        {error, {remote, {payload_too_large, _Headers, _Body}}},
        backwater_client:'_call'(Ref, erlang, '-', [DummyArg], Override)).
