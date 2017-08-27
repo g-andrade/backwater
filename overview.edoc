@@ -14,7 +14,7 @@ on the Erlang distribution protocol nor on both ends being clustered.
 Backwater is built on top of <a href="https://github.com/ninenines/cowboy">cowboy</a> and
 <a href="https://github.com/benoitc/hackney">hackney</a>.
 
-Jump directly to some <a href="#examples">quick examples</a> or to the <a href="#modules">function reference</a>.
+<b>Jump directly to some <a href="#examples">quick examples</a></b> or to the <a href="#modules">function reference</a>.
 
 Requirements:
 * Erlang/OTP 19 and up
