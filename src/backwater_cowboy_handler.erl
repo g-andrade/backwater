@@ -215,12 +215,12 @@ safe_req_header(CiName, #{ req := Req } = State) ->
 
 -spec safe_req_parse_header(binary(), state()) -> term() | no_return().
 safe_req_parse_header(CiName, State) ->
-    safe_req_parse_header(CiName, State, undefined).
+    safe_req_parse_header(CiName, State, undefined, undefined).
 
--spec safe_req_parse_header(binary(), state(), term()) -> term() | no_return().
-safe_req_parse_header(CiName, #{ req := Req } = State, Default) ->
+-spec safe_req_parse_header(binary(), state(), term(), term()) -> term() | no_return().
+safe_req_parse_header(CiName, #{ req := Req } = State, Undefined, Default) ->
     case cowboy_req:parse_header(CiName, Req) of
-        undefined -> Default;
+        Undefined -> Default;
         Value ->
             assert_header_safety(CiName, State),
             Value
@@ -406,7 +406,7 @@ check_args_content_encoding(State) ->
 
 -spec check_accepted_result_content_types(state()) -> {continue, state()}.
 check_accepted_result_content_types(State) ->
-    AcceptedContentTypes = safe_req_parse_header(<<"accept">>, State, []),
+    AcceptedContentTypes = safe_req_parse_header(<<"accept">>, State, undefined, []),
     SortedAcceptedContentTypes = lists:reverse( lists:keysort(2, AcceptedContentTypes) ),
     State2 = State#{ accepted_result_content_types => SortedAcceptedContentTypes },
     {continue, State2}.
@@ -417,7 +417,7 @@ check_accepted_result_content_types(State) ->
 
 -spec check_accepted_result_content_encodings(state()) -> {continue, state()}.
 check_accepted_result_content_encodings(State) ->
-    AcceptedContentEncodings = safe_req_parse_header(<<"accept-encoding">>, State, []),
+    AcceptedContentEncodings = safe_req_parse_header(<<"accept-encoding">>, State, undefined, []),
     SortedAcceptedContentEncodings = lists:reverse( lists:keysort(2, AcceptedContentEncodings) ),
     State2 = State#{ accepted_result_content_encodings => SortedAcceptedContentEncodings },
     {continue, State2}.
@@ -513,7 +513,7 @@ negotiate_result_content_encoding(State) ->
 
 -spec read_and_decode_args(state()) -> {continue | stop, state()}.
 read_and_decode_args(State) ->
-    BodySize = safe_req_parse_header(<<"content-length">>, State, 0),
+    BodySize = safe_req_parse_header(<<"content-length">>, State, 0, 0),
     read_and_decode_args(BodySize, State).
 
 -spec read_and_decode_args(non_neg_integer(), state()) -> {continue | stop, state()}.
