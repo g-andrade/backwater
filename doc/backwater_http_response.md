@@ -46,7 +46,7 @@ headers() = [{<a href="#type-nonempty_binary">nonempty_binary()</a>, binary()}]
 
 
 <pre><code>
-options() = #{decode_unsafe_terms =&gt; boolean(), rethrow_remote_exceptions =&gt; boolean()}
+options() = #{decode_unsafe_terms =&gt; boolean(), max_encoded_result_size =&gt; non_neg_integer(), rethrow_remote_exceptions =&gt; boolean()}
 </code></pre>
 
 

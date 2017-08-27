@@ -373,7 +373,7 @@ secret = :crypto.strong_rand_bytes(32)
 
 ```elixir
 
-:ok = backwater_client.start(
+:ok = :backwater_client.start(
         :example4,
         %{ :endpoint => "http://127.0.0.1:8080/",
            :secret => secret })
