@@ -5,8 +5,13 @@
 [![Build Status](https://travis-ci.org/g-andrade/backwater.png?branch=master)](https://travis-ci.org/g-andrade/backwater)
 [![Hex pm](http://img.shields.io/hexpm/v/backwater.svg?style=flat)](https://hex.pm/packages/backwater)
 
-Backwater is a no-frills RPC framework for remote Erlang and Elixir modules,
-built on top of <a href="https://github.com/ninenines/cowboy">cowboy</a> and
+==== Backwater - an RPC framework for Erlang and Elixir ====
+
+Backwater aims to make execution of calls to modules/functions on individual remote machines as
+close to local calls as they can get. The remote calls are executed over HTTP(S) and don't depend
+on the Erlang distribution protocol nor on both ends being clustered.
+
+Backwater is built on top of <a href="https://github.com/ninenines/cowboy">cowboy</a> and
 <a href="https://github.com/benoitc/hackney">hackney</a>.
 
 Jump directly to some <a href="#examples">quick examples</a> or to the <a href="#modules">function reference</a>.
