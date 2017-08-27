@@ -1,5 +1,5 @@
 {"1.1.0",
-[{<<"certifi">>,{pkg,<<"certifi">>,<<"1.2.1">>},1},
+[{<<"certifi">>,{pkg,<<"certifi">>,<<"2.0.0">>},1},
  {<<"cowboy">>,
   {git,"https://github.com/ninenines/cowboy.git",
        {ref,"3d8339267b2de011c30db868002f23ab4da0cc2f"}},
@@ -8,8 +8,8 @@
   {git,"https://github.com/ninenines/cowlib",
        {ref,"11e07d3c2b164d06ad35188d83ad70e7501396db"}},
   1},
- {<<"hackney">>,{pkg,<<"hackney">>,<<"1.8.6">>},0},
- {<<"idna">>,{pkg,<<"idna">>,<<"5.0.2">>},1},
+ {<<"hackney">>,{pkg,<<"hackney">>,<<"1.9.0">>},0},
+ {<<"idna">>,{pkg,<<"idna">>,<<"5.1.0">>},1},
  {<<"metrics">>,{pkg,<<"metrics">>,<<"1.0.1">>},1},
  {<<"mimerl">>,{pkg,<<"mimerl">>,<<"1.0.2">>},1},
  {<<"ranch">>,
@@ -17,14 +17,14 @@
        {ref,"55c2a9d623454f372a15e99721a37093d8773b48"}},
   1},
  {<<"ssl_verify_fun">>,{pkg,<<"ssl_verify_fun">>,<<"1.1.1">>},1},
- {<<"unicode_util_compat">>,{pkg,<<"unicode_util_compat">>,<<"0.2.0">>},2}]}.
+ {<<"unicode_util_compat">>,{pkg,<<"unicode_util_compat">>,<<"0.3.1">>},2}]}.
 [
 {pkg_hash,[
- {<<"certifi">>, <<"C3904F192BD5284E5B13F20DB3CEAC9626E14EEACFBB492E19583CF0E37B22BE">>},
- {<<"hackney">>, <<"21A725DB3569B3FB11A6AF17D5C5F654052CE9624219F1317E8639183DE4A423">>},
- {<<"idna">>, <<"AC203208ADA855D95DC591A764B6E87259CB0E2A364218F215AD662DAA8CD6B4">>},
+ {<<"certifi">>, <<"A0C0E475107135F76B8C1D5BC7EFB33CD3815CB3CF3DEA7AEFDD174DABEAD064">>},
+ {<<"hackney">>, <<"51C506AFC0A365868469DCFC79A9D0B94D896EC741CFD5BD338F49A5EC515BFE">>},
+ {<<"idna">>, <<"D72B4EFFEB324AD5DA3CAB1767CB16B17939004E789D8C0AD5B70F3CEA20C89A">>},
  {<<"metrics">>, <<"25F094DEA2CDA98213CECC3AEFF09E940299D950904393B2A29D191C346A8486">>},
  {<<"mimerl">>, <<"993F9B0E084083405ED8252B99460C4F0563E41729AB42D9074FD5E52439BE88">>},
  {<<"ssl_verify_fun">>, <<"28A4D65B7F59893BC2C7DE786DEC1E1555BD742D336043FE644AE956C3497FBE">>},
- {<<"unicode_util_compat">>, <<"DBBCCF6781821B1C0701845EAF966C9B6D83D7C3BFC65CA2B78B88B8678BFA35">>}]}
+ {<<"unicode_util_compat">>, <<"A1F612A7B512638634A603C8F401892AFBF99B8CE93A45041F8AACA99CADB85E">>}]}
 ].
