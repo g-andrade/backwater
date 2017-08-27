@@ -88,7 +88,8 @@
 -define(VALIDATION_MANDATORILY_SIGNED_HEADER_NAMES_IF_PRESENT,
         [<<"accept">>,
          <<"content-type">>,
-         <<"content-encoding">>]).
+         <<"content-encoding">>,
+         <<"content-length">>]).
 
 %% ------------------------------------------------------------------
 %% Type Definitions

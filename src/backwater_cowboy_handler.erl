@@ -512,20 +512,30 @@ negotiate_result_content_encoding(State) ->
 %% ------------------------------------------------------------------
 
 -spec read_and_decode_args(state()) -> {continue | stop, state()}.
-read_and_decode_args(#{ req := Req } = State) ->
-    case cowboy_req:read_body(Req, #{ length => ?MAX_REQUEST_BODY_SIZE }) of
-        {ok, Data, Req2} ->
+read_and_decode_args(State) ->
+    BodySize = safe_req_parse_header(<<"content-length">>, State, 0),
+    read_and_decode_args(BodySize, State).
+
+-spec read_and_decode_args(non_neg_integer(), state()) -> {continue | stop, state()}.
+read_and_decode_args(BodySize, State) when BodySize > ?MAX_REQUEST_BODY_SIZE ->
+    {stop, set_error_response(413, State)};
+read_and_decode_args(BodySize, State) ->
+    #{ req := Req } = State,
+    case cowboy_req:read_body(Req, #{ length => BodySize }) of
+        {ok, Data, Req2} when byte_size(Data) =< BodySize ->
             State2 = State#{ req := Req2 },
             validate_args_digest(Data, State2);
-        {more, _Data, Req2} ->
+        {Status, _Data, Req2} when Status =:= more; Status =:= ok ->
             State2 = State#{ req := Req2 },
             {stop, set_error_response(413, State2)}
     end.
 
+-spec validate_args_digest(binary(), state()) -> {continue | stop, state()}.
 validate_args_digest(Data, State) ->
     #{ signed_request_msg := SignedRequestMsg } = State,
     case backwater_http_signatures:validate_signed_msg_body(SignedRequestMsg, Data) of
-        true -> decode_args_content_encoding(Data, State);
+        true ->
+            decode_args_content_encoding(Data, State);
         false ->
             AuthChallengeHeaders =
                 backwater_http_signatures:get_request_auth_challenge_headers(SignedRequestMsg),
@@ -662,14 +672,16 @@ send_response(#{ signed_request_msg := SignedRequestMsg } = State1) ->
     #{ status_code := ResponseStatusCode, headers := ResponseHeaders1, body := ResponseBody } = Response,
 
     #{ config := #{ secret := Secret } } = State1,
+    ResponseHeaders2 =
+        ResponseHeaders1#{ <<"content-length">> => integer_to_binary( byte_size(ResponseBody) ) },
     SignaturesConfig = backwater_http_signatures:config(Secret),
     ResponseMsg =
-        backwater_http_signatures:new_response_msg(ResponseStatusCode, {ci_headers, ResponseHeaders1}),
+        backwater_http_signatures:new_response_msg(ResponseStatusCode, {ci_headers, ResponseHeaders2}),
     SignedResponseMsg =
         backwater_http_signatures:sign_response(SignaturesConfig, ResponseMsg, ResponseBody, SignedRequestMsg),
-    ResponseHeaders2 = backwater_http_signatures:get_real_msg_headers(SignedResponseMsg),
+    ResponseHeaders3 = backwater_http_signatures:get_real_msg_headers(SignedResponseMsg),
 
-    Req2 = cowboy_req:reply(ResponseStatusCode, ResponseHeaders2, ResponseBody, Req1),
+    Req2 = cowboy_req:reply(ResponseStatusCode, ResponseHeaders3, ResponseBody, Req1),
     State1#{ req := Req2 };
 send_response(State1) ->
     % unsigned response

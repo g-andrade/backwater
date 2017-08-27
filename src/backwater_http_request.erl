@@ -106,10 +106,14 @@ request_url(Endpoint, Module, Function, Arity) ->
         -> stateful_request().
 compress(Method, Url, Headers, Body, Secret) when byte_size(Body) > ?REQUEST_COMPRESSION_THRESHOLD ->
     CompressedBody = backwater_encoding_gzip:encode(Body),
-    UpdatedHeaders = [{<<"content-encoding">>, <<"gzip">>} | Headers],
+    ContentLengthHeader = content_length_header(CompressedBody),
+    ContentEncodingHeader = {<<"content-encoding">>, <<"gzip">>},
+    UpdatedHeaders = [ContentLengthHeader, ContentEncodingHeader | Headers],
     authenticate(Method, Url, UpdatedHeaders, CompressedBody, Secret);
 compress(Method, Url, Headers, Body, Secret) ->
-    authenticate(Method, Url, Headers, Body, Secret).
+    ContentLengthHeader = content_length_header(Body),
+    UpdatedHeaders = [ContentLengthHeader | Headers],
+    authenticate(Method, Url, UpdatedHeaders, Body, Secret).
 
 -spec authenticate(nonempty_binary(), nonempty_binary(), nonempty_headers(), binary(), binary())
         -> stateful_request().
@@ -130,6 +134,10 @@ url_encoded_path_with_qs(Url) ->
     #hackney_url{ path = Path, qs = QueryString } = HackneyUrl,
     EncodedPath  = hackney_url:pathencode(Path),
     <<EncodedPath/binary, QueryString/binary>>.
+
+content_length_header(Data) ->
+    Size = byte_size(Data),
+    {<<"content-length">>, integer_to_binary(Size)}.
 
 %% ------------------------------------------------------------------
 %% Common Test Helper Definitions
@@ -160,14 +168,16 @@ url_encoded_path_with_qs(Url) ->
    when byte_size(Body1) > ?REQUEST_COMPRESSION_THRESHOLD ->
     UpdateHeadersWith = maps:get({update_headers_with, before_authentication}, Override, fun identity/1),
     UpdateBodyWith = maps:get({update_body_with, before_authentication}, Override, fun identity/1),
-    Headers2 = UpdateHeadersWith([{<<"content-encoding">>, <<"gzip">>} | Headers1]),
     Body2 = UpdateBodyWith(backwater_encoding_gzip:encode(Body1)),
+    Headers2 = UpdateHeadersWith([content_length_header(Body2),
+                                  {<<"content-encoding">>, <<"gzip">>}
+                                  | Headers1]),
     '_authenticate'(Method, Url, Headers2, Body2, Secret, Override);
 '_compress'(Method, Url, Headers1, Body1, Secret, Override) ->
     UpdateHeadersWith = maps:get({update_headers_with, before_authentication}, Override, fun identity/1),
     UpdateBodyWith = maps:get({update_body_with, before_authentication}, Override, fun identity/1),
-    Headers2 = UpdateHeadersWith(Headers1),
     Body2 = UpdateBodyWith(Body1),
+    Headers2 = UpdateHeadersWith([content_length_header(Body2) | Headers1]),
     '_authenticate'(Method, Url, Headers2, Body2, Secret, Override).
 
 '_authenticate'(Method, Url, Headers1, Body1, Secret, Override) ->
