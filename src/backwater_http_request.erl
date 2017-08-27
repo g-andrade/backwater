@@ -127,7 +127,7 @@ request_url(Endpoint, Module, Function, Arity) ->
                binary(), binary(), non_neg_integer())
         -> stateful_request().
 compress(Method, Url, Headers, Body, Secret, CompressionThreshold)
-  when byte_size(Body) > CompressionThreshold ->
+  when byte_size(Body) >= CompressionThreshold ->
     CompressedBody = backwater_encoding_gzip:encode(Body),
     ContentLengthHeader = content_length_header(CompressedBody),
     ContentEncodingHeader = {<<"content-encoding">>, <<"gzip">>},
@@ -188,7 +188,7 @@ content_length_header(Data) ->
     '_compress'(Method1, Url1, Headers1, Body1, Secret, Override).
 
 '_compress'(Method, Url, Headers1, Body1, Secret, Override)
-   when byte_size(Body1) > ?DEFAULT_OPT_COMPRESSION_THRESHOLD ->
+   when byte_size(Body1) >= ?DEFAULT_OPT_COMPRESSION_THRESHOLD ->
     UpdateHeadersWith = maps:get({update_headers_with, before_authentication}, Override, fun identity/1),
     UpdateBodyWith = maps:get({update_body_with, before_authentication}, Override, fun identity/1),
     Body2 = UpdateBodyWith(backwater_encoding_gzip:encode(Body1)),
