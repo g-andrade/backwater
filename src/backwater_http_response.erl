@@ -299,7 +299,6 @@ status_code_name(403) -> forbidden;
 status_code_name(404) -> not_found;
 status_code_name(405) -> method_not_allowed;
 status_code_name(406) -> not_acceptable;
-status_code_name(408) -> request_timeout;
 status_code_name(413) -> payload_too_large;
 status_code_name(415) -> unsupported_media_type;
 status_code_name(500) -> internal_error;
