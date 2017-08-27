@@ -10,6 +10,8 @@ ifeq ($(REBAR3),)
 	REBAR3 = $(CURDIR)/rebar3
 endif
 
+TEST_PROFILE ?= test
+
 .PHONY: all build clean check dialyzer xref run test cover travis doc publish
 
 all: build
@@ -33,11 +35,12 @@ xref:
 	@$(REBAR3) as development xref
 
 test:
-	@$(REBAR3) as test eunit, ct
+	@$(REBAR3) as $(TEST_PROFILE) eunit, ct
 
 cover: test
 	@$(REBAR3) as test cover
 
+travis: TEST_PROFILE = travis_test
 travis: test
 
 doc: build
