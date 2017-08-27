@@ -1,2 +1,6 @@
--define(MAX_RESPONSE_BODY_SIZE, (8 * (1 bsl 20))). % in bytes
--define(REQUEST_COMPRESSION_THRESHOLD, 300). % in bytes
+-define(DEFAULT_OPT_COMPRESSION_THRESHOLD, 300). % in bytes
+-define(DEFAULT_OPT_CONNECT_TIMEOUT, 8000). % in milliseconds
+-define(DEFAULT_OPT_DECODE_UNSAFE_TERMS, false).
+-define(DEFAULT_OPT_MAX_ENCODED_RESULT_SIZE, (8 * (1 bsl 20))). % in bytes
+-define(DEFAULT_OPT_RECV_TIMEOUT, 5000). % in milliseconds
+-define(DEFAULT_OPT_RETHROW_REMOTE_EXCEPTIONS, false).

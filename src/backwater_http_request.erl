@@ -29,7 +29,8 @@
 %% API Function Exports
 %% ------------------------------------------------------------------
 
--export([encode/5]).
+-export([encode/5]).                            -ignore_xref({encode,5}).
+-export([encode/6]).
 
 %% ------------------------------------------------------------------
 %% Common Test Helper Exports
@@ -51,6 +52,10 @@
 
 -type nonempty_headers() :: [{nonempty_binary(), binary()}, ...].
 -export_type([nonempty_headers/0]).
+
+-type options() ::
+        #{ compression_threshold => non_neg_integer() }.
+-export_type([options/0]).
 
 -type state() :: #{ signed_request_msg := backwater_http_signatures:signed_message() }.
 -export_type([state/0]).
@@ -75,6 +80,20 @@
                  RequestState :: state().
 
 encode(Endpoint, Module, Function, Args, Secret) ->
+    encode(Endpoint, Module, Function, Args, Secret, #{}).
+
+
+-spec encode(Endpoint, Module, Function, Args, Secret, Options) -> {Request, RequestState}
+            when Endpoint :: nonempty_binary(),
+                 Module :: module(),
+                 Function :: atom(),
+                 Args :: [term()],
+                 Secret :: binary(),
+                 Options :: options(),
+                 Request :: t(),
+                 RequestState :: state().
+
+encode(Endpoint, Module, Function, Args, Secret, Options) ->
     Body = backwater_media_etf:encode(Args),
     Arity = length(Args),
     Method = ?OPAQUE_BINARY(<<"POST">>),
@@ -84,7 +103,9 @@ encode(Endpoint, Module, Function, Args, Secret) ->
         [{?OPAQUE_BINARY(<<"accept">>), ?OPAQUE_BINARY(<<MediaType/binary>>)},
          {?OPAQUE_BINARY(<<"accept-encoding">>), ?OPAQUE_BINARY(<<"gzip">>)},
          {?OPAQUE_BINARY(<<"content-type">>), ?OPAQUE_BINARY(<<MediaType/binary>>)}],
-    compress(Method, Url, Headers, Body, Secret).
+    CompressionThreshold =
+        maps:get(compression_threshold, Options, ?DEFAULT_OPT_COMPRESSION_THRESHOLD),
+    compress(Method, Url, Headers, Body, Secret, CompressionThreshold).
 
 %% ------------------------------------------------------------------
 %% Internal Function Definitions
@@ -102,15 +123,17 @@ request_url(Endpoint, Module, Function, Arity) ->
     QueryString = <<>>,
     hackney_url:make_url(Endpoint, PathComponents, QueryString).
 
--spec compress(nonempty_binary(), nonempty_binary(), nonempty_headers(), binary(), binary())
+-spec compress(nonempty_binary(), nonempty_binary(), nonempty_headers(),
+               binary(), binary(), non_neg_integer())
         -> stateful_request().
-compress(Method, Url, Headers, Body, Secret) when byte_size(Body) > ?REQUEST_COMPRESSION_THRESHOLD ->
+compress(Method, Url, Headers, Body, Secret, CompressionThreshold)
+  when byte_size(Body) > CompressionThreshold ->
     CompressedBody = backwater_encoding_gzip:encode(Body),
     ContentLengthHeader = content_length_header(CompressedBody),
     ContentEncodingHeader = {<<"content-encoding">>, <<"gzip">>},
     UpdatedHeaders = [ContentLengthHeader, ContentEncodingHeader | Headers],
     authenticate(Method, Url, UpdatedHeaders, CompressedBody, Secret);
-compress(Method, Url, Headers, Body, Secret) ->
+compress(Method, Url, Headers, Body, Secret, _CompressionThreshold) ->
     ContentLengthHeader = content_length_header(Body),
     UpdatedHeaders = [ContentLengthHeader | Headers],
     authenticate(Method, Url, UpdatedHeaders, Body, Secret).
@@ -165,7 +188,7 @@ content_length_header(Data) ->
     '_compress'(Method1, Url1, Headers1, Body1, Secret, Override).
 
 '_compress'(Method, Url, Headers1, Body1, Secret, Override)
-   when byte_size(Body1) > ?REQUEST_COMPRESSION_THRESHOLD ->
+   when byte_size(Body1) > ?DEFAULT_OPT_COMPRESSION_THRESHOLD ->
     UpdateHeadersWith = maps:get({update_headers_with, before_authentication}, Override, fun identity/1),
     UpdateBodyWith = maps:get({update_body_with, before_authentication}, Override, fun identity/1),
     Body2 = UpdateBodyWith(backwater_encoding_gzip:encode(Body1)),

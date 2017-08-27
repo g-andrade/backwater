@@ -43,12 +43,13 @@
 %% Macro Definitions
 %% ------------------------------------------------------------------
 
--define(DEFAULT_HACKNEY_OPTS,
-        [{pool, backwater_client},
-         {connect_timeout, 8000}, % in milliseconds
-         {recv_timeout, 5000}, % in milliseconds
-         {max_body, ?MAX_RESPONSE_BODY_SIZE}
-        ]).
+-define(HTTP_REQUEST_ENCODING_OPTION_NAMES,
+        [compression_threshold]).
+
+-define(HTTP_RESPONSE_DECODING_OPTION_NAMES,
+        [decode_unsafe_terms,
+         max_encoded_result_size,
+         rethrow_remote_exceptions]).
 
 %% ------------------------------------------------------------------
 %% Type Definitions
@@ -58,7 +59,12 @@
     #{ endpoint := nonempty_binary(),
        secret := binary(),
        hackney_opts => [hackney_option()],
+
+       compression_threshold => non_neg_integer(),
+       connect_timeout => timeout(),
        decode_unsafe_terms => boolean(),
+       max_encoded_result_size => non_neg_integer(),
+       recv_timeout => timeout(),
        rethrow_remote_exceptions => boolean()
      }.
 -export_type([config/0]).
@@ -124,8 +130,16 @@ validate_config_pair({secret, Secret}) ->
 validate_config_pair({hackney_opts, HackneyOpts}) ->
     % TODO deeper validation
     is_list(HackneyOpts);
+validate_config_pair({compression_threshold, CompressionThreshold}) ->
+    ?is_non_neg_integer(CompressionThreshold);
+validate_config_pair({connect_timeout, ConnectTimeout}) ->
+    ?is_timeout(ConnectTimeout);
 validate_config_pair({decode_unsafe_terms, DecodeUnsafeTerms}) ->
     is_boolean(DecodeUnsafeTerms);
+validate_config_pair({max_encoded_result_size, MaxEncodedResultSize}) ->
+    ?is_non_neg_integer(MaxEncodedResultSize);
+validate_config_pair({recv_timeout, RecvTimeout}) ->
+    ?is_timeout(RecvTimeout);
 validate_config_pair({rethrow_remote_exceptions, RethrowRemoteExceptions}) ->
     is_boolean(RethrowRemoteExceptions);
 validate_config_pair({_K, _V}) ->
@@ -142,15 +156,16 @@ call_(error, _Module, _Function, _Args) ->
         -> backwater_http_response:t(Error) when Error :: {hackney, term()}.
 encode_request(Config, Module, Function, Args) ->
     #{ endpoint := Endpoint, secret := Secret } = Config,
+    Options = maps:with(?HTTP_REQUEST_ENCODING_OPTION_NAMES, Config),
     {Request, State} =
-        backwater_http_request:encode(Endpoint, Module, Function, Args, Secret),
+        backwater_http_request:encode(Endpoint, Module, Function, Args, Secret, Options),
     call_hackney(Config, State, Request).
 
 -spec call_hackney(config(), backwater_http_request:state(), backwater_http_request:t())
         -> backwater_http_response:t(Error) when Error :: {hackney, term()}.
 call_hackney(Config, RequestState, Request) ->
     {Method, Url, Headers, Body} = Request,
-    DefaultHackneyOpts = ?DEFAULT_HACKNEY_OPTS,
+    DefaultHackneyOpts = default_hackney_opts(Config),
     ConfigHackneyOpts = maps:get(hackney_opts, Config, []),
     MandatoryHackneyOpts = [with_body],
     HackneyOpts = backwater_util:proplists_sort_and_merge(
@@ -159,10 +174,20 @@ call_hackney(Config, RequestState, Request) ->
     handle_hackney_result(Config, RequestState, Result).
 
 handle_hackney_result(Config, RequestState, {ok, StatusCode, Headers, Body}) ->
-    Options = maps:with([decode_unsafe_terms, rethrow_remote_exceptions], Config),
+    Options = maps:with(?HTTP_RESPONSE_DECODING_OPTION_NAMES, Config),
     backwater_http_response:decode(StatusCode, Headers, Body, RequestState, Options);
 handle_hackney_result(_Config, _RequestState, {error, Error}) ->
     {error, {hackney, Error}}.
+
+default_hackney_opts(Config) ->
+    ConnectTimeout = maps:get(connect_timeout, Config, ?DEFAULT_OPT_CONNECT_TIMEOUT),
+    RecvTimeout = maps:get(recv_timeout, Config, ?DEFAULT_OPT_RECV_TIMEOUT),
+    MaxEncodedResultSize = maps:get(max_encoded_result_size, Config, ?DEFAULT_OPT_MAX_ENCODED_RESULT_SIZE),
+    [{pool, backwater_client},
+     {connect_timeout, ConnectTimeout},
+     {recv_timeout, RecvTimeout},
+     {max_body, MaxEncodedResultSize}
+    ].
 
 %% ------------------------------------------------------------------
 %% Common Test Helper Definitions
