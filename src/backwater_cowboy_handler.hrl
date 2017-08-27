@@ -1,3 +1,0 @@
--define(MAX_REQUEST_BODY_SIZE, (8 * (1 bsl 20))). % in bytes
--define(RESPONSE_COMPRESSION_THRESHOLD, 300). % in bytes
--define(REQUEST_BODY_RECV_TIMEOUT, 5000). % in milliseconds

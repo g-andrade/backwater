@@ -22,7 +22,6 @@
 -behaviour(cowboy_handler).
 
 -include("backwater_common.hrl").
--include("backwater_cowboy_handler.hrl").
 
 %% ------------------------------------------------------------------
 %% API Function Exports
@@ -43,7 +42,11 @@
 
 -define(CACHED_FUNCTION_PROPERTIES_TTL, (timer:seconds(5))).
 -define(KNOWN_CONTENT_ENCODINGS, [<<"gzip">>, <<"identity">>]).
+
+-define(DEFAULT_OPT_COMPRESSION_THRESHOLD, 300). % in bytes
 -define(DEFAULT_OPT_DECODE_UNSAFE_TERMS, false).
+-define(DEFAULT_OPT_MAX_ENCODED_ARGS_SIZE, (8 * (1 bsl 20))). % in bytes
+-define(DEFAULT_OPT_RECV_TIMEOUT, 5000). % in milliseconds
 -define(DEFAULT_OPT_RETURN_EXCEPTION_STACKTRACES, true).
 
 %% ------------------------------------------------------------------
@@ -74,7 +77,11 @@
 -type config() ::
         #{ secret := binary(),
            exposed_modules := [backwater_module_info:exposed_module()],
+
+           compression_threshold => non_neg_integer(),
            decode_unsafe_terms => boolean(),
+           max_encoded_args_size => non_neg_integer(),
+           recv_timeout => timeout(),
            return_exception_stacktraces => boolean() }.
 -export_type([config/0]).
 
@@ -514,16 +521,19 @@ negotiate_result_content_encoding(State) ->
 -spec read_and_decode_args(state()) -> {continue | stop, state()}.
 read_and_decode_args(State) ->
     BodySize = safe_req_parse_header(<<"content-length">>, State, 0, 0),
-    read_and_decode_args(BodySize, State).
+    MaxEncodedArgsSize = opt_max_encoded_args_size(State),
+    read_and_decode_args(BodySize, MaxEncodedArgsSize, State).
 
--spec read_and_decode_args(non_neg_integer(), state()) -> {continue | stop, state()}.
-read_and_decode_args(BodySize, State) when BodySize > ?MAX_REQUEST_BODY_SIZE ->
+-spec read_and_decode_args(non_neg_integer(), non_neg_integer(), state())
+        -> {continue | stop, state()}.
+read_and_decode_args(BodySize, MaxEncodedArgsSize, State) when BodySize > MaxEncodedArgsSize ->
     {stop, set_error_response(413, State)};
-read_and_decode_args(BodySize, State) ->
+read_and_decode_args(BodySize, _MaxEncodedArgsSize, State) ->
     #{ req := Req } = State,
+    RecvTimeout = opt_recv_timeout(State),
     ReadBodyOpts =
         #{ length => BodySize,
-           period => ?REQUEST_BODY_RECV_TIMEOUT },
+           period => RecvTimeout },
 
     case cowboy_req:read_body(Req, ReadBodyOpts) of
         {ok, Data, Req2} when byte_size(Data) =< BodySize ->
@@ -550,7 +560,8 @@ validate_args_digest(Data, State) ->
 decode_args_content_encoding(Data, #{ args_content_encoding := <<"identity">> } = State) ->
     decode_args_content_type(Data, State);
 decode_args_content_encoding(Data, #{ args_content_encoding := <<"gzip">> } = State) ->
-    case backwater_encoding_gzip:decode(Data, ?MAX_REQUEST_BODY_SIZE) of
+    MaxEncodedArgsSize = opt_max_encoded_args_size(State),
+    case backwater_encoding_gzip:decode(Data, MaxEncodedArgsSize) of
         {ok, UncompressedData} ->
             decode_args_content_type(UncompressedData, State);
         {error, too_big} ->
@@ -569,7 +580,7 @@ decode_args_content_type(Data, State) ->
 
 -spec decode_etf_args(binary(), state()) -> {continue | stop, state()}.
 decode_etf_args(Data, State) ->
-    DecodeUnsafeTerms = should_decode_unsafe_terms(State),
+    DecodeUnsafeTerms = opt_decode_unsafe_terms(State),
     case backwater_media_etf:decode(Data, DecodeUnsafeTerms) of
         error ->
             {stop, set_error_response(400, #{}, unable_to_decode_arguments, State)};
@@ -587,10 +598,17 @@ validate_args(UnvalidatedArgs, #{ arity := Arity } = State)
 validate_args(Args, State) ->
     {continue, State#{ args => Args }}.
 
--spec should_decode_unsafe_terms(state()) -> boolean().
-should_decode_unsafe_terms(State) ->
-    #{ config := Config } = State,
-    maps:get(decode_unsafe_terms, Config, ?DEFAULT_OPT_DECODE_UNSAFE_TERMS).
+-spec opt_decode_unsafe_terms(state()) -> boolean().
+opt_decode_unsafe_terms(State) ->
+    config_opt(decode_unsafe_terms, State, ?DEFAULT_OPT_DECODE_UNSAFE_TERMS).
+
+-spec opt_max_encoded_args_size(state()) -> non_neg_integer().
+opt_max_encoded_args_size(State) ->
+    config_opt(max_encoded_args_size, State, ?DEFAULT_OPT_MAX_ENCODED_ARGS_SIZE).
+
+-spec opt_recv_timeout(state()) -> timeout().
+opt_recv_timeout(State) ->
+    config_opt(recv_timeout, State, ?DEFAULT_OPT_RECV_TIMEOUT).
 
 %% ------------------------------------------------------------------
 %% Internal Function Definitions - Execute Call
@@ -622,7 +640,7 @@ call_function(State) ->
         -> {ok, call_exception()} | {error, undefined_module_or_function}.
 handle_possibly_undef_call_exception(Class, Exception, State, FunctionRef)
   when Class =:= error, Exception =:= undef ->
-    ReturnExceptionStacktraces = should_return_exception_stack_traces(State),
+    ReturnExceptionStacktraces = opt_return_exception_stack_traces(State),
     {module, Module} = erlang:fun_info(FunctionRef, module),
     {name, Name} = erlang:fun_info(FunctionRef, name),
     {arity, Arity} = erlang:fun_info(FunctionRef, arity),
@@ -645,7 +663,7 @@ handle_possibly_undef_call_exception(Class, Exception, State, _FunctionRef) ->
 
 -spec handle_call_exception(raisable_class(), term(), state()) -> {ok, call_exception()}.
 handle_call_exception(Class, Exception, State) ->
-    case should_return_exception_stack_traces(State) of
+    case opt_return_exception_stack_traces(State) of
         false ->
             return_call_exception(Class, Exception, []);
         true ->
@@ -660,10 +678,9 @@ return_call_exception(Class, Exception, Stacktrace) ->
     PurgedStacktrace = backwater_util:purge_stacktrace_below({?MODULE,call_function,1}, Stacktrace),
     {ok, {exception, {Class, Exception, PurgedStacktrace}}}.
 
--spec should_return_exception_stack_traces(state()) -> boolean().
-should_return_exception_stack_traces(State) ->
-    #{ config := Config } = State,
-    maps:get(return_exception_stacktraces, Config, ?DEFAULT_OPT_RETURN_EXCEPTION_STACKTRACES).
+-spec opt_return_exception_stack_traces(state()) -> boolean().
+opt_return_exception_stack_traces(State) ->
+    config_opt(return_exception_stacktraces, State, ?DEFAULT_OPT_RETURN_EXCEPTION_STACKTRACES).
 
 %% ------------------------------------------------------------------
 %% Internal Function Definitions - Send Response
@@ -735,12 +752,25 @@ set_success_response(Value, #{ result_content_type := ResultContentType } = Stat
     maps:put(response, Response, State).
 
 -spec encode_response(http_status(), http_headers(), binary(), state()) -> response().
-encode_response(StatusCode, Headers1, Body1, #{ result_content_encoding := <<"gzip">> })
-  when byte_size(Body1) >= ?RESPONSE_COMPRESSION_THRESHOLD ->
+encode_response(StatusCode, Headers, Body, #{ result_content_encoding := <<"gzip">> } = State) ->
+    CompressionThreshold = opt_compression_threshold(State),
+    case byte_size(Body) >= CompressionThreshold of
+        true ->
+            encode_gzip_response(StatusCode, Headers, Body);
+        false ->
+            encode_identity_response(StatusCode, Headers, Body)
+    end;
+encode_response(StatusCode, Headers, Body, _State) ->
+    encode_identity_response(StatusCode, Headers, Body).
+
+-spec encode_gzip_response(http_status(), http_headers(), binary()) -> response().
+encode_gzip_response(StatusCode, Headers1, Body1) ->
     Body2 = backwater_encoding_gzip:encode(Body1),
     Headers2 = Headers1#{ <<"content-encoding">> => <<"gzip">> },
-    #{ status_code => StatusCode, headers => Headers2, body => Body2 };
-encode_response(StatusCode, Headers, Body, _State) ->
+    #{ status_code => StatusCode, headers => Headers2, body => Body2 }.
+
+-spec encode_identity_response(http_status(), http_headers(), binary()) -> response().
+encode_identity_response(StatusCode, Headers, Body) ->
     #{ status_code => StatusCode, headers => Headers, body => Body }.
 
 -spec nocache_headers() -> http_headers().
@@ -748,6 +778,10 @@ nocache_headers() ->
     #{ <<"cache-control">> => <<"private, no-cache, no-store, must-revalidate">>,
        <<"pragma">> => <<"no-cache">>,
        <<"expires">> => <<"0">> }.
+
+-spec opt_compression_threshold(state()) -> non_neg_integer().
+opt_compression_threshold(State) ->
+    config_opt(compression_threshold, State, ?DEFAULT_OPT_COMPRESSION_THRESHOLD).
 
 %% ------------------------------------------------------------------
 %% Internal Function Definitions
@@ -759,9 +793,19 @@ validate_config_pair({secret, Secret}) ->
 validate_config_pair({exposed_modules, ExposedModules}) ->
     % TODO validate deeper
     is_list(ExposedModules);
+validate_config_pair({compression_threshold, CompressionThreshold}) ->
+    ?is_non_neg_integer(CompressionThreshold);
 validate_config_pair({decode_unsafe_terms, DecodeUnsafeTerms}) ->
     is_boolean(DecodeUnsafeTerms);
+validate_config_pair({max_encoded_args_size, MaxEncodedArgsSize}) ->
+    ?is_non_neg_integer(MaxEncodedArgsSize);
+validate_config_pair({recv_timeout, RecvTimeout}) ->
+    ?is_timeout(RecvTimeout);
 validate_config_pair({return_exception_stacktraces, ReturnExceptionStacktraces}) ->
     is_boolean(ReturnExceptionStacktraces);
 validate_config_pair({_Key, _Value}) ->
     false.
+
+config_opt(Key, State, Default) ->
+    #{ config := Config } = State,
+    maps:get(Key, Config, Default).
