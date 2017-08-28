@@ -5,11 +5,18 @@
 [![Build Status](https://travis-ci.org/g-andrade/backwater.png?branch=master)](https://travis-ci.org/g-andrade/backwater)
 [![Hex pm](http://img.shields.io/hexpm/v/backwater.svg?style=flat)](https://hex.pm/packages/backwater)
 
-Backwater is a no-frills RPC framework for remote Erlang and Elixir modules,
-built on top of [cowboy](https://github.com/ninenines/cowboy) and
+<h5><a name="Backwater_-_an_RPC_framework_for_Erlang_and_Elixir">Backwater - an RPC framework for Erlang and Elixir</a></h5>
+
+Backwater aims to make execution of calls to modules/functions on individual remote machines as
+close to local calls as they can get, with little to no boilerplate code.
+
+The remote calls are executed over HTTP(S) and don't depend on the Erlang distribution protocol
+nor on both ends being clustered.
+
+Backwater is built on top of [cowboy](https://github.com/ninenines/cowboy) and
 [hackney](https://github.com/benoitc/hackney).
 
-Jump directly to some [quick examples](https://github.com/g-andrade/backwater/blob/master/doc/README.md#examples) or to the [function reference](https://github.com/g-andrade/backwater/blob/master/doc/README.md#modules).
+__Jump directly to some [quick examples](https://github.com/g-andrade/backwater/blob/master/doc/README.md#examples)__ or to the [function reference](https://github.com/g-andrade/backwater/blob/master/doc/README.md#modules).
 
 Requirements:
 * Erlang/OTP 19 and up
@@ -32,21 +39,23 @@ Details:
 * You can use a custom HTTP client by [encoding](https://github.com/g-andrade/backwater/blob/master/doc/backwater_http_request.md) and [decoding](https://github.com/g-andrade/backwater/blob/master/doc/backwater_http_response.md) requests directly
 
 Defaults, limits and thresholds:
+* The default listen port for HTTP is 8080
+* The default listen port for HTTPS is 8443
 * The default client connect timeout is 8s
-* The default client receive timeout is 5s
+* The default client/server receive timeout is 5s
 * The compression threshold for encoded arguments and return values is 300 byte
 * The maximum request and response body size is 8 MiB (whether compressed or uncompressed)
 * Unsafe arguments and return values are not decoded by default
-* Remote exceptions are returned as errors by default
-* Remote exception stacktraces are returned by default
+* Remote exceptions are locally returned as errors by default
+* Remote exception stacktraces are locally returned by default
 
 Security concerns:
 * Replay attacks can't be prevented when using HTTP over untrusted networks
 * Atom (non-)existence can be inferred by an authenticated attacker when the service is configured to reject unsafe terms (which happens by default)
 
 To do:
-* Polishing the rebar3 plugin code and funcionality
-* Supporting generation of code wrappers under Elixir / Mix
+* Polish the rebar3 plugin code and funcionality
+* Support generation of client code under Elixir / Mix
 
 Some more examples are under 'examples/'; for all possible configuration options, check the [function reference](https://github.com/g-andrade/backwater/blob/master/doc/README.md#modules).
 
@@ -60,7 +69,7 @@ Some more examples are under 'examples/'; for all possible configuration options
 ### <a name="Example_1_-_Remote_'string'_module_and_client_code_generation_(Erlang)">Example 1 - Remote 'string' module and client code generation (Erlang)</a> ###
 
 
-#### <a name="1.1._Configure_dependencies_and_the_rebar3_plugin">1.1. Configure dependencies and the rebar3 plugin</a> ####
+#### <a name="1.1._Configure_dependencies_and_code_generation">1.1. Configure dependencies and code generation</a> ####
 
 
 ```erlang
@@ -76,7 +85,7 @@ Some more examples are under 'examples/'; for all possible configuration options
 ```
 
 
-#### <a name="1.2._Generate_the_wrapper_code">1.2. Generate the wrapper code</a> ####
+#### <a name="1.2._Generate_the_client_code">1.2. Generate the client code</a> ####
 
 
 ```
@@ -145,12 +154,12 @@ ok = backwater_client:start(
 ### <a name="Example_2_-_A_basic_remote_calculator_using_Kernel_functions_(Elixir)">Example 2 - A basic remote calculator using Kernel functions (Elixir)</a> ###
 
 
-#### <a name="2.1._Add_backwater_dependency_to_Mix">2.1. Add backwater dependency to Mix</a> ####
+#### <a name="2.1._Configure_dependencies">2.1. Configure dependencies</a> ####
 
 
 ```elixir
 
-#mix.exs
+# mix.exs
 # [...]
   defp deps do
     [{:backwater, "-> 1.0"}]
@@ -218,7 +227,7 @@ secret = :crypto.strong_rand_bytes(32)
 ### <a name="Example_3_-_Exposure_of_a_module_using_custom_attributes_(Erlang)">Example 3 - Exposure of a module using custom attributes (Erlang)</a> ###
 
 
-#### <a name="3.1._Add_backwater_dependency_to_rebar3">3.1. Add backwater dependency to rebar3</a> ####
+#### <a name="3.1._Configure_dependencies">3.1. Configure dependencies</a> ####
 
 
 ```erlang
@@ -377,7 +386,7 @@ secret = :crypto.strong_rand_bytes(32)
 
 ```elixir
 
-:ok = backwater_client.start(
+:ok = :backwater_client.start(
         :example4,
         %{ :endpoint => "http://127.0.0.1:8080/",
            :secret => secret })
