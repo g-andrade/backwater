@@ -16,7 +16,7 @@
 
 
 <pre><code>
-config() = #{endpoint =&gt; <a href="#type-nonempty_binary">nonempty_binary()</a>, secret =&gt; binary(), hackney_opts =&gt; [<a href="#type-hackney_option">hackney_option()</a>], decode_unsafe_terms =&gt; boolean(), rethrow_remote_exceptions =&gt; boolean()}
+config() = #{endpoint =&gt; <a href="#type-nonempty_binary">nonempty_binary()</a>, secret =&gt; binary(), hackney_opts =&gt; [<a href="#type-hackney_option">hackney_option()</a>], compression_threshold =&gt; non_neg_integer(), connect_timeout =&gt; timeout(), decode_unsafe_terms =&gt; boolean(), max_encoded_result_size =&gt; non_neg_integer(), recv_timeout =&gt; timeout(), rethrow_remote_exceptions =&gt; boolean()}
 </code></pre>
 
 

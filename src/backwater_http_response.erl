@@ -36,13 +36,6 @@
 -export([decode/5]).
 
 %% ------------------------------------------------------------------
-%% Macro Definitions
-%% ------------------------------------------------------------------
-
--define(DEFAULT_DECODE_UNSAFE_TERMS, false).
--define(DEFAULT_RETHROW_REMOTE_EXCEPTIONS, false).
-
-%% ------------------------------------------------------------------
 %% Type Definitions
 %% ------------------------------------------------------------------
 
@@ -62,6 +55,7 @@
 
 -type options() ::
         #{ decode_unsafe_terms => boolean(),
+           max_encoded_result_size => non_neg_integer(),
            rethrow_remote_exceptions => boolean() }.
 -export_type([options/0]).
 
@@ -161,7 +155,7 @@ authenticate_body(StatusCode, CiHeaders, Body, Options, SignedResponseMsg) ->
 -spec decode_(status_code(), headers(), binary(), options(),
               backwater_http_signatures:signed_message()) -> t().
 decode_(200 = StatusCode, CiHeaders, Body, Options, SignedResponseMsg) ->
-    RethrowRemoteExceptions = rethrow_remote_exceptions(Options),
+    RethrowRemoteExceptions = opt_rethrow_remote_exceptions(Options),
     case decode_body(CiHeaders, Body, Options, SignedResponseMsg) of
         {ok, {return, ReturnValue}} ->
             {ok, ReturnValue};
@@ -195,7 +189,8 @@ decode_body(CiHeaders, Body, Options, SignedResponseMsg) ->
         -> {ok, term()} |
            {error, response_decode_failure()}.
 handle_body_content_encoding(<<"gzip">>, CiHeaders, Body, Options, SignedResponseMsg) ->
-    case backwater_encoding_gzip:decode(Body, ?MAX_RESPONSE_BODY_SIZE) of
+    MaxEncodedResultSize = opt_max_encoded_result_size(Options),
+    case backwater_encoding_gzip:decode(Body, MaxEncodedResultSize) of
         {ok, UncompressedBody} ->
             ContentTypeLookup = get_content_type(CiHeaders, SignedResponseMsg),
             handle_body_content_type(ContentTypeLookup, UncompressedBody, Options);
@@ -228,7 +223,7 @@ get_content_encoding(CiHeaders, SignedResponseMsg) ->
            {error, invalid_content_type} |
            {error, invalid_body}.
 handle_body_content_type({ok, {<<"application/x-erlang-etf">>, _Params}}, Body, Options) ->
-    DecodeUnsafeTerms = decode_unsafe_terms(Options),
+    DecodeUnsafeTerms = opt_decode_unsafe_terms(Options),
     case backwater_media_etf:decode(Body, DecodeUnsafeTerms) of
         {ok, Decoded} ->
             {ok, Decoded};
@@ -278,13 +273,17 @@ assert_header_safety(CiName, SignedResponseMsg) ->
     backwater_http_signatures:is_header_signed_in_signed_msg(CiName, SignedResponseMsg)
     orelse error({using_unsafe_header, CiName}).
 
--spec decode_unsafe_terms(options()) -> boolean().
-decode_unsafe_terms(Options) ->
-    maps:get(decode_unsafe_terms, Options, ?DEFAULT_DECODE_UNSAFE_TERMS).
+-spec opt_decode_unsafe_terms(options()) -> boolean().
+opt_decode_unsafe_terms(Options) ->
+    maps:get(decode_unsafe_terms, Options, ?DEFAULT_OPT_DECODE_UNSAFE_TERMS).
 
--spec rethrow_remote_exceptions(options()) -> boolean().
-rethrow_remote_exceptions(Options) ->
-    maps:get(rethrow_remote_exceptions, Options, ?DEFAULT_RETHROW_REMOTE_EXCEPTIONS).
+-spec opt_max_encoded_result_size(options()) -> non_neg_integer().
+opt_max_encoded_result_size(Options) ->
+    maps:get(max_encoded_result_size, Options, ?DEFAULT_OPT_MAX_ENCODED_RESULT_SIZE).
+
+-spec opt_rethrow_remote_exceptions(options()) -> boolean().
+opt_rethrow_remote_exceptions(Options) ->
+    maps:get(rethrow_remote_exceptions, Options, ?DEFAULT_OPT_RETHROW_REMOTE_EXCEPTIONS).
 
 -spec failure_error(failure(), status_code(), headers(), binary())
         -> {error, {failure(), raw_response()}}.

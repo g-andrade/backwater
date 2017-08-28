@@ -22,6 +22,16 @@ nonempty_headers() = [{<a href="#type-nonempty_binary">nonempty_binary()</a>, bi
 
 
 
+### <a name="type-options">options()</a> ###
+
+
+<pre><code>
+options() = #{compression_threshold =&gt; non_neg_integer()}
+</code></pre>
+
+
+
+
 ### <a name="type-state">state()</a> ###
 
 
@@ -44,7 +54,7 @@ t() = {Method::<a href="#type-nonempty_binary">nonempty_binary()</a>, Url::<a hr
 ## Function Index ##
 
 
-<table width="100%" border="1" cellspacing="0" cellpadding="2" summary="function index"><tr><td valign="top"><a href="#encode-5">encode/5</a></td><td></td></tr></table>
+<table width="100%" border="1" cellspacing="0" cellpadding="2" summary="function index"><tr><td valign="top"><a href="#encode-5">encode/5</a></td><td></td></tr><tr><td valign="top"><a href="#encode-6">encode/6</a></td><td></td></tr></table>
 
 
 <a name="functions"></a>
@@ -60,4 +70,14 @@ encode(Endpoint, Module, Function, Args, Secret) -&gt; {Request, RequestState}
 </code></pre>
 
 <ul class="definitions"><li><code>Endpoint = <a href="#type-nonempty_binary">nonempty_binary()</a></code></li><li><code>Module = module()</code></li><li><code>Function = atom()</code></li><li><code>Args = [term()]</code></li><li><code>Secret = binary()</code></li><li><code>Request = <a href="#type-t">t()</a></code></li><li><code>RequestState = <a href="#type-state">state()</a></code></li></ul>
+
+<a name="encode-6"></a>
+
+### encode/6 ###
+
+<pre><code>
+encode(Endpoint, Module, Function, Args, Secret, Options) -&gt; {Request, RequestState}
+</code></pre>
+
+<ul class="definitions"><li><code>Endpoint = <a href="#type-nonempty_binary">nonempty_binary()</a></code></li><li><code>Module = module()</code></li><li><code>Function = atom()</code></li><li><code>Args = [term()]</code></li><li><code>Secret = binary()</code></li><li><code>Options = <a href="#type-options">options()</a></code></li><li><code>Request = <a href="#type-t">t()</a></code></li><li><code>RequestState = <a href="#type-state">state()</a></code></li></ul>
 

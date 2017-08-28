@@ -22,3 +22,6 @@
 -export_type([nonempty_binary/0]).
 
 -define(OPAQUE_BINARY(B), <<(B)/binary>>). % don't let Dialyzer be too smart
+
+-define(is_non_neg_integer(V), (is_integer((V)) andalso (V) >= 0)).
+-define(is_timeout(V), (?is_non_neg_integer((V)) orelse (V) =:= infinity)).

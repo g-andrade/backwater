@@ -10,3 +10,4 @@ erl -pa _build/generate_documentation/lib/*/ebin -noshell -run edoc_run applicat
 rm -rf doc
 mv _build/generate_documentation/lib/backwater/doc ./
 sed -i -e 's/^\(---------\)$/\n\1/g' README.md
+rm doc/*.{html,css,png,edoc} doc/edoc-info
