@@ -2,7 +2,7 @@
 [{<<"certifi">>,{pkg,<<"certifi">>,<<"2.0.0">>},1},
  {<<"cowboy">>,
   {git,"https://github.com/ninenines/cowboy.git",
-       {ref,"3d8339267b2de011c30db868002f23ab4da0cc2f"}},
+       {ref,"17400f73b4f84c997abe4e03837d1642d3a188ce"}},
   0},
  {<<"cowlib">>,
   {git,"https://github.com/ninenines/cowlib",
