@@ -154,8 +154,9 @@ start_cowboy(StartFunction, Ref, Config, TransportOpts, ProtoOpts0) ->
             BackwaterDispatch = cowboy_router:compile([RouteRule]),
             NbAcceptors = proplists:get_value(num_acceptors, TransportOpts, ?DEFAULT_NB_ACCEPTORS),
             ProtoOpts = inject_backwater_dispatch_in_proto_opts(BackwaterDispatch, ProtoOpts0),
+            Cowboy1TransportOpts = lists:keydelete(num_acceptors, 1, TransportOpts),
             Cowboy1ProtoOpts = cowboy1_proto_opts(ProtoOpts),
-            cowboy:StartFunction(ref(Ref), NbAcceptors, TransportOpts, Cowboy1ProtoOpts);
+            cowboy:StartFunction(ref(Ref), NbAcceptors, Cowboy1TransportOpts, Cowboy1ProtoOpts);
         {error, Error} ->
             {error, Error}
     end.
