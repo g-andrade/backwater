@@ -40,7 +40,6 @@ test:
 cover: test
 	@$(REBAR3) as test cover
 
-travis: TEST_PROFILE = travis_test
 travis: test
 
 doc: build
