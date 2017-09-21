@@ -170,8 +170,13 @@ call_hackney(Config, RequestState, Request) ->
     MandatoryHackneyOpts = [with_body],
     HackneyOpts = backwater_util:proplists_sort_and_merge(
                        [DefaultHackneyOpts, ConfigHackneyOpts, MandatoryHackneyOpts]),
-    Result = hackney:request(Method, Url, Headers, Body, HackneyOpts),
-    handle_hackney_result(Config, RequestState, Result).
+    case hackney:request(Method, Url, Headers, Body, HackneyOpts) of
+        {error, closed} ->
+            % intermittent issue that appears to be related to hackney connection pools. try again
+            call_hackney(Config, RequestState, Request);
+        Result ->
+            handle_hackney_result(Config, RequestState, Result)
+    end.
 
 handle_hackney_result(Config, RequestState, {ok, StatusCode, Headers, Body}) ->
     Options = maps:with(?HTTP_RESPONSE_DECODING_OPTION_NAMES, Config),
