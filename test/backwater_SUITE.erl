@@ -758,7 +758,7 @@ get_starting_params(GroupName) ->
 get_starting_params_(http) ->
     Port = ?CLEAR_PORT,
     Endpoint = <<"http://127.0.0.1:", (integer_to_binary(Port))/binary>>,
-    ProtoOpts = [{port, Port}],
+    TransportOpts = [{port, Port}, {num_acceptors, 50}],
     HackneyOpts = [],
     {Endpoint, start_clear, TransportOpts, HackneyOpts};
 get_starting_params_(https) ->
@@ -767,7 +767,8 @@ get_starting_params_(https) ->
     TransportOpts =
         [{port, Port},
          {certfile, ssl_certificate_path()},
-         {keyfile, ssl_key_path()}],
+         {keyfile, ssl_key_path()},
+         {num_acceptors, 50}],
     HackneyOpts =
         [insecure,
          {ssl_options, [{server_name_indication, disable}]}],
