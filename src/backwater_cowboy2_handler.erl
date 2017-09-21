@@ -18,7 +18,7 @@
 %% FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 %% DEALINGS IN THE SOFTWARE.
 
--module(backwater_cowboy_handler).
+-module(backwater_cowboy2_handler).
 -behaviour(cowboy_handler).
 
 -include("backwater_common.hrl").
@@ -30,7 +30,7 @@
 -export([initial_state/1]).
 
 %% ------------------------------------------------------------------
-%% cowboy_http_handler Function Exports
+%% cowboy_handler Function Exports
 %% ------------------------------------------------------------------
 
 -export([init/2]).
@@ -99,11 +99,11 @@
 
 -type content_type_params() :: [{binary(), binary()}].
 
--type http_headers() :: cowboy:http_headers().
+-type http_headers() :: backwater_cowboy2_req:http_headers().
 
--type http_status() :: cowboy:http_status().
+-type http_status() :: backwater_cowboy2_req:http_status().
 
--type req() :: cowboy_req:req().
+-type req() :: backwater_cowboy2_req:t().
 
 -type raisable_class() :: error | exit | throw.
 
@@ -129,7 +129,7 @@ initial_state(Config) ->
     end.
 
 %% ------------------------------------------------------------------
-%% cowboy_http_handler Function Definitions
+%% cowboy_handler Function Definitions
 %% ------------------------------------------------------------------
 
 -spec init(req(), state()) -> {ok, req(), state()}.
@@ -190,9 +190,9 @@ execute_pipeline([], State) ->
 -spec check_authentication(state()) -> {continue | stop, state()}.
 check_authentication(#{ req := Req, config := #{ secret := Secret } } = State) ->
     SignaturesConfig = backwater_http_signatures:config(Secret),
-    Method = cowboy_req:method(Req),
+    Method = backwater_cowboy2_req:method(Req),
     EncodedPathWithQs = req_encoded_path_with_qs(Req),
-    Headers = cowboy_req:headers(Req),
+    Headers = backwater_cowboy2_req:headers(Req),
     RequestMsg =
         backwater_http_signatures:new_request_msg(Method, EncodedPathWithQs, {ci_headers, Headers}),
 
@@ -207,13 +207,13 @@ check_authentication(#{ req := Req, config := #{ secret := Secret } } = State) -
 
 -spec req_encoded_path_with_qs(req()) -> binary().
 req_encoded_path_with_qs(Req) ->
-    EncodedPath = cowboy_req:path(Req),
-    QueryString = cowboy_req:qs(Req),
+    EncodedPath = backwater_cowboy2_req:path(Req),
+    QueryString = backwater_cowboy2_req:qs(Req),
     <<EncodedPath/binary, QueryString/binary>>.
 
 -spec safe_req_header(binary(), state()) -> undefined | binary() | no_return().
 safe_req_header(CiName, #{ req := Req } = State) ->
-    case cowboy_req:header(CiName, Req) of
+    case backwater_cowboy2_req:header(CiName, Req) of
         undefined -> undefined;
         Value ->
             assert_header_safety(CiName, State),
@@ -226,7 +226,7 @@ safe_req_parse_header(CiName, State) ->
 
 -spec safe_req_parse_header(binary(), state(), term(), term()) -> term() | no_return().
 safe_req_parse_header(CiName, #{ req := Req } = State, Undefined, Default) ->
-    case cowboy_req:parse_header(CiName, Req) of
+    case backwater_cowboy2_req:parse_header(CiName, Req) of
         Undefined -> Default;
         Value ->
             assert_header_safety(CiName, State),
@@ -244,7 +244,7 @@ assert_header_safety(CiName, #{ signed_request_msg := SignedRequestMsg }) ->
 
 -spec check_method(state()) -> {continue | stop, state()}.
 check_method(#{ req := Req } = State) ->
-    case cowboy_req:method(Req) =:= <<"POST">> of
+    case backwater_cowboy2_req:method(Req) =:= <<"POST">> of
         true ->
             {continue, State};
         false ->
@@ -257,7 +257,7 @@ check_method(#{ req := Req } = State) ->
 
 -spec parse_path(state()) -> {continue | stop, state()}.
 parse_path(#{ req := Req } = State) ->
-    case cowboy_req:path_info(Req) of
+    case backwater_cowboy2_req:path_info(Req) of
         [BinModule, BinFunction, BinArity] ->
             parse_path(BinModule, BinFunction, BinArity, State);
         Other when is_list(Other) ->
@@ -535,7 +535,7 @@ read_and_decode_args(BodySize, _MaxEncodedArgsSize, State) ->
         #{ length => BodySize,
            period => RecvTimeout },
 
-    case cowboy_req:read_body(Req, ReadBodyOpts) of
+    case backwater_cowboy2_req:read_body(Req, ReadBodyOpts) of
         {ok, Data, Req2} when byte_size(Data) =< BodySize ->
             State2 = State#{ req := Req2 },
             validate_args_digest(Data, State2);
@@ -702,13 +702,13 @@ send_response(#{ signed_request_msg := SignedRequestMsg } = State1) ->
         backwater_http_signatures:sign_response(SignaturesConfig, ResponseMsg, ResponseBody, SignedRequestMsg),
     ResponseHeaders3 = backwater_http_signatures:get_real_msg_headers(SignedResponseMsg),
 
-    Req2 = cowboy_req:reply(ResponseStatusCode, ResponseHeaders3, ResponseBody, Req1),
+    Req2 = backwater_cowboy2_req:reply(ResponseStatusCode, ResponseHeaders3, ResponseBody, Req1),
     State1#{ req := Req2 };
 send_response(State1) ->
     % unsigned response
     #{ req := Req1, response := Response } = State1,
     #{ status_code := ResponseStatusCode, headers := ResponseHeaders, body := ResponseBody } = Response,
-    Req2 = cowboy_req:reply(ResponseStatusCode, ResponseHeaders, ResponseBody, Req1),
+    Req2 = backwater_cowboy2_req:reply(ResponseStatusCode, ResponseHeaders, ResponseBody, Req1),
     State1#{ req := Req2 }.
 
 %% ------------------------------------------------------------------
