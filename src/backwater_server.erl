@@ -61,7 +61,7 @@
 -export_type([tls_opts/0]).
 
 -type proto_opts() ::
-    cowboy:opts() |
+    cowboy_protocol:opts() |
     #{ atom() => term() }. % XXX: it's a map as of cowboy 2.0
 -export_type([proto_opts/0]).
 
