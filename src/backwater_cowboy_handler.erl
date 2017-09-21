@@ -19,7 +19,7 @@
 %% DEALINGS IN THE SOFTWARE.
 
 -module(backwater_cowboy_handler).
--behaviour(cowboy_handler).
+-behaviour(cowboy_http_handler).
 
 -include("backwater_common.hrl").
 
@@ -33,7 +33,8 @@
 %% cowboy_http_handler Function Exports
 %% ------------------------------------------------------------------
 
--export([init/2]).
+-export([init/3]).
+-export([handle/2]).
 -export([terminate/3]).
 
 %% ------------------------------------------------------------------
@@ -99,7 +100,7 @@
 
 -type content_type_params() :: [{binary(), binary()}].
 
--type http_headers() :: cowboy:http_headers().
+-type http_headers() :: #{ binary() => binary() }.
 
 -type http_status() :: cowboy:http_status().
 
@@ -132,9 +133,14 @@ initial_state(Config) ->
 %% cowboy_http_handler Function Definitions
 %% ------------------------------------------------------------------
 
--spec init(req(), state()) -> {ok, req(), state()}.
+-spec init({atom(), atom()}, req(), state()) -> {ok, req(), state()}.
 %% @private
-init(Req1, State1) ->
+init({_TransportName, _ProtocolName}, Req, InitialState) ->
+    {ok, Req, InitialState}.
+
+-spec handle(req(), state()) -> {ok, req(), state()}.
+%% @private
+handle(Req1, State1) ->
     State2 = State1#{ req => Req1 },
     State3 =
         execute_pipeline(
@@ -188,49 +194,60 @@ execute_pipeline([], State) ->
 %% ------------------------------------------------------------------
 
 -spec check_authentication(state()) -> {continue | stop, state()}.
-check_authentication(#{ req := Req, config := #{ secret := Secret } } = State) ->
+check_authentication(#{ req := Req1, config := #{ secret := Secret } } = State) ->
     SignaturesConfig = backwater_http_signatures:config(Secret),
-    Method = cowboy_req:method(Req),
-    EncodedPathWithQs = req_encoded_path_with_qs(Req),
-    Headers = cowboy_req:headers(Req),
+    {Method, Req2} = cowboy_req:method(Req1),
+    {EncodedPathWithQs, Req3} = req_encoded_path_with_qs(Req2),
+    {Headers, Req4} = cowboy_req:headers(Req3),
     RequestMsg =
         backwater_http_signatures:new_request_msg(Method, EncodedPathWithQs, {ci_headers, Headers}),
 
     case backwater_http_signatures:validate_request_signature(SignaturesConfig, RequestMsg) of
         {ok, SignedRequestMsg} ->
-            {continue, State#{ signed_request_msg => SignedRequestMsg }};
+            {continue, State#{ req := Req4, signed_request_msg => SignedRequestMsg }};
         {error, Reason} ->
             AuthChallengeHeaders =
                 backwater_http_signatures:get_request_auth_challenge_headers(RequestMsg),
-            {stop, set_error_response(401, AuthChallengeHeaders, Reason, State)}
+            {stop, set_error_response(401, AuthChallengeHeaders, Reason, State#{ req := Req4 })}
     end.
 
--spec req_encoded_path_with_qs(req()) -> binary().
-req_encoded_path_with_qs(Req) ->
-    EncodedPath = cowboy_req:path(Req),
-    QueryString = cowboy_req:qs(Req),
-    <<EncodedPath/binary, QueryString/binary>>.
+-spec req_encoded_path_with_qs(req()) -> {binary(), req()}.
+req_encoded_path_with_qs(Req1) ->
+    {EncodedPath, Req2} = cowboy_req:path(Req1),
+    {QueryString, Req3} = cowboy_req:qs(Req2),
+    {<<EncodedPath/binary, QueryString/binary>>, Req3}.
 
--spec safe_req_header(binary(), state()) -> undefined | binary() | no_return().
-safe_req_header(CiName, #{ req := Req } = State) ->
-    case cowboy_req:header(CiName, Req) of
-        undefined -> undefined;
-        Value ->
-            assert_header_safety(CiName, State),
-            Value
+-spec safe_req_header(binary(), state()) -> {undefined | binary(), state()} | no_return().
+safe_req_header(CiName, #{ req := Req1 } = State1) ->
+    case cowboy_req:header(CiName, Req1) of
+        {undefined, Req2} ->
+            State2 = State1#{ req := Req2 },
+            {undefined, State2};
+        {Value, Req2} ->
+            State2 = State1#{ req := Req2 },
+            assert_header_safety(CiName, State2),
+            {Value, State2}
     end.
 
--spec safe_req_parse_header(binary(), state()) -> term() | no_return().
+-spec safe_req_parse_header(binary(), state()) -> {term(), state()} | no_return().
 safe_req_parse_header(CiName, State) ->
     safe_req_parse_header(CiName, State, undefined, undefined).
 
--spec safe_req_parse_header(binary(), state(), term(), term()) -> term() | no_return().
-safe_req_parse_header(CiName, #{ req := Req } = State, Undefined, Default) ->
-    case cowboy_req:parse_header(CiName, Req) of
-        Undefined -> Default;
-        Value ->
-            assert_header_safety(CiName, State),
-            Value
+-spec safe_req_parse_header(binary(), state(), term(), term()) -> {term(), state()} | no_return().
+safe_req_parse_header(CiName, #{ req := Req1 } = State1, Undefined, Default) ->
+    case cowboy_req:parse_header(CiName, Req1) of
+        {ok, Undefined, Req2} ->
+            State2 = State1#{ req := Req2 },
+            {Default, State2};
+        {ok, Parsed, Req2} ->
+            State2 = State1#{ req := Req2 },
+            assert_header_safety(CiName, State2),
+            {Parsed, State2};
+        {undefined, _Unparsable, Req2} ->
+            State2 = State1#{ req := Req2 },
+            {undefined, State2};
+        {error, badarg} ->
+            error(badarg)
     end.
 
 -spec assert_header_safety(binary(), state()) -> true | no_return().
@@ -243,12 +260,12 @@ assert_header_safety(CiName, #{ signed_request_msg := SignedRequestMsg }) ->
 %% ------------------------------------------------------------------
 
 -spec check_method(state()) -> {continue | stop, state()}.
-check_method(#{ req := Req } = State) ->
-    case cowboy_req:method(Req) =:= <<"POST">> of
-        true ->
-            {continue, State};
-        false ->
-            {stop, set_error_response(405, State)}
+check_method(#{ req := Req1 } = State) ->
+    case cowboy_req:method(Req1) of
+        {<<"POST">>, Req2} ->
+            {continue, State#{ req := Req2 }};
+        {_Other, Req2} ->
+            {stop, set_error_response(405, State#{ req := Req2 })}
     end.
 
 %% ------------------------------------------------------------------
@@ -256,12 +273,12 @@ check_method(#{ req := Req } = State) ->
 %% ------------------------------------------------------------------
 
 -spec parse_path(state()) -> {continue | stop, state()}.
-parse_path(#{ req := Req } = State) ->
-    case cowboy_req:path_info(Req) of
-        [BinModule, BinFunction, BinArity] ->
-            parse_path(BinModule, BinFunction, BinArity, State);
-        Other when is_list(Other) ->
-            {stop, set_error_response(400, #{}, invalid_path, State)}
+parse_path(#{ req := Req1 } = State) ->
+    case cowboy_req:path_info(Req1) of
+        {[BinModule, BinFunction, BinArity], Req2} ->
+            parse_path(BinModule, BinFunction, BinArity, State#{ req := Req2 });
+        {Other, Req2} when is_list(Other) ->
+            {stop, set_error_response(400, #{}, invalid_path, State#{ req := Req2 })}
     end.
 
 -spec parse_path(binary(), binary(), binary(), state())
@@ -383,13 +400,13 @@ function_properties_cache_key(State) ->
 %% ------------------------------------------------------------------
 
 -spec check_args_content_type(state()) -> {continue | stop, state()}.
-check_args_content_type(State) ->
-    case safe_req_parse_header(<<"content-type">>, State) of
-        {_, _, _} = ContentType ->
-            State2 = State#{ args_content_type => ContentType },
-            {continue, State2};
-        undefined ->
-            {stop, set_error_response(400, #{}, bad_content_type, State)}
+check_args_content_type(State1) ->
+    case safe_req_parse_header(<<"content-type">>, State1) of
+        {{_, _, _} = ContentType, State2} ->
+            State3 = State2#{ args_content_type => ContentType },
+            {continue, State3};
+        {undefined, State2} ->
+            {stop, set_error_response(400, #{}, bad_content_type, State2)}
     end.
 
 %% ------------------------------------------------------------------
@@ -399,12 +416,12 @@ check_args_content_type(State) ->
 -spec check_args_content_encoding(state()) -> {continue, state()}.
 check_args_content_encoding(State) ->
     case safe_req_header(<<"content-encoding">>, State) of
-        <<ContentEncoding/binary>> ->
-            State2 = State#{ args_content_encoding => ContentEncoding },
-            {continue, State2};
-        undefined ->
-            State2 = State#{ args_content_encoding => <<"identity">> },
-            {continue, State2}
+        {<<ContentEncoding/binary>>, State2} ->
+            State3 = State2#{ args_content_encoding => ContentEncoding },
+            {continue, State3};
+        {undefined, State2} ->
+            State3 = State2#{ args_content_encoding => <<"identity">> },
+            {continue, State3}
     end.
 
 %% ------------------------------------------------------------------
@@ -412,22 +429,22 @@ check_args_content_encoding(State) ->
 %% ------------------------------------------------------------------
 
 -spec check_accepted_result_content_types(state()) -> {continue, state()}.
-check_accepted_result_content_types(State) ->
-    AcceptedContentTypes = safe_req_parse_header(<<"accept">>, State, undefined, []),
+check_accepted_result_content_types(State1) ->
+    {AcceptedContentTypes, State2} = safe_req_parse_header(<<"accept">>, State1, undefined, []),
     SortedAcceptedContentTypes = lists:reverse( lists:keysort(2, AcceptedContentTypes) ),
-    State2 = State#{ accepted_result_content_types => SortedAcceptedContentTypes },
-    {continue, State2}.
+    State3 = State2#{ accepted_result_content_types => SortedAcceptedContentTypes },
+    {continue, State3}.
 
 %% ------------------------------------------------------------------
 %% Internal Function Definitions - Validate Accepted Content Encodings
 %% ------------------------------------------------------------------
 
 -spec check_accepted_result_content_encodings(state()) -> {continue, state()}.
-check_accepted_result_content_encodings(State) ->
-    AcceptedContentEncodings = safe_req_parse_header(<<"accept-encoding">>, State, undefined, []),
+check_accepted_result_content_encodings(State1) ->
+    {AcceptedContentEncodings, State2} = safe_req_parse_header(<<"accept-encoding">>, State1, undefined, []),
     SortedAcceptedContentEncodings = lists:reverse( lists:keysort(2, AcceptedContentEncodings) ),
-    State2 = State#{ accepted_result_content_encodings => SortedAcceptedContentEncodings },
-    {continue, State2}.
+    State3 = State2#{ accepted_result_content_encodings => SortedAcceptedContentEncodings },
+    {continue, State3}.
 
 %% ------------------------------------------------------------------
 %% Internal Function Definitions - Negotiate Arguments Content Type
@@ -519,10 +536,10 @@ negotiate_result_content_encoding(State) ->
 %% ------------------------------------------------------------------
 
 -spec read_and_decode_args(state()) -> {continue | stop, state()}.
-read_and_decode_args(State) ->
-    BodySize = safe_req_parse_header(<<"content-length">>, State, 0, 0),
-    MaxEncodedArgsSize = opt_max_encoded_args_size(State),
-    read_and_decode_args(BodySize, MaxEncodedArgsSize, State).
+read_and_decode_args(State1) ->
+    {BodySize, State2} = safe_req_parse_header(<<"content-length">>, State1, 0, 0),
+    MaxEncodedArgsSize = opt_max_encoded_args_size(State2),
+    read_and_decode_args(BodySize, MaxEncodedArgsSize, State2).
 
 -spec read_and_decode_args(non_neg_integer(), non_neg_integer(), state())
         -> {continue | stop, state()}.
@@ -532,16 +549,19 @@ read_and_decode_args(BodySize, _MaxEncodedArgsSize, State) ->
     #{ req := Req } = State,
     RecvTimeout = opt_recv_timeout(State),
     ReadBodyOpts =
-        #{ length => BodySize,
-           period => RecvTimeout },
+        [{length, BodySize},
+         {read_length, BodySize},
+         {read_timeout, RecvTimeout}],
 
-    case cowboy_req:read_body(Req, ReadBodyOpts) of
+    case cowboy_req:body(Req, ReadBodyOpts) of
         {ok, Data, Req2} when byte_size(Data) =< BodySize ->
             State2 = State#{ req := Req2 },
             validate_args_digest(Data, State2);
         {Status, _Data, Req2} when Status =:= more; Status =:= ok ->
             State2 = State#{ req := Req2 },
-            {stop, set_error_response(413, State2)}
+            {stop, set_error_response(413, State2)};
+        {error, Error} ->
+            error(Error) % oh well
     end.
 
 -spec validate_args_digest(binary(), state()) -> {continue | stop, state()}.
@@ -702,13 +722,13 @@ send_response(#{ signed_request_msg := SignedRequestMsg } = State1) ->
         backwater_http_signatures:sign_response(SignaturesConfig, ResponseMsg, ResponseBody, SignedRequestMsg),
     ResponseHeaders3 = backwater_http_signatures:get_real_msg_headers(SignedResponseMsg),
 
-    Req2 = cowboy_req:reply(ResponseStatusCode, ResponseHeaders3, ResponseBody, Req1),
+    {ok, Req2} = cowboy_req:reply(ResponseStatusCode, maps:to_list(ResponseHeaders3), ResponseBody, Req1),
     State1#{ req := Req2 };
 send_response(State1) ->
     % unsigned response
     #{ req := Req1, response := Response } = State1,
     #{ status_code := ResponseStatusCode, headers := ResponseHeaders, body := ResponseBody } = Response,
-    Req2 = cowboy_req:reply(ResponseStatusCode, ResponseHeaders, ResponseBody, Req1),
+    {ok, Req2} = cowboy_req:reply(ResponseStatusCode, maps:to_list(ResponseHeaders), ResponseBody, Req1),
     State1#{ req := Req2 }.
 
 %% ------------------------------------------------------------------
@@ -775,9 +795,9 @@ encode_identity_response(StatusCode, Headers, Body) ->
 
 -spec nocache_headers() -> http_headers().
 nocache_headers() ->
-    #{ <<"cache-control">> => <<"private, no-cache, no-store, must-revalidate">>,
-       <<"pragma">> => <<"no-cache">>,
-       <<"expires">> => <<"0">> }.
+    #{ ?OPAQUE_BINARY(<<"cache-control">>) => ?OPAQUE_BINARY(<<"private, no-cache, no-store, must-revalidate">>),
+       ?OPAQUE_BINARY(<<"pragma">>) => ?OPAQUE_BINARY(<<"no-cache">>),
+       ?OPAQUE_BINARY(<<"expires">>) => ?OPAQUE_BINARY(<<"0">>) }.
 
 -spec opt_compression_threshold(state()) -> non_neg_integer().
 opt_compression_threshold(State) ->
