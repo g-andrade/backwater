@@ -240,7 +240,7 @@ generate_and_load(Ref, Targets, ExtraOpts) ->
     {ok, _Pid} = backwater_server:start_clear(
                    Ref, #{ secret => Secret, exposed_modules => ExposedModules,
                            return_exception_stacktraces => true },
-                   [{port, 8080}], #{}),
+                   [{port, 8080}], []),
 
     OutputDirectory = proplists:get_value(output_src_dir, ExtraOpts, source_directory()),
     SourceDirectories = proplists:get_value(src_dirs, ExtraOpts),

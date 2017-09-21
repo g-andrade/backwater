@@ -60,9 +60,7 @@
 -type tls_opts() :: [tls_opt()].
 -export_type([tls_opts/0]).
 
--type proto_opts() ::
-    cowboy_protocol:opts() |
-    #{ atom() => term() }. % XXX: it's a map as of cowboy 2.0
+-type proto_opts() :: cowboy_protocol:opts(). % XXX: it's a map as of cowboy 2.0
 -export_type([proto_opts/0]).
 
 -type route_path() :: {nonempty_string(), [],
@@ -123,15 +121,7 @@ cowboy_route_rule(InitialHandlerState) ->
 
 -spec inject_backwater_dispatch_in_proto_opts(
         cowboy_route:dispatch_rules(), proto_opts()) -> proto_opts().
-inject_backwater_dispatch_in_proto_opts(BackwaterDispatch, ProtoOpts) when is_map(ProtoOpts) ->
-    maps:update_with(
-      env,
-      fun (EnvOpts) ->
-              EnvOpts#{ dispatch => BackwaterDispatch }
-      end,
-      #{ dispatch => BackwaterDispatch },
-      ProtoOpts);
-inject_backwater_dispatch_in_proto_opts(BackwaterDispatch, ProtoOpts) when is_list(ProtoOpts) ->
+inject_backwater_dispatch_in_proto_opts(BackwaterDispatch, ProtoOpts) ->
     backwater_util:lists_keyupdate_with(
       env, 1,
       fun ({env, EnvOpts}) ->
@@ -155,15 +145,7 @@ start_cowboy(StartFunction, Ref, Config, TransportOpts, ProtoOpts0) ->
             NbAcceptors = proplists:get_value(num_acceptors, TransportOpts, ?DEFAULT_NB_ACCEPTORS),
             ProtoOpts = inject_backwater_dispatch_in_proto_opts(BackwaterDispatch, ProtoOpts0),
             Cowboy1TransportOpts = lists:keydelete(num_acceptors, 1, TransportOpts),
-            Cowboy1ProtoOpts = cowboy1_proto_opts(ProtoOpts),
-            cowboy:StartFunction(ref(Ref), NbAcceptors, Cowboy1TransportOpts, Cowboy1ProtoOpts);
+            cowboy:StartFunction(ref(Ref), NbAcceptors, Cowboy1TransportOpts, ProtoOpts);
         {error, Error} ->
             {error, Error}
     end.
-
--spec cowboy1_proto_opts(term()) -> cowboy:opts().
-cowboy1_proto_opts(Map) when is_map(Map) ->
-    List = maps:to_list(Map),
-    lists:keymap(fun cowboy1_proto_opts/1, 2, List);
-cowboy1_proto_opts(Other) ->
-    Other.

@@ -20,7 +20,7 @@ defmodule SpecifyingBackwaterExports.Application do
         %{ :secret => secret(),
            :exposed_modules => [ModuleWithBackwaterExports] },
         [{:port, 8080}],
-        %{})
+        [])
 
     # Define workers and child supervisors to be supervised
     children = [

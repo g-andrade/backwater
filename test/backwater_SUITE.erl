@@ -42,8 +42,7 @@ init_per_group(Name, Config) ->
     {ok, _} = application:ensure_all_started(backwater),
     {Endpoint, StartFun, TransportOpts, HackneyOpts} = get_starting_params(Name),
     Secret = crypto:strong_rand_bytes(32),
-    {_Protocol, DecodeUnsafeTerms, ReturnExceptionStacktraces,
-     UseListProtoOptions} = decode_group_name(Name),
+    {_Protocol, DecodeUnsafeTerms, ReturnExceptionStacktraces} = decode_group_name(Name),
     ServerConfig =
         #{ secret => Secret,
            exposed_modules =>
@@ -54,11 +53,7 @@ init_per_group(Name, Config) ->
            decode_unsafe_terms => DecodeUnsafeTerms,
            return_exception_stacktraces => ReturnExceptionStacktraces
          },
-    ProtoOpts =
-        case UseListProtoOptions of
-            true -> [];
-            false -> #{}
-        end,
+    ProtoOpts = [],
     {ok, _Pid} = backwater_server:StartFun(Name, ServerConfig, TransportOpts, ProtoOpts),
 
     BaseClientConfig =
@@ -186,7 +181,7 @@ bad_server_start_config_grouptest(Config, Name) ->
     Ref = {Name, bad_server_start_config_grouptest},
     WrappedStartFun =
         fun (ServerConfig) ->
-                backwater_server:StartFun(Ref, ServerConfig, [{port,12345}], #{})
+                backwater_server:StartFun(Ref, ServerConfig, [{port,12345}], [])
         end,
 
     % not a map
@@ -233,8 +228,7 @@ bad_server_start_config_grouptest(Config, Name) ->
 
 server_start_ref_clash_grouptest(Config) ->
     {name, Name} = lists:keyfind(name, 1, Config),
-    {Protocol, _DecodeUnsafeTerms, _ReturnExceptionStacktraces,
-     _UseListProtoOptions} = decode_group_name(Name),
+    {Protocol, _DecodeUnsafeTerms, _ReturnExceptionStacktraces} = decode_group_name(Name),
     server_start_ref_clash_grouptest(Config, Name, Protocol).
 
 server_start_ref_clash_grouptest(_Config, _Name, Protocol) when Protocol =/= http ->
@@ -245,7 +239,7 @@ server_start_ref_clash_grouptest(Config, Name, _Protocol) ->
     WrappedStartFun =
         fun (ServerConfig) ->
                 TransportOpts = [{port,12346}],
-                backwater_server:StartFun(Ref, ServerConfig, TransportOpts, #{})
+                backwater_server:StartFun(Ref, ServerConfig, TransportOpts, [])
         end,
 
     ?assertMatch(
@@ -565,8 +559,7 @@ too_big_compressed_arguments_grouptest(Config) ->
 
 exception_error_result_grouptest(Config) ->
     {name, Name} = lists:keyfind(name, 1, Config),
-    {_Protocol, _DecodeUnsafeTerms, ReturnExceptionStacktraces,
-     _UseListProtoOptions} = decode_group_name(Name),
+    {_Protocol, _DecodeUnsafeTerms, ReturnExceptionStacktraces} = decode_group_name(Name),
     exception_error_result_grouptest(Config, ReturnExceptionStacktraces).
 
 exception_error_result_grouptest(Config, ReturnExceptionStacktraces) ->
@@ -586,8 +579,7 @@ exception_error_result_grouptest(Config, ReturnExceptionStacktraces) ->
 
 exception_throwing_result_grouptest(Config) ->
     {name, Name} = lists:keyfind(name, 1, Config),
-    {_Protocol, _DecodeUnsafeTerms, ReturnExceptionStacktraces,
-     _UseListProtoOptions} = decode_group_name(Name),
+    {_Protocol, _DecodeUnsafeTerms, ReturnExceptionStacktraces} = decode_group_name(Name),
     exception_throwing_result_grouptest(Config, ReturnExceptionStacktraces).
 
 exception_throwing_result_grouptest(Config, ReturnExceptionStacktraces) ->
@@ -610,8 +602,7 @@ exception_throwing_result_grouptest(Config, ReturnExceptionStacktraces) ->
 unsafe_argument_grouptest(Config) ->
     {ref, Ref} = lists:keyfind(ref, 1, Config),
     {name, Name} = lists:keyfind(name, 1, Config),
-    {_Protocol, DecodeUnsafeTerms, _ReturnExceptionStacktraces,
-     _UseListProtoOptions} = decode_group_name(Name),
+    {_Protocol, DecodeUnsafeTerms, _ReturnExceptionStacktraces} = decode_group_name(Name),
     AtomName = base64:encode( crypto:strong_rand_bytes(16) ),
     AtomNameSize = byte_size(AtomName),
     Arity = 2,
@@ -683,20 +674,18 @@ all_group_tests() ->
              lists:suffix("_grouptest", atom_to_list(Name))].
 
 group_names() ->
-    [encode_group_name(Protocol, DecodeUnsafeTerms, ReturnExceptionStacktraces, UseListProtoOptions)
+    [encode_group_name(Protocol, DecodeUnsafeTerms, ReturnExceptionStacktraces)
      || Protocol <- [http, https],
         DecodeUnsafeTerms <- [true, false],
-        ReturnExceptionStacktraces <- [true, false],
-        UseListProtoOptions <- [true, false]].
+        ReturnExceptionStacktraces <- [true, false]].
 
-encode_group_name(Protocol, DecodeUnsafeTerms, ReturnExceptionStacktraces, UseListProtoOptions) ->
+encode_group_name(Protocol, DecodeUnsafeTerms, ReturnExceptionStacktraces) ->
     Parts =
         lists:map(
           fun atom_to_list/1,
           [Protocol,
            encode_decode_unsafe_terms_value(DecodeUnsafeTerms),
-           encode_return_exception_stacktraces_value(ReturnExceptionStacktraces),
-           encode_use_list_proto_options(UseListProtoOptions)]),
+           encode_return_exception_stacktraces_value(ReturnExceptionStacktraces)]),
     Joined = lists:join("__", Parts),
     Flattened = lists:foldr(fun string:concat/2, "", Joined),
     list_to_atom(Flattened).
@@ -705,12 +694,10 @@ decode_group_name(Atom) ->
     Binary = atom_to_binary(Atom, utf8),
     Parts = binary:split(Binary, <<"__">>, [global]),
     AtomParts = [binary_to_atom(Part, utf8) || Part <- Parts],
-    [Protocol, EncodedDecodeUnsafeTerms, EncodedReturnExceptionStacktraces,
-     EncodedUseListProtoOptions] = AtomParts,
+    [Protocol, EncodedDecodeUnsafeTerms, EncodedReturnExceptionStacktraces] = AtomParts,
     {Protocol,
      decode_decode_unsafe_terms_value(EncodedDecodeUnsafeTerms),
-     decode_return_exception_stacktraces_value(EncodedReturnExceptionStacktraces),
-     decode_use_list_proto_options(EncodedUseListProtoOptions)}.
+     decode_return_exception_stacktraces_value(EncodedReturnExceptionStacktraces)}.
 
 encode_decode_unsafe_terms_value(true) -> unsafe_decode;
 encode_decode_unsafe_terms_value(false) -> safe_decode.
@@ -724,20 +711,13 @@ encode_return_exception_stacktraces_value(false) -> without_exc_stacktraces.
 decode_return_exception_stacktraces_value(with_exc_stacktraces) -> true;
 decode_return_exception_stacktraces_value(without_exc_stacktraces) -> false.
 
-encode_use_list_proto_options(true) -> list_proto_options;
-encode_use_list_proto_options(false) -> map_proto_options.
-
-decode_use_list_proto_options(list_proto_options) -> true;
-decode_use_list_proto_options(map_proto_options) -> false.
-
 exported_functions() ->
     ModuleInfo = ?MODULE:module_info(),
     {exports, Exports} = lists:keyfind(exports, 1, ModuleInfo),
     Exports.
 
 get_starting_params(GroupName) ->
-    {Protocol, _DecodeUnsafeTerms, _ReturnExceptionStacktraces,
-     _UseListProtoOptions} = decode_group_name(GroupName),
+    {Protocol, _DecodeUnsafeTerms, _ReturnExceptionStacktraces} = decode_group_name(GroupName),
     get_starting_params_(Protocol).
 
 get_starting_params_(http) ->

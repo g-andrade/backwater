@@ -97,7 +97,7 @@ Secret = crypto:strong_rand_bytes(32).
         #{ secret =&gt; Secret,
            exposed_modules =&gt; [{string, [{exports,all}]] },
         [{port, 8080}],
-        #{}).
+        []).
 </pre>
 
 === 1.5. Start client ===
@@ -142,7 +142,7 @@ secret = :crypto.strong_rand_bytes(32)
         %{ :secret =&gt; secret,
            :exposed_modules =&gt; [{Kernel, [{:exports, [:+, :-, :*, :/]}]}] },
         [{:port, 8080}],
-        %{})
+        [])
 </pre>
 
 === 2.4 Start client ===
@@ -200,7 +200,7 @@ Secret = crypto:strong_rand_bytes(32).
         #{ secret =&gt; Secret,
            exposed_modules =&gt; [foobar] }, % function exposure is determined by attributes
         [{port, 8080}],
-        #{}).
+        []).
 </pre>
 
 === 3.5. Start client ===
@@ -264,7 +264,7 @@ secret = :crypto.strong_rand_bytes(32)
         %{ :secret =&gt; secret,
            :exposed_modules =&gt; [Foobar] }, # function exposure is determined by custom export function
         [{:port, 8080}],
-        %{})
+        [])
 </pre>
 
 === 4.5 Start client ===
