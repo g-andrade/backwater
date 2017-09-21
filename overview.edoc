@@ -147,7 +147,7 @@ secret = :crypto.strong_rand_bytes(32)
 
 === 2.4 Start client ===
 <pre lang="elixir">
-:ok = backwater_client.start(
+:ok = :backwater_client.start(
         :example2,
         %{ :endpoint =&gt; "http://127.0.0.1:8080/",
            :secret =&gt; secret })
@@ -277,8 +277,8 @@ secret = :crypto.strong_rand_bytes(32)
 
 === 4.6 Execute remote calls ===
 <pre lang="elixir">
-{:ok, :world} = :backwater_client.call(example4, Foobar, :hello, [])
-{:ok, 43} = :backwater_client.call(example4, Foobar, :increment, [42])
+{:ok, :world} = :backwater_client.call(:example4, Foobar, :hello, [])
+{:ok, 43} = :backwater_client.call(:example4, Foobar, :increment, [42])
 </pre>
 
 @end
