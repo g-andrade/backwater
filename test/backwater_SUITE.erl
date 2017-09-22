@@ -53,7 +53,7 @@ init_per_group(Name, Config) ->
            decode_unsafe_terms => DecodeUnsafeTerms,
            return_exception_stacktraces => ReturnExceptionStacktraces
          },
-    ProtoOpts = [],
+    ProtoOpts = [{max_keepalive, 0}],
     {ok, _Pid} = backwater_server:StartFun(Name, ServerConfig, TransportOpts, ProtoOpts),
 
     BaseClientConfig =
@@ -181,7 +181,9 @@ bad_server_start_config_grouptest(Config, Name) ->
     Ref = {Name, bad_server_start_config_grouptest},
     WrappedStartFun =
         fun (ServerConfig) ->
-                backwater_server:StartFun(Ref, ServerConfig, [{port,12345}], [])
+                TransportOpts = [{port,12345}],
+                ProtoOpts = [{max_keepalive,0}],
+                backwater_server:StartFun(Ref, ServerConfig, TransportOpts, ProtoOpts)
         end,
 
     % not a map
@@ -239,7 +241,8 @@ server_start_ref_clash_grouptest(Config, Name, _Protocol) ->
     WrappedStartFun =
         fun (ServerConfig) ->
                 TransportOpts = [{port,12346}],
-                backwater_server:StartFun(Ref, ServerConfig, TransportOpts, [])
+                ProtoOpts = [{max_keepalive, 0}],
+                backwater_server:StartFun(Ref, ServerConfig, TransportOpts, ProtoOpts)
         end,
 
     ?assertMatch(
