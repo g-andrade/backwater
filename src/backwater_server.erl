@@ -36,7 +36,8 @@
 
 -define(DEFAULT_CLEAR_PORT, 8080).
 -define(DEFAULT_TLS_PORT, 8443).
--define(DEFAULT_NB_ACCEPTORS, 10).
+-define(DEFAULT_NB_ACCEPTORS, 20).
+-define(DEFAULT_MAX_KEEPALIVE, 200). % max. nr of requests before closing a keep-alive connection
 
 %% ------------------------------------------------------------------
 %% Type Definitions
@@ -130,6 +131,16 @@ inject_backwater_dispatch_in_proto_opts(BackwaterDispatch, ProtoOpts) ->
       {env, [{dispatch, BackwaterDispatch}]},
       ProtoOpts).
 
+-spec ensure_max_keepalive_in_proto_opts(proto_opts()) -> proto_opts().
+ensure_max_keepalive_in_proto_opts(ProtoOpts) ->
+    backwater_util:lists_keyupdate_with(
+      max_keepalive, 1,
+      fun ({max_keepalive, MaxKeepalive}) when is_integer(MaxKeepalive), MaxKeepalive >= 0 ->
+              {max_keepalive, MaxKeepalive}
+      end,
+      {max_keepalive, ?DEFAULT_MAX_KEEPALIVE},
+      ProtoOpts).
+
 -spec ref(term()) -> {backwater, term()}.
 ref(Ref) ->
     {backwater, Ref}.
@@ -137,15 +148,16 @@ ref(Ref) ->
 -spec start_cowboy(start_http | start_https, term(), backwater_cowboy_handler:config(),
                    clear_opts() | tls_opts(), proto_opts())
         -> {ok, pid()} | {error, term()}.
-start_cowboy(StartFunction, Ref, Config, TransportOpts, ProtoOpts0) ->
+start_cowboy(StartFunction, Ref, Config, TransportOpts, ProtoOpts1) ->
     case backwater_cowboy_handler:initial_state(Config) of
         {ok, InitialHandlerState} ->
             RouteRule = cowboy_route_rule(InitialHandlerState),
             BackwaterDispatch = cowboy_router:compile([RouteRule]),
             NbAcceptors = proplists:get_value(num_acceptors, TransportOpts, ?DEFAULT_NB_ACCEPTORS),
-            ProtoOpts = inject_backwater_dispatch_in_proto_opts(BackwaterDispatch, ProtoOpts0),
+            ProtoOpts2 = inject_backwater_dispatch_in_proto_opts(BackwaterDispatch, ProtoOpts1),
+            ProtoOpts3 = ensure_max_keepalive_in_proto_opts(ProtoOpts2),
             Cowboy1TransportOpts = lists:keydelete(num_acceptors, 1, TransportOpts),
-            cowboy:StartFunction(ref(Ref), NbAcceptors, Cowboy1TransportOpts, ProtoOpts);
+            cowboy:StartFunction(ref(Ref), NbAcceptors, Cowboy1TransportOpts, ProtoOpts3);
         {error, Error} ->
             {error, Error}
     end.
