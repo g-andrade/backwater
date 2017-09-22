@@ -141,13 +141,13 @@ generate(State) ->
 %% Internal Function Definitions
 %% ------------------------------------------------------------------
 
--spec generate(rebar_app_info:t(), dict:dict(atom(), file:name_all())) -> ok | {error, term()}.
+-spec generate(rebar_app_info:t(), dict:dict(atom(), [file:name_all()])) -> ok | {error, term()}.
 generate(CurrentAppInfo, SourceDirectoriesPerApp) ->
     RebarOpts = rebar_app_info:opts(CurrentAppInfo),
     BackwaterOptsLookup = dict:find(backwater_gen, RebarOpts),
     generate(CurrentAppInfo, SourceDirectoriesPerApp, BackwaterOptsLookup).
 
--spec generate(rebar_app_info:t(), dict:dict(atom(), file:name_all()), error | {ok, [opt()]})
+-spec generate(rebar_app_info:t(), dict:dict(atom(), [file:name_all()]), error | {ok, [opt()]})
         -> ok | {error, term()}.
 generate(_CurrentAppInfo, _SourceDirectoriesPerApp, error) ->
     {error, {missing_options, backwater_gen}};
