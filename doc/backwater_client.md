@@ -5,6 +5,10 @@
 * [Function Index](#index)
 * [Function Details](#functions)
 
+__References__*
+
+* hackney request options listed [here](https://github.com/benoitc/hackney/blob/master/doc/hackney.md)
+
 <a name="types"></a>
 
 ## Data Types ##
@@ -39,7 +43,6 @@ hackney_error() = {hackney, term()}
 hackney_option() = <a href="proplists.md#type-property">proplists:property()</a>
 </code></pre>
 
-there's no remote type available; check hackney documentation
 
 
 

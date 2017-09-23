@@ -53,7 +53,7 @@ init_per_group(Name, Config) ->
            decode_unsafe_terms => DecodeUnsafeTerms,
            return_exception_stacktraces => ReturnExceptionStacktraces
          },
-    ProtoOpts = [{max_keepalive,15}],
+    ProtoOpts = [{max_keepalive,max_keepalive()}],
     {ok, _Pid} = backwater_server:StartFun(Name, ServerConfig, TransportOpts, ProtoOpts),
 
     BaseClientConfig =
@@ -182,7 +182,7 @@ bad_server_start_config_grouptest(Config, Name) ->
     WrappedStartFun =
         fun (ServerConfig) ->
                 TransportOpts = [{port,12345}],
-                ProtoOpts = [{max_keepalive,15}],
+                ProtoOpts = [{max_keepalive,max_keepalive()}],
                 backwater_server:StartFun(Ref, ServerConfig, TransportOpts, ProtoOpts)
         end,
 
@@ -241,7 +241,7 @@ server_start_ref_clash_grouptest(Config, Name, _Protocol) ->
     WrappedStartFun =
         fun (ServerConfig) ->
                 TransportOpts = [{port,12346}],
-                ProtoOpts = [{max_keepalive,15}],
+                ProtoOpts = [{max_keepalive,max_keepalive()}],
                 backwater_server:StartFun(Ref, ServerConfig, TransportOpts, ProtoOpts)
         end,
 
@@ -786,3 +786,10 @@ lists_keywithout(Keys, N, List) ->
     lists:foldl(
       fun (Key, Acc) -> lists:keydelete(Key, N, Acc) end,
       List, Keys).
+
+-ifdef(RUNNING_ON_TRAVIS_CI).
+% temporary workaround for the annoying {error, einval | closed} hackney errors that show up occasionally
+max_keepalive() -> 10000.
+-else.
+max_keepalive() -> 15.
+-endif.

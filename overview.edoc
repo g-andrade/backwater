@@ -18,7 +18,7 @@ Backwater is built on top of <a href="https://github.com/ninenines/cowboy">cowbo
 
 <b>Jump directly to some quick examples</b> or to the <a href="#modules">function reference</a>.
 * <a href="#example1">Example 1</a>: Remote 'string' module with client code generation (Erlang)
-* <a href="#example2">Example 2</a>: A remote calculator using Kernel functions (Elixir>
+* <a href="#example2">Example 2</a>: A remote calculator using Kernel functions (Elixir)
 * <a href="#example3">Example 3</a>: Module exposure through custom attributes (Erlang)
 * <a href="#example4">Example 4</a>: Module exposure through custom callback (Elixir)
 
@@ -66,6 +66,7 @@ Some more examples are under 'examples/'; for all possible configuration options
 
 <hr/>
 <a name="example1"></a>
+
 == Example 1 - Remote 'string' module with client code generation (Erlang) ==
 
 === 1.1. Configure dependencies and code generation ===
@@ -120,6 +121,7 @@ ok = backwater_client:start(
 
 <hr/>
 <a name="example2"></a>
+
 == Example 2 - A remote calculator using Kernel functions (Elixir) ==
 
 === 2.1. Configure dependencies ===
@@ -167,6 +169,7 @@ secret = :crypto.strong_rand_bytes(32)
 
 <hr/>
 <a name="example3"></a>
+
 == Example 3 - Module exposure through custom attributes (Erlang) ==
 
 === 3.1. Configure dependencies ===
@@ -225,6 +228,7 @@ ok = backwater_client:start(
 
 <hr/>
 <a name="example4"></a>
+
 == Example 4 - Module exposure through custom callback (Elixir) ==
 
 === 4.1. Add backwater dependency to Mix ===

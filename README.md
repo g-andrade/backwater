@@ -16,7 +16,11 @@ nor on both ends being clustered.
 Backwater is built on top of [cowboy](https://github.com/ninenines/cowboy) and
 [hackney](https://github.com/benoitc/hackney).
 
-__Jump directly to some [quick examples](https://github.com/g-andrade/backwater/blob/master/doc/README.md#examples)__ or to the [function reference](https://github.com/g-andrade/backwater/blob/master/doc/README.md#modules).
+__Jump directly to some quick examples__ or to the [function reference](https://github.com/g-andrade/backwater/blob/master/doc/README.md#modules).
+* [Example 1](https://github.com/g-andrade/backwater/blob/master/doc/README.md#example1): Remote 'string' module with client code generation (Erlang)
+* [Example 2](https://github.com/g-andrade/backwater/blob/master/doc/README.md#example2): A remote calculator using Kernel functions (Elixir)
+* [Example 3](https://github.com/g-andrade/backwater/blob/master/doc/README.md#example3): Module exposure through custom attributes (Erlang)
+* [Example 4](https://github.com/g-andrade/backwater/blob/master/doc/README.md#example4): Module exposure through custom callback (Elixir)
 
 Requirements:
 * Erlang/OTP 19 and up
@@ -38,13 +42,13 @@ Details:
 * The rebar3 code generation plugin is still not as polished as it could be but it works fairly well
 * You can use a custom HTTP client by [encoding](https://github.com/g-andrade/backwater/blob/master/doc/backwater_http_request.md) and [decoding](https://github.com/g-andrade/backwater/blob/master/doc/backwater_http_response.md) requests directly
 
-Defaults, limits and thresholds:
+Default limits and behaviours:
 * The default listen port for HTTP is 8080
 * The default listen port for HTTPS is 8443
 * The default client connect timeout is 8s
 * The default client/server receive timeout is 5s
-* The compression threshold for encoded arguments and return values is 300 byte
-* The maximum request and response body size is 8 MiB (whether compressed or uncompressed)
+* The default compression threshold for encoded arguments and return values is 300 bytes
+* The default maximum request and response body size is 8 MiB (whether compressed or uncompressed)
 * Unsafe arguments and return values are not decoded by default
 * Remote exceptions are locally returned as errors by default
 * Remote exception stacktraces are locally returned by default
@@ -59,14 +63,13 @@ To do:
 
 Some more examples are under 'examples/'; for all possible configuration options, check the [function reference](https://github.com/g-andrade/backwater/blob/master/doc/README.md#modules).
 
-<a name="examples"></a>
-
 
 ---------
 
+<a name="example1"></a>
 
 
-### <a name="Example_1_-_Remote_'string'_module_and_client_code_generation_(Erlang)">Example 1 - Remote 'string' module and client code generation (Erlang)</a> ###
+### <a name="Example_1_-_Remote_'string'_module_with_client_code_generation_(Erlang)">Example 1 - Remote 'string' module with client code generation (Erlang)</a> ###
 
 
 #### <a name="1.1._Configure_dependencies_and_code_generation">1.1. Configure dependencies and code generation</a> ####
@@ -118,7 +121,7 @@ Secret = crypto:strong_rand_bytes(32).
         #{ secret => Secret,
            exposed_modules => [{string, [{exports,all}]] },
         [{port, 8080}],
-        #{}).
+        []).
 
 ```
 
@@ -149,9 +152,10 @@ ok = backwater_client:start(
 
 ---------
 
+<a name="example2"></a>
 
 
-### <a name="Example_2_-_A_basic_remote_calculator_using_Kernel_functions_(Elixir)">Example 2 - A basic remote calculator using Kernel functions (Elixir)</a> ###
+### <a name="Example_2_-_A_remote_calculator_using_Kernel_functions_(Elixir)">Example 2 - A remote calculator using Kernel functions (Elixir)</a> ###
 
 
 #### <a name="2.1._Configure_dependencies">2.1. Configure dependencies</a> ####
@@ -190,7 +194,7 @@ secret = :crypto.strong_rand_bytes(32)
         %{ :secret => secret,
            :exposed_modules => [{Kernel, [{:exports, [:+, :-, :*, :/]}]}] },
         [{:port, 8080}],
-        %{})
+        [])
 
 ```
 
@@ -200,7 +204,7 @@ secret = :crypto.strong_rand_bytes(32)
 
 ```elixir
 
-:ok = backwater_client.start(
+:ok = :backwater_client.start(
         :example2,
         %{ :endpoint => "http://127.0.0.1:8080/",
            :secret => secret })
@@ -222,9 +226,10 @@ secret = :crypto.strong_rand_bytes(32)
 
 ---------
 
+<a name="example3"></a>
 
 
-### <a name="Example_3_-_Exposure_of_a_module_using_custom_attributes_(Erlang)">Example 3 - Exposure of a module using custom attributes (Erlang)</a> ###
+### <a name="Example_3_-_Module_exposure_through_custom_attributes_(Erlang)">Example 3 - Module exposure through custom attributes (Erlang)</a> ###
 
 
 #### <a name="3.1._Configure_dependencies">3.1. Configure dependencies</a> ####
@@ -280,7 +285,7 @@ Secret = crypto:strong_rand_bytes(32).
         #{ secret => Secret,
            exposed_modules => [foobar] }, % function exposure is determined by attributes
         [{port, 8080}],
-        #{}).
+        []).
 
 ```
 
@@ -311,9 +316,10 @@ ok = backwater_client:start(
 
 ---------
 
+<a name="example4"></a>
 
 
-### <a name="Example_4_-_Exposure_of_a_module_using_export_function_(Elixir)">Example 4 - Exposure of a module using export function (Elixir)</a> ###
+### <a name="Example_4_-_Module_exposure_through_custom_callback_(Elixir)">Example 4 - Module exposure through custom callback (Elixir)</a> ###
 
 
 #### <a name="4.1._Add_backwater_dependency_to_Mix">4.1. Add backwater dependency to Mix</a> ####
@@ -376,7 +382,7 @@ secret = :crypto.strong_rand_bytes(32)
         %{ :secret => secret,
            :exposed_modules => [Foobar] }, # function exposure is determined by custom export function
         [{:port, 8080}],
-        %{})
+        [])
 
 ```
 
@@ -399,8 +405,8 @@ secret = :crypto.strong_rand_bytes(32)
 
 ```elixir
 
-{:ok, :world} = :backwater_client.call(example4, Foobar, :hello, [])
-{:ok, 43} = :backwater_client.call(example4, Foobar, :increment, [42])
+{:ok, :world} = :backwater_client.call(:example4, Foobar, :hello, [])
+{:ok, 43} = :backwater_client.call(:example4, Foobar, :increment, [42])
 
 ```
 
