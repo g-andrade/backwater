@@ -36,7 +36,7 @@ xref:
 
 test:
 	@$(REBAR3) as $(TEST_PROFILE) eunit, ct
-ifneq ($(TEST_PROFILE), travis_test)
+ifneq (@$(TEST_PROFILE), travis_test)
 	make -C elixir_tests
 	@rm -rf ebin
 endif
