@@ -36,10 +36,10 @@ xref:
 
 test:
 	@$(REBAR3) as $(TEST_PROFILE) eunit, ct
-ifneq (@$(TEST_PROFILE), travis_test)
-	make -C elixir_tests
-	@rm -rf ebin
-endif
+	@if [ "$(TEST_PROFILE)" != "travis_test" ]; then \
+		make -C elixir_tests; \
+		rm -rf ebin; \
+	fi
 
 cover: test
 	@$(REBAR3) as test cover
