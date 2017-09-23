@@ -18,7 +18,7 @@ Backwater is built on top of <a href="https://github.com/ninenines/cowboy">cowbo
 
 <b>Jump directly to some quick examples</b> or to the <a href="#modules">function reference</a>.
 * <a href="#example1">Example 1</a>: Remote 'string' module with client code generation (Erlang)
-* <a href="#example2">Example 2</a>: A remote calculator using Kernel functions (Elixir>
+* <a href="#example2">Example 2</a>: A remote calculator using Kernel functions (Elixir)
 * <a href="#example3">Example 3</a>: Module exposure through custom attributes (Erlang)
 * <a href="#example4">Example 4</a>: Module exposure through custom callback (Elixir)
 

@@ -18,7 +18,7 @@ Backwater is built on top of [cowboy](https://github.com/ninenines/cowboy) and
 
 __Jump directly to some quick examples__ or to the [function reference](https://github.com/g-andrade/backwater/blob/master/doc/README.md#modules).
 * [Example 1](https://github.com/g-andrade/backwater/blob/master/doc/README.md#example1): Remote 'string' module with client code generation (Erlang)
-* [Example 2](https://github.com/g-andrade/backwater/blob/master/doc/README.md#example2): A remote calculator using Kernel functions (Elixir>
+* [Example 2](https://github.com/g-andrade/backwater/blob/master/doc/README.md#example2): A remote calculator using Kernel functions (Elixir)
 * [Example 3](https://github.com/g-andrade/backwater/blob/master/doc/README.md#example3): Module exposure through custom attributes (Erlang)
 * [Example 4](https://github.com/g-andrade/backwater/blob/master/doc/README.md#example4): Module exposure through custom callback (Elixir)
 
