@@ -787,9 +787,4 @@ lists_keywithout(Keys, N, List) ->
       fun (Key, Acc) -> lists:keydelete(Key, N, Acc) end,
       List, Keys).
 
--ifdef(RUNNING_ON_TRAVIS_CI).
-% temporary workaround for the annoying {error, einval | closed} hackney errors that show up occasionally
-max_keepalive() -> 10000.
--else.
 max_keepalive() -> 15.
--endif.
