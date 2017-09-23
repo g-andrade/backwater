@@ -494,6 +494,10 @@ malformed_compressed_arguments_grouptest(Config) ->
        {error, {remote, {bad_request, _Headers, _Body}}},
        backwater_client:'_call'(Ref, erlang, length, [Arg], Override)).
 
+-ifdef(RUNNING_ON_TRAVIS_CI).
+maliciously_compressed_arguments_grouptest(_Config) ->
+    {skip, travis_ci_doesnt_like_this}.
+-else.
 maliciously_compressed_arguments_grouptest(Config) ->
     {ref, Ref} = lists:keyfind(ref, 1, Config),
     % try to work around request and response limits by compressing when encoding
@@ -504,6 +508,7 @@ maliciously_compressed_arguments_grouptest(Config) ->
     ?assertMatch(
        {error, {remote, {bad_request, _Headers, _Body}}},
        backwater_client:'_call'(Ref, erlang, length, [dummy], Override)).
+-endif.
 
 inconsistent_arguments_arity_grouptest(Config) ->
     {ref, Ref} = lists:keyfind(ref, 1, Config),
@@ -538,6 +543,10 @@ wrong_arguments_digest_grouptest(Config) ->
        {error, {remote, {unauthorized, _Headers, _Body}}},
        backwater_client:'_call'(Ref, erlang, '-', [DummyArg], Override)).
 
+-ifdef(RUNNING_ON_TRAVIS_CI).
+too_big_arguments_grouptest(_Config) ->
+    {skip, travis_ci_doesnt_like_this}.
+-else.
 too_big_arguments_grouptest(Config) ->
     {ref, Ref} = lists:keyfind(ref, 1, Config),
     DummyArg = rand:uniform(1000),
@@ -548,7 +557,12 @@ too_big_arguments_grouptest(Config) ->
     ?assertMatch(
        {error, {remote, {payload_too_large, _Headers, _Body}}},
        backwater_client:'_call'(Ref, erlang, '-', [DummyArg], Override)).
+-endif.
 
+-ifdef(RUNNING_ON_TRAVIS_CI).
+too_big_compressed_arguments_grouptest(_Config) ->
+    {skip, travis_ci_doesnt_like_this}.
+-else.
 too_big_compressed_arguments_grouptest(Config) ->
     {ref, Ref} = lists:keyfind(ref, 1, Config),
     DummyArg = rand:uniform(1000),
@@ -559,6 +573,7 @@ too_big_compressed_arguments_grouptest(Config) ->
     ?assertMatch(
        {error, {remote, {payload_too_large, _Headers, _Body}}},
        backwater_client:'_call'(Ref, erlang, '-', [DummyArg], Override)).
+-endif.
 
 exception_error_result_grouptest(Config) ->
     {name, Name} = lists:keyfind(name, 1, Config),
