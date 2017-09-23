@@ -16,7 +16,11 @@ nor on both ends being clustered.
 Backwater is built on top of <a href="https://github.com/ninenines/cowboy">cowboy</a> and
 <a href="https://github.com/benoitc/hackney">hackney</a>.
 
-<b>Jump directly to some <a href="#examples">quick examples</a></b> or to the <a href="#modules">function reference</a>.
+<b>Jump directly to some quick examples</b> or to the <a href="#modules">function reference</a>.
+* <a href="#example1">Example 1</a>: Remote 'string' module with client code generation (Erlang)
+* <a href="#example2">Example 2</a>: A remote calculator using Kernel functions (Elixir>
+* <a href="#example3">Example 3</a>: Module exposure through custom attributes (Erlang)
+* <a href="#example4">Example 4</a>: Module exposure through custom callback (Elixir)
 
 Requirements:
 * Erlang/OTP 19 and up
@@ -60,11 +64,9 @@ To do:
 Some more examples are under 'examples/'; for all possible configuration options, check the <a href="#modules">function reference</a>.
 
 
-<a name="examples"></a>
-
-
 <hr/>
-== Example 1 - Remote 'string' module and client code generation (Erlang) ==
+<a name="example1"></a>
+== Example 1 - Remote 'string' module with client code generation (Erlang) ==
 
 === 1.1. Configure dependencies and code generation ===
 <pre lang="erlang">
@@ -117,7 +119,8 @@ ok = backwater_client:start(
 
 
 <hr/>
-== Example 2 - A basic remote calculator using Kernel functions (Elixir) ==
+<a name="example2"></a>
+== Example 2 - A remote calculator using Kernel functions (Elixir) ==
 
 === 2.1. Configure dependencies ===
 <pre lang="elixir">
@@ -163,7 +166,8 @@ secret = :crypto.strong_rand_bytes(32)
 
 
 <hr/>
-== Example 3 - Exposure of a module using custom attributes (Erlang) ==
+<a name="example3"></a>
+== Example 3 - Module exposure through custom attributes (Erlang) ==
 
 === 3.1. Configure dependencies ===
 <pre lang="erlang">
@@ -220,7 +224,8 @@ ok = backwater_client:start(
 
 
 <hr/>
-== Example 4 - Exposure of a module using export function (Elixir) ==
+<a name="example4"></a>
+== Example 4 - Module exposure through custom callback (Elixir) ==
 
 === 4.1. Add backwater dependency to Mix ===
 <pre lang="elixir">
