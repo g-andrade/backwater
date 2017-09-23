@@ -209,11 +209,27 @@ default_hackney_opts(Config) ->
      {max_body, MaxEncodedResultSize}
     ].
 
+
+-ifdef(RUNNING_ON_TRAVIS_CI).
+
+max_retries_upon_hackney_error(closed) ->
+    % intermittent issue that appears to be related to hackney connection pools. try again
+    5;
+max_retries_upon_hackney_error(einval) ->
+    % so far only seen on Travis CI
+    5;
+max_retries_upon_hackney_error(_) ->
+    0.
+
+-else.
+
 max_retries_upon_hackney_error(closed) ->
     % intermittent issue that appears to be related to hackney connection pools. try again
     2;
 max_retries_upon_hackney_error(_) ->
     0.
+
+-endif.
 
 %% ------------------------------------------------------------------
 %% Common Test Helper Definitions
