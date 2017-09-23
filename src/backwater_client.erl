@@ -168,12 +168,23 @@ call_hackney(Config, RequestState, Request) ->
     DefaultHackneyOpts = default_hackney_opts(Config),
     ConfigHackneyOpts = maps:get(hackney_opts, Config, []),
     MandatoryHackneyOpts = [with_body],
-    HackneyOpts = backwater_util:proplists_sort_and_merge(
-                       [DefaultHackneyOpts, ConfigHackneyOpts, MandatoryHackneyOpts]),
-    case hackney:request(Method, Url, Headers, Body, HackneyOpts) of
-        {error, closed} ->
-            % intermittent issue that appears to be related to hackney connection pools. try again
-            call_hackney(Config, RequestState, Request);
+    HackneyOpts = backwater_util:proplists_sort_and_merge([DefaultHackneyOpts, ConfigHackneyOpts,
+                                                           MandatoryHackneyOpts]),
+    call_hackney(Config, RequestState, Method, Url, Headers, Body, HackneyOpts, 0).
+
+call_hackney(Config, RequestState, Method, Url, Headers, Body, HackneyOpts, TriesSoFar) ->
+    Result = hackney:request(Method, Url, Headers, Body, HackneyOpts),
+    NewTriesSoFar = TriesSoFar + 1,
+    case Result of
+        {error, Error} ->
+            MaxRetries = max_retries_upon_hackney_error(Error),
+            case NewTriesSoFar > MaxRetries of
+                true ->
+                    handle_hackney_result(Config, RequestState, Result);
+                false ->
+                    call_hackney(Config, RequestState, Method, Url, Headers, Body, HackneyOpts,
+                                 NewTriesSoFar)
+            end;
         Result ->
             handle_hackney_result(Config, RequestState, Result)
     end.
@@ -193,6 +204,12 @@ default_hackney_opts(Config) ->
      {recv_timeout, RecvTimeout},
      {max_body, MaxEncodedResultSize}
     ].
+
+max_retries_upon_hackney_error(closed) ->
+    % intermittent issue that appears to be related to hackney connection pools. try again
+    2;
+max_retries_upon_hackney_error(_) ->
+    0.
 
 %% ------------------------------------------------------------------
 %% Common Test Helper Definitions
