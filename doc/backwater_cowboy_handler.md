@@ -3,7 +3,7 @@
 # Module backwater_cowboy_handler #
 * [Data Types](#types)
 
-__Behaviours:__ [`cowboy_handler`](cowboy_handler.md).
+__Behaviours:__ [`cowboy_http_handler`](cowboy_http_handler.md).
 
 <a name="types"></a>
 

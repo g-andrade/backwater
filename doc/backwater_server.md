@@ -1,8 +1,65 @@
 
 
 # Module backwater_server #
+* [Data Types](#types)
 * [Function Index](#index)
 * [Function Details](#functions)
+
+<a name="types"></a>
+
+## Data Types ##
+
+
+
+
+### <a name="type-clear_opt">clear_opt()</a> ###
+
+
+<pre><code>
+clear_opt() = <a href="ranch.md#type-opt">ranch:opt()</a> | <a href="ranch_tcp.md#type-opt">ranch_tcp:opt()</a> | {num_acceptors, non_neg_integer()}
+</code></pre>
+
+num_acceptors is part of ranch:opt() as of cowboy 2.0
+
+
+
+### <a name="type-clear_opts">clear_opts()</a> ###
+
+
+<pre><code>
+clear_opts() = [<a href="#type-clear_opt">clear_opt()</a>]
+</code></pre>
+
+
+
+
+### <a name="type-proto_opts">proto_opts()</a> ###
+
+
+<pre><code>
+proto_opts() = <a href="cowboy_protocol.md#type-opts">cowboy_protocol:opts()</a>
+</code></pre>
+
+
+
+
+### <a name="type-tls_opt">tls_opt()</a> ###
+
+
+<pre><code>
+tls_opt() = <a href="ranch.md#type-opt">ranch:opt()</a> | <a href="ranch_ssl.md#type-opt">ranch_ssl:opt()</a> | {num_acceptors, non_neg_integer()}
+</code></pre>
+
+num_acceptors is part of ranch:opt() as of cowboy 2.0
+
+
+
+### <a name="type-tls_opts">tls_opts()</a> ###
+
+
+<pre><code>
+tls_opts() = [<a href="#type-tls_opt">tls_opt()</a>]
+</code></pre>
 
 <a name="index"></a>
 
@@ -24,7 +81,7 @@
 start_clear(Ref, Config, TransportOpts, ProtoOpts) -&gt; {ok, pid()} | {error, term()}
 </code></pre>
 
-<ul class="definitions"><li><code>Ref = term()</code></li><li><code>Config = <a href="backwater_cowboy_handler.md#type-config">backwater_cowboy_handler:config()</a></code></li><li><code>TransportOpts = <a href="ranch_tcp.md#type-opts">ranch_tcp:opts()</a></code></li><li><code>ProtoOpts = <a href="cowboy.md#type-opts">cowboy:opts()</a></code></li></ul>
+<ul class="definitions"><li><code>Ref = term()</code></li><li><code>Config = <a href="backwater_cowboy_handler.md#type-config">backwater_cowboy_handler:config()</a></code></li><li><code>TransportOpts = <a href="#type-clear_opts">clear_opts()</a></code></li><li><code>ProtoOpts = <a href="#type-proto_opts">proto_opts()</a></code></li></ul>
 
 <a name="start_tls-4"></a>
 
@@ -34,7 +91,7 @@ start_clear(Ref, Config, TransportOpts, ProtoOpts) -&gt; {ok, pid()} | {error, t
 start_tls(Ref, Config, TransportOpts, ProtoOpts) -&gt; {ok, pid()} | {error, term()}
 </code></pre>
 
-<ul class="definitions"><li><code>Ref = term()</code></li><li><code>Config = <a href="backwater_cowboy_handler.md#type-config">backwater_cowboy_handler:config()</a></code></li><li><code>TransportOpts = <a href="ranch_ssl.md#type-opts">ranch_ssl:opts()</a></code></li><li><code>ProtoOpts = <a href="cowboy.md#type-opts">cowboy:opts()</a></code></li></ul>
+<ul class="definitions"><li><code>Ref = term()</code></li><li><code>Config = <a href="backwater_cowboy_handler.md#type-config">backwater_cowboy_handler:config()</a></code></li><li><code>TransportOpts = <a href="#type-tls_opts">tls_opts()</a></code></li><li><code>ProtoOpts = <a href="#type-proto_opts">proto_opts()</a></code></li></ul>
 
 <a name="stop_listener-1"></a>
 

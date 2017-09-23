@@ -46,7 +46,7 @@
 -type clear_opt() ::
     ranch:opt() |
     ranch_tcp:opt() |
-    {num_acceptors, non_neg_integer()}. % XXX: part of ranch:opt() as of cowboy 2.0
+    {num_acceptors, non_neg_integer()}. % num_acceptors is part of ranch:opt() as of cowboy 2.0
 -export_type([clear_opt/0]).
 
 -type clear_opts() :: [clear_opt()].
@@ -55,13 +55,14 @@
 -type tls_opt() ::
     ranch:opt() |
     ranch_ssl:opt() |
-    {num_acceptors, non_neg_integer()}. % XXX: part of ranch:opt() as of cowboy 2.0
+    {num_acceptors, non_neg_integer()}. % num_acceptors is part of ranch:opt() as of cowboy 2.0
 -export_type([tls_opt/0]).
 
 -type tls_opts() :: [tls_opt()].
 -export_type([tls_opts/0]).
 
--type proto_opts() :: cowboy_protocol:opts(). % XXX: it's a map as of cowboy 2.0
+% XXX: a map as of cowboy 2.0
+-type proto_opts() :: cowboy_protocol:opts().
 -export_type([proto_opts/0]).
 
 -type route_path() :: {nonempty_string(), [],
