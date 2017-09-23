@@ -18,6 +18,13 @@
 %% FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 %% DEALINGS IN THE SOFTWARE.
 
+%% @reference
+%%
+%% * [ranch:opt()](https://ninenines.eu/docs/en/ranch/1.3/manual/ranch/#_opt) documentation
+%% * [ranch_tcp:opt()](https://ninenines.eu/docs/en/ranch/1.3/manual/ranch_tcp/#_opt) documentation
+%% * [ranch_ssl:opt()](https://ninenines.eu/docs/en/ranch/1.3/manual/ranch_ssl/#_opt_ranch_tcp_opt_ssl_opt) documentation
+%% * [cowboy_protocol:opts()](https://ninenines.eu/docs/en/cowboy/1.0/manual/cowboy_protocol/#opts) documentation
+
 -module(backwater_server).
 
 -include("backwater_http_api.hrl").
@@ -43,19 +50,21 @@
 %% Type Definitions
 %% ------------------------------------------------------------------
 
+% num_acceptors is part of ranch:opt() as of cowboy 2.0
 -type clear_opt() ::
     ranch:opt() |
     ranch_tcp:opt() |
-    {num_acceptors, non_neg_integer()}. % num_acceptors is part of ranch:opt() as of cowboy 2.0
+    {num_acceptors, non_neg_integer()}.
 -export_type([clear_opt/0]).
 
 -type clear_opts() :: [clear_opt()].
 -export_type([clear_opts/0]).
 
+% num_acceptors is part of ranch:opt() as of cowboy 2.0
 -type tls_opt() ::
     ranch:opt() |
     ranch_ssl:opt() |
-    {num_acceptors, non_neg_integer()}. % num_acceptors is part of ranch:opt() as of cowboy 2.0
+    {num_acceptors, non_neg_integer()}.
 -export_type([tls_opt/0]).
 
 -type tls_opts() :: [tls_opt()].

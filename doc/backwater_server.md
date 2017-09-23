@@ -5,6 +5,13 @@
 * [Function Index](#index)
 * [Function Details](#functions)
 
+__References__*
+
+* [ranch:opt()](https://ninenines.eu/docs/en/ranch/1.3/manual/ranch/#_opt) documentation
+* [ranch_tcp:opt()](https://ninenines.eu/docs/en/ranch/1.3/manual/ranch_tcp/#_opt) documentation
+* [ranch_ssl:opt()](https://ninenines.eu/docs/en/ranch/1.3/manual/ranch_ssl/#_opt_ranch_tcp_opt_ssl_opt) documentation
+* [cowboy_protocol:opts()](https://ninenines.eu/docs/en/cowboy/1.0/manual/cowboy_protocol/#opts) documentation
+
 <a name="types"></a>
 
 ## Data Types ##
@@ -19,7 +26,6 @@
 clear_opt() = <a href="ranch.md#type-opt">ranch:opt()</a> | <a href="ranch_tcp.md#type-opt">ranch_tcp:opt()</a> | {num_acceptors, non_neg_integer()}
 </code></pre>
 
-num_acceptors is part of ranch:opt() as of cowboy 2.0
 
 
 
@@ -50,7 +56,6 @@ proto_opts() = <a href="cowboy_protocol.md#type-opts">cowboy_protocol:opts()</a>
 tls_opt() = <a href="ranch.md#type-opt">ranch:opt()</a> | <a href="ranch_ssl.md#type-opt">ranch_ssl:opt()</a> | {num_acceptors, non_neg_integer()}
 </code></pre>
 
-num_acceptors is part of ranch:opt() as of cowboy 2.0
 
 
 

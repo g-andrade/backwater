@@ -18,6 +18,10 @@
 %% FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 %% DEALINGS IN THE SOFTWARE.
 
+%% @reference
+%%
+%% * hackney request options listed [here](https://github.com/benoitc/hackney/blob/master/doc/hackney.md)
+
 -module(backwater_client).
 
 -include("backwater_client.hrl").
@@ -72,7 +76,7 @@
 -type hackney_error() :: {hackney, term()}.
 -export_type([hackney_error/0]).
 
--type hackney_option() :: proplists:property(). % there's no remote type available; check hackney documentation
+-type hackney_option() :: proplists:property().
 -export_type([hackney_option/0]).
 
 -type result() :: backwater_http_response:t(hackney_error() | not_started).
