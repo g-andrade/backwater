@@ -28,7 +28,7 @@ start(_StartType, _StartArgs) ->
           #{ secret => ?SECRET,
              exposed_modules => [module_with_custom_attributes] },
           [{port, ?SERVER_PORT}],
-          #{}),
+          []),
     using_custom_module_attributes_sup:start_link().
 
 %%--------------------------------------------------------------------

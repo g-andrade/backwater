@@ -28,7 +28,7 @@ start(_StartType, _StartArgs) ->
           #{ secret => ?SECRET,
              exposed_modules => [{ets, [{exports,all}]}] },
           [{port, ?SERVER_PORT}],
-          #{}),
+          []),
     exposed_ets_server_sup:start_link().
 
 %%--------------------------------------------------------------------

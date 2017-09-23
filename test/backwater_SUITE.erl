@@ -40,7 +40,7 @@ init_per_group(individual_tests, Config) ->
     Config;
 init_per_group(Name, Config) ->
     {ok, _} = application:ensure_all_started(backwater),
-    {Endpoint, StartFun, ProtoOpts, HackneyOpts} = get_starting_params(Name),
+    {Endpoint, StartFun, TransportOpts, HackneyOpts} = get_starting_params(Name),
     Secret = crypto:strong_rand_bytes(32),
     {_Protocol, DecodeUnsafeTerms, ReturnExceptionStacktraces} = decode_group_name(Name),
     ServerConfig =
@@ -53,7 +53,8 @@ init_per_group(Name, Config) ->
            decode_unsafe_terms => DecodeUnsafeTerms,
            return_exception_stacktraces => ReturnExceptionStacktraces
          },
-    {ok, _Pid} = backwater_server:StartFun(Name, ServerConfig, ProtoOpts, #{}),
+    ProtoOpts = [{max_keepalive,max_keepalive()}],
+    {ok, _Pid} = backwater_server:StartFun(Name, ServerConfig, TransportOpts, ProtoOpts),
 
     BaseClientConfig =
         #{ endpoint => Endpoint,
@@ -180,7 +181,9 @@ bad_server_start_config_grouptest(Config, Name) ->
     Ref = {Name, bad_server_start_config_grouptest},
     WrappedStartFun =
         fun (ServerConfig) ->
-                backwater_server:StartFun(Ref, ServerConfig, [{port,12345}], #{})
+                TransportOpts = [{port,12345}],
+                ProtoOpts = [{max_keepalive,max_keepalive()}],
+                backwater_server:StartFun(Ref, ServerConfig, TransportOpts, ProtoOpts)
         end,
 
     % not a map
@@ -237,8 +240,9 @@ server_start_ref_clash_grouptest(Config, Name, _Protocol) ->
     Ref = {Name, server_start_ref_clash_test},
     WrappedStartFun =
         fun (ServerConfig) ->
-                ProtoOpts = [{port,12346}],
-                backwater_server:StartFun(Ref, ServerConfig, ProtoOpts, #{})
+                TransportOpts = [{port,12346}],
+                ProtoOpts = [{max_keepalive,max_keepalive()}],
+                backwater_server:StartFun(Ref, ServerConfig, TransportOpts, ProtoOpts)
         end,
 
     ?assertMatch(
@@ -490,10 +494,6 @@ malformed_compressed_arguments_grouptest(Config) ->
        {error, {remote, {bad_request, _Headers, _Body}}},
        backwater_client:'_call'(Ref, erlang, length, [Arg], Override)).
 
--ifdef(RUNNING_ON_TRAVIS_CI).
-maliciously_compressed_arguments_grouptest(_Config) ->
-    {skip, travis_ci_doesnt_like_this}.
--else.
 maliciously_compressed_arguments_grouptest(Config) ->
     {ref, Ref} = lists:keyfind(ref, 1, Config),
     % try to work around request and response limits by compressing when encoding
@@ -504,7 +504,6 @@ maliciously_compressed_arguments_grouptest(Config) ->
     ?assertMatch(
        {error, {remote, {bad_request, _Headers, _Body}}},
        backwater_client:'_call'(Ref, erlang, length, [dummy], Override)).
--endif.
 
 inconsistent_arguments_arity_grouptest(Config) ->
     {ref, Ref} = lists:keyfind(ref, 1, Config),
@@ -539,10 +538,6 @@ wrong_arguments_digest_grouptest(Config) ->
        {error, {remote, {unauthorized, _Headers, _Body}}},
        backwater_client:'_call'(Ref, erlang, '-', [DummyArg], Override)).
 
--ifdef(RUNNING_ON_TRAVIS_CI).
-too_big_arguments_grouptest(_Config) ->
-    {skip, travis_ci_doesnt_like_this}.
--else.
 too_big_arguments_grouptest(Config) ->
     {ref, Ref} = lists:keyfind(ref, 1, Config),
     DummyArg = rand:uniform(1000),
@@ -553,12 +548,7 @@ too_big_arguments_grouptest(Config) ->
     ?assertMatch(
        {error, {remote, {payload_too_large, _Headers, _Body}}},
        backwater_client:'_call'(Ref, erlang, '-', [DummyArg], Override)).
--endif.
 
--ifdef(RUNNING_ON_TRAVIS_CI).
-too_big_compressed_arguments_grouptest(_Config) ->
-    {skip, travis_ci_doesnt_like_this}.
--else.
 too_big_compressed_arguments_grouptest(Config) ->
     {ref, Ref} = lists:keyfind(ref, 1, Config),
     DummyArg = rand:uniform(1000),
@@ -569,7 +559,6 @@ too_big_compressed_arguments_grouptest(Config) ->
     ?assertMatch(
        {error, {remote, {payload_too_large, _Headers, _Body}}},
        backwater_client:'_call'(Ref, erlang, '-', [DummyArg], Override)).
--endif.
 
 exception_error_result_grouptest(Config) ->
     {name, Name} = lists:keyfind(name, 1, Config),
@@ -737,20 +726,20 @@ get_starting_params(GroupName) ->
 get_starting_params_(http) ->
     Port = ?CLEAR_PORT,
     Endpoint = <<"http://127.0.0.1:", (integer_to_binary(Port))/binary>>,
-    ProtoOpts = [{port, Port}],
+    TransportOpts = [{port, Port}],
     HackneyOpts = [],
-    {Endpoint, start_clear, ProtoOpts, HackneyOpts};
+    {Endpoint, start_clear, TransportOpts, HackneyOpts};
 get_starting_params_(https) ->
     Port = ?TLS_PORT,
     Endpoint = <<"https://127.0.0.1:", (integer_to_binary(Port))/binary>>,
-    ProtoOpts =
+    TransportOpts =
         [{port, Port},
          {certfile, ssl_certificate_path()},
          {keyfile, ssl_key_path()}],
     HackneyOpts =
         [insecure,
          {ssl_options, [{server_name_indication, disable}]}],
-    {Endpoint, start_tls, ProtoOpts, HackneyOpts}.
+    {Endpoint, start_tls, TransportOpts, HackneyOpts}.
 
 ssl_certificate_path() ->
     Path = filename:join([source_directory(), "data", "ssl"]),
@@ -797,3 +786,10 @@ lists_keywithout(Keys, N, List) ->
     lists:foldl(
       fun (Key, Acc) -> lists:keydelete(Key, N, Acc) end,
       List, Keys).
+
+-ifdef(RUNNING_ON_TRAVIS_CI).
+% temporary workaround for the annoying {error, einval | closed} hackney errors that show up occasionally
+max_keepalive() -> 10000.
+-else.
+max_keepalive() -> 15.
+-endif.

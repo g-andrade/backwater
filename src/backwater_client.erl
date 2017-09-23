@@ -18,6 +18,10 @@
 %% FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 %% DEALINGS IN THE SOFTWARE.
 
+%% @reference
+%%
+%% * hackney request options listed [here](https://github.com/benoitc/hackney/blob/master/doc/hackney.md)
+
 -module(backwater_client).
 
 -include("backwater_client.hrl").
@@ -72,7 +76,7 @@
 -type hackney_error() :: {hackney, term()}.
 -export_type([hackney_error/0]).
 
--type hackney_option() :: proplists:property(). % there's no remote type available; check hackney documentation
+-type hackney_option() :: proplists:property().
 -export_type([hackney_option/0]).
 
 -type result() :: backwater_http_response:t(hackney_error() | not_started).
@@ -168,10 +172,26 @@ call_hackney(Config, RequestState, Request) ->
     DefaultHackneyOpts = default_hackney_opts(Config),
     ConfigHackneyOpts = maps:get(hackney_opts, Config, []),
     MandatoryHackneyOpts = [with_body],
-    HackneyOpts = backwater_util:proplists_sort_and_merge(
-                       [DefaultHackneyOpts, ConfigHackneyOpts, MandatoryHackneyOpts]),
+    HackneyOpts = backwater_util:proplists_sort_and_merge([DefaultHackneyOpts, ConfigHackneyOpts,
+                                                           MandatoryHackneyOpts]),
+    call_hackney(Config, RequestState, Method, Url, Headers, Body, HackneyOpts, 0).
+
+call_hackney(Config, RequestState, Method, Url, Headers, Body, HackneyOpts, TriesSoFar) ->
     Result = hackney:request(Method, Url, Headers, Body, HackneyOpts),
-    handle_hackney_result(Config, RequestState, Result).
+    NewTriesSoFar = TriesSoFar + 1,
+    case Result of
+        {error, Error} ->
+            MaxRetries = max_retries_upon_hackney_error(Error),
+            case NewTriesSoFar > MaxRetries of
+                true ->
+                    handle_hackney_result(Config, RequestState, Result);
+                false ->
+                    call_hackney(Config, RequestState, Method, Url, Headers, Body, HackneyOpts,
+                                 NewTriesSoFar)
+            end;
+        Result ->
+            handle_hackney_result(Config, RequestState, Result)
+    end.
 
 handle_hackney_result(Config, RequestState, {ok, StatusCode, Headers, Body}) ->
     Options = maps:with(?HTTP_RESPONSE_DECODING_OPTION_NAMES, Config),
@@ -188,6 +208,12 @@ default_hackney_opts(Config) ->
      {recv_timeout, RecvTimeout},
      {max_body, MaxEncodedResultSize}
     ].
+
+max_retries_upon_hackney_error(closed) ->
+    % intermittent issue that appears to be related to hackney connection pools. try again
+    2;
+max_retries_upon_hackney_error(_) ->
+    0.
 
 %% ------------------------------------------------------------------
 %% Common Test Helper Definitions

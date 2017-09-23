@@ -18,6 +18,13 @@
 %% FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 %% DEALINGS IN THE SOFTWARE.
 
+%% @reference
+%%
+%% * [ranch:opt()](https://ninenines.eu/docs/en/ranch/1.3/manual/ranch/#_opt) documentation
+%% * [ranch_tcp:opt()](https://ninenines.eu/docs/en/ranch/1.3/manual/ranch_tcp/#_opt) documentation
+%% * [ranch_ssl:opt()](https://ninenines.eu/docs/en/ranch/1.3/manual/ranch_ssl/#_opt_ranch_tcp_opt_ssl_opt) documentation
+%% * [cowboy_protocol:opts()](https://ninenines.eu/docs/en/cowboy/1.0/manual/cowboy_protocol/#opts) documentation
+
 -module(backwater_server).
 
 -include("backwater_http_api.hrl").
@@ -36,10 +43,36 @@
 
 -define(DEFAULT_CLEAR_PORT, 8080).
 -define(DEFAULT_TLS_PORT, 8443).
+-define(DEFAULT_NB_ACCEPTORS, 20).
+-define(DEFAULT_MAX_KEEPALIVE, 200). % max. nr of requests before closing a keep-alive connection
 
 %% ------------------------------------------------------------------
 %% Type Definitions
 %% ------------------------------------------------------------------
+
+% num_acceptors is part of ranch:opt() as of cowboy 2.0
+-type clear_opt() ::
+    ranch:opt() |
+    ranch_tcp:opt() |
+    {num_acceptors, non_neg_integer()}.
+-export_type([clear_opt/0]).
+
+-type clear_opts() :: [clear_opt()].
+-export_type([clear_opts/0]).
+
+% num_acceptors is part of ranch:opt() as of cowboy 2.0
+-type tls_opt() ::
+    ranch:opt() |
+    ranch_ssl:opt() |
+    {num_acceptors, non_neg_integer()}.
+-export_type([tls_opt/0]).
+
+-type tls_opts() :: [tls_opt()].
+-export_type([tls_opts/0]).
+
+% XXX: a map as of cowboy 2.0
+-type proto_opts() :: cowboy_protocol:opts().
+-export_type([proto_opts/0]).
 
 -type route_path() :: {nonempty_string(), [],
                        backwater_cowboy_handler, backwater_cowboy_handler:state()}.
@@ -53,25 +86,25 @@
 -spec start_clear(Ref, Config, TransportOpts, ProtoOpts)  -> {ok, pid()} | {error, term()}
             when Ref :: term(),
                  Config :: backwater_cowboy_handler:config(),
-                 TransportOpts :: ranch_tcp:opts(),
-                 ProtoOpts :: cowboy:opts().
+                 TransportOpts :: clear_opts(),
+                 ProtoOpts :: proto_opts().
 
 start_clear(Ref, Config, TransportOpts0, ProtoOpts) ->
     DefaultTransportOpts = default_transport_options(?DEFAULT_CLEAR_PORT),
     TransportOpts = backwater_util:proplists_sort_and_merge(DefaultTransportOpts, TransportOpts0),
-    start_cowboy(start_clear, Ref, Config, TransportOpts, ProtoOpts).
+    start_cowboy(start_http, Ref, Config, TransportOpts, ProtoOpts).
 
 
 -spec start_tls(Ref, Config, TransportOpts, ProtoOpts) -> {ok, pid()} | {error, term()}
             when Ref :: term(),
                  Config :: backwater_cowboy_handler:config(),
-                 TransportOpts :: ranch_ssl:opts(),
-                 ProtoOpts :: cowboy:opts().
+                 TransportOpts :: tls_opts(),
+                 ProtoOpts :: proto_opts().
 
 start_tls(Ref, Config, TransportOpts0, ProtoOpts) ->
     DefaultTransportOpts = default_transport_options(?DEFAULT_TLS_PORT),
     TransportOpts = backwater_util:proplists_sort_and_merge(DefaultTransportOpts, TransportOpts0),
-    start_cowboy(start_tls, Ref, Config, TransportOpts, ProtoOpts).
+    start_cowboy(start_https, Ref, Config, TransportOpts, ProtoOpts).
 
 
 -spec stop_listener(Ref) -> ok | {error, not_found}
@@ -98,30 +131,43 @@ cowboy_route_rule(InitialHandlerState) ->
     {Host, [cowboy_route_path(InitialHandlerState)]}.
 
 -spec inject_backwater_dispatch_in_proto_opts(
-        cowboy_route:dispatch_rules(), cowboy:opts()) -> cowboy:opts().
+        cowboy_route:dispatch_rules(), proto_opts()) -> proto_opts().
 inject_backwater_dispatch_in_proto_opts(BackwaterDispatch, ProtoOpts) ->
-    maps:update_with(
-      env,
-      fun (EnvOpts) ->
-              EnvOpts#{ dispatch => BackwaterDispatch }
+    backwater_util:lists_keyupdate_with(
+      env, 1,
+      fun ({env, EnvOpts}) ->
+              {env, lists:keystore(dispatch, 1, EnvOpts, {dispatch, BackwaterDispatch})}
       end,
-      #{ dispatch => BackwaterDispatch },
+      {env, [{dispatch, BackwaterDispatch}]},
+      ProtoOpts).
+
+-spec ensure_max_keepalive_in_proto_opts(proto_opts()) -> proto_opts().
+ensure_max_keepalive_in_proto_opts(ProtoOpts) ->
+    backwater_util:lists_keyupdate_with(
+      max_keepalive, 1,
+      fun ({max_keepalive, MaxKeepalive}) when is_integer(MaxKeepalive), MaxKeepalive >= 0 ->
+              {max_keepalive, MaxKeepalive}
+      end,
+      {max_keepalive, ?DEFAULT_MAX_KEEPALIVE},
       ProtoOpts).
 
 -spec ref(term()) -> {backwater, term()}.
 ref(Ref) ->
     {backwater, Ref}.
 
--spec start_cowboy(start_clear | start_tls, term(), backwater_cowboy_handler:config(),
-                   ranch_tcp:opts() | ranch_ssl:opts(), cowboy:opts())
+-spec start_cowboy(start_http | start_https, term(), backwater_cowboy_handler:config(),
+                   clear_opts() | tls_opts(), proto_opts())
         -> {ok, pid()} | {error, term()}.
-start_cowboy(StartFunction, Ref, Config, TransportOpts, ProtoOpts0) ->
+start_cowboy(StartFunction, Ref, Config, TransportOpts, ProtoOpts1) ->
     case backwater_cowboy_handler:initial_state(Config) of
         {ok, InitialHandlerState} ->
             RouteRule = cowboy_route_rule(InitialHandlerState),
             BackwaterDispatch = cowboy_router:compile([RouteRule]),
-            ProtoOpts = inject_backwater_dispatch_in_proto_opts(BackwaterDispatch, ProtoOpts0),
-            cowboy:StartFunction(ref(Ref), TransportOpts, ProtoOpts);
+            NbAcceptors = proplists:get_value(num_acceptors, TransportOpts, ?DEFAULT_NB_ACCEPTORS),
+            ProtoOpts2 = inject_backwater_dispatch_in_proto_opts(BackwaterDispatch, ProtoOpts1),
+            ProtoOpts3 = ensure_max_keepalive_in_proto_opts(ProtoOpts2),
+            Cowboy1TransportOpts = lists:keydelete(num_acceptors, 1, TransportOpts),
+            cowboy:StartFunction(ref(Ref), NbAcceptors, Cowboy1TransportOpts, ProtoOpts3);
         {error, Error} ->
             {error, Error}
     end.
