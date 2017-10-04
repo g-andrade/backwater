@@ -27,6 +27,7 @@
 
 -module(backwater_server).
 
+-include("backwater_common.hrl").
 -include("backwater_http_api.hrl").
 
 %% ------------------------------------------------------------------
@@ -50,28 +51,21 @@
 %% Type Definitions
 %% ------------------------------------------------------------------
 
-% num_acceptors is part of ranch:opt() as of cowboy 2.0
--type clear_opt() ::
-    ranch:opt() |
-    ranch_tcp:opt() |
-    {num_acceptors, non_neg_integer()}.
+-type clear_opt() :: ranch:opt() | ranch_tcp:opt().
 -export_type([clear_opt/0]).
 
 -type clear_opts() :: [clear_opt()].
 -export_type([clear_opts/0]).
 
-% num_acceptors is part of ranch:opt() as of cowboy 2.0
--type tls_opt() ::
-    ranch:opt() |
-    ranch_ssl:opt() |
-    {num_acceptors, non_neg_integer()}.
+-type tls_opt() :: ranch:opt() | ranch_ssl:opt().
 -export_type([tls_opt/0]).
 
 -type tls_opts() :: [tls_opt()].
 -export_type([tls_opts/0]).
 
-% XXX: a map as of cowboy 2.0
--type proto_opts() :: cowboy_protocol:opts().
+-type proto_opts() ::
+        cowboy:opts() |
+        [{atom(), term()}]. % for (reasonable) retro-compatibility with cowboy 1.x
 -export_type([proto_opts/0]).
 
 -type route_path() :: {nonempty_string(), [],
@@ -92,7 +86,7 @@
 start_clear(Ref, Config, TransportOpts0, ProtoOpts) ->
     DefaultTransportOpts = default_transport_options(?DEFAULT_CLEAR_PORT),
     TransportOpts = backwater_util:proplists_sort_and_merge(DefaultTransportOpts, TransportOpts0),
-    start_cowboy(start_http, Ref, Config, TransportOpts, ProtoOpts).
+    start_cowboy(start_clear, Ref, Config, TransportOpts, ProtoOpts).
 
 
 -spec start_tls(Ref, Config, TransportOpts, ProtoOpts) -> {ok, pid()} | {error, term()}
@@ -104,7 +98,7 @@ start_clear(Ref, Config, TransportOpts0, ProtoOpts) ->
 start_tls(Ref, Config, TransportOpts0, ProtoOpts) ->
     DefaultTransportOpts = default_transport_options(?DEFAULT_TLS_PORT),
     TransportOpts = backwater_util:proplists_sort_and_merge(DefaultTransportOpts, TransportOpts0),
-    start_cowboy(start_https, Ref, Config, TransportOpts, ProtoOpts).
+    start_cowboy(start_tls, Ref, Config, TransportOpts, ProtoOpts).
 
 
 -spec stop_listener(Ref) -> ok | {error, not_found}
@@ -130,44 +124,63 @@ cowboy_route_rule(InitialHandlerState) ->
     Host = '_', % We could make this configurable.
     {Host, [cowboy_route_path(InitialHandlerState)]}.
 
--spec inject_backwater_dispatch_in_proto_opts(
-        cowboy_route:dispatch_rules(), proto_opts()) -> proto_opts().
-inject_backwater_dispatch_in_proto_opts(BackwaterDispatch, ProtoOpts) ->
+-spec ensure_num_acceptors_in_transport_opts(clear_opts() | tls_opts()) -> clear_opts() | tls_opts().
+ensure_num_acceptors_in_transport_opts(TransportOpts) ->
     backwater_util:lists_keyupdate_with(
-      env, 1,
-      fun ({env, EnvOpts}) ->
-              {env, lists:keystore(dispatch, 1, EnvOpts, {dispatch, BackwaterDispatch})}
+      num_acceptors, 1,
+      fun ({num_acceptors, NbAcceptors}) when ?is_non_neg_integer(NbAcceptors) ->
+              {num_acceptors, NbAcceptors}
       end,
-      {env, [{dispatch, BackwaterDispatch}]},
+      {num_acceptors, ?DEFAULT_NB_ACCEPTORS},
+      TransportOpts).
+
+-spec map_proto_opts(proto_opts()) -> cowboy:opts().
+map_proto_opts(Map) when is_map(Map) ->
+    Map;
+map_proto_opts(KvList) when is_list(KvList) ->
+    maps:from_list(
+      lists:keymap(
+        fun ([{_, _} | _] = SubKvList) ->
+                maps:from_list(SubKvList);
+            (Other) ->
+                Other
+        end,
+        2, KvList)).
+
+-spec inject_backwater_dispatch_in_map_proto_opts(
+        cowboy_route:dispatch_rules(), cowboy:opts()) -> cowboy:opts().
+inject_backwater_dispatch_in_map_proto_opts(BackwaterDispatch, ProtoOpts) ->
+    maps:update_with(
+      env,
+      fun (EnvOpts) ->
+              EnvOpts#{ dispatch => BackwaterDispatch }
+      end,
+      #{ dispatch => BackwaterDispatch },
       ProtoOpts).
 
--spec ensure_max_keepalive_in_proto_opts(proto_opts()) -> proto_opts().
-ensure_max_keepalive_in_proto_opts(ProtoOpts) ->
-    backwater_util:lists_keyupdate_with(
-      max_keepalive, 1,
-      fun ({max_keepalive, MaxKeepalive}) when is_integer(MaxKeepalive), MaxKeepalive >= 0 ->
-              {max_keepalive, MaxKeepalive}
-      end,
-      {max_keepalive, ?DEFAULT_MAX_KEEPALIVE},
+-spec ensure_max_keepalive_in_map_proto_opts(cowboy:opts()) -> cowboy:opts().
+ensure_max_keepalive_in_map_proto_opts(ProtoOpts) ->
+    maps:merge(
+      #{ max_keepalive => ?DEFAULT_MAX_KEEPALIVE },
       ProtoOpts).
 
 -spec ref(term()) -> {backwater, term()}.
 ref(Ref) ->
     {backwater, Ref}.
 
--spec start_cowboy(start_http | start_https, term(), backwater_cowboy_handler:config(),
+-spec start_cowboy(start_clear | start_tls, term(), backwater_cowboy_handler:config(),
                    clear_opts() | tls_opts(), proto_opts())
         -> {ok, pid()} | {error, term()}.
-start_cowboy(StartFunction, Ref, Config, TransportOpts, ProtoOpts1) ->
+start_cowboy(StartFunction, Ref, Config, TransportOpts1, ProtoOpts) ->
     case backwater_cowboy_handler:initial_state(Config) of
         {ok, InitialHandlerState} ->
             RouteRule = cowboy_route_rule(InitialHandlerState),
             BackwaterDispatch = cowboy_router:compile([RouteRule]),
-            NbAcceptors = proplists:get_value(num_acceptors, TransportOpts, ?DEFAULT_NB_ACCEPTORS),
-            ProtoOpts2 = inject_backwater_dispatch_in_proto_opts(BackwaterDispatch, ProtoOpts1),
-            ProtoOpts3 = ensure_max_keepalive_in_proto_opts(ProtoOpts2),
-            Cowboy1TransportOpts = lists:keydelete(num_acceptors, 1, TransportOpts),
-            cowboy:StartFunction(ref(Ref), NbAcceptors, Cowboy1TransportOpts, ProtoOpts3);
+            TransportOpts2 = ensure_num_acceptors_in_transport_opts(TransportOpts1),
+            MapProtoOpts1 = map_proto_opts(ProtoOpts),
+            MapProtoOpts2 = inject_backwater_dispatch_in_map_proto_opts(BackwaterDispatch, MapProtoOpts1),
+            MapProtoOpts3 = ensure_max_keepalive_in_map_proto_opts(MapProtoOpts2),
+            cowboy:StartFunction(ref(Ref), TransportOpts2, MapProtoOpts3);
         {error, Error} ->
             {error, Error}
     end.
