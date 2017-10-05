@@ -497,7 +497,7 @@ malformed_compressed_arguments_grouptest(Config) ->
 maliciously_compressed_arguments_grouptest(Config) ->
     {ref, Ref} = lists:keyfind(ref, 1, Config),
     % try to work around request and response limits by compressing when encoding
-    EncodedArguments = term_to_binary([?ZEROES_PAYLOAD_20MiB], [compressed]),
+    EncodedArguments = term_to_binary([?ZEROES_PAYLOAD_50MiB], [compressed]),
     Override =
         #{ request =>
             #{ {update_body_with, before_compression} => value_fun1(EncodedArguments) } },
@@ -541,7 +541,7 @@ wrong_arguments_digest_grouptest(Config) ->
 too_big_arguments_grouptest(Config) ->
     {ref, Ref} = lists:keyfind(ref, 1, Config),
     DummyArg = rand:uniform(1000),
-    EncodedArguments = ?ZEROES_PAYLOAD_20MiB,
+    EncodedArguments = ?ZEROES_PAYLOAD_50MiB,
     Override =
         #{ request =>
             #{ {update_body_with, before_authentication} => value_fun1(EncodedArguments) } },
@@ -552,7 +552,7 @@ too_big_arguments_grouptest(Config) ->
 too_big_compressed_arguments_grouptest(Config) ->
     {ref, Ref} = lists:keyfind(ref, 1, Config),
     DummyArg = rand:uniform(1000),
-    EncodedArguments = ?ZEROES_PAYLOAD_20MiB,
+    EncodedArguments = ?ZEROES_PAYLOAD_50MiB,
     Override =
         #{ request =>
             #{ {update_body_with, before_compression} => value_fun1(EncodedArguments) } },
