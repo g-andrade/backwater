@@ -725,7 +725,16 @@ set_error_response(StatusCode, State) ->
 set_error_response(StatusCode, BaseHeaders, Message, State1) ->
     % force text/plain response
     State2 = maps:without([result_content_encoding, result_content_type], State1),
-    Headers = maps:merge(BaseHeaders, #{ <<"content-type">> => <<"text/plain">> }),
+    Headers = maps:merge(
+                BaseHeaders,
+                #{ <<"content-type">> => <<"text/plain">>,
+                   % Explicitly closing the connection upon an error
+                   % helps avoid stuff like big lingering request bodies
+                   % that are never read and result in weird connection
+                   % and receive timeouts on hackney when it tries to reuse
+                   % the connection (ultimately due to a clogged buffer somewhere.)
+                   <<"connection">> => <<"close">>
+                 }),
     Body = encode_error_message_body(Message),
     Response = encode_response(StatusCode, Headers, Body, State2),
     maps:put(response, Response, State2).
