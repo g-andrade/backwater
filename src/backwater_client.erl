@@ -171,32 +171,44 @@ call_hackney(Config, RequestState, Request) ->
     {Method, Url, Headers, Body} = Request,
     DefaultHackneyOpts = default_hackney_opts(Config),
     ConfigHackneyOpts = maps:get(hackney_opts, Config, []),
-    MandatoryHackneyOpts = [with_body],
+    MandatoryHackneyOpts = [with_body, async],
     HackneyOpts = backwater_util:proplists_sort_and_merge([DefaultHackneyOpts, ConfigHackneyOpts,
                                                            MandatoryHackneyOpts]),
-    call_hackney(Config, RequestState, Method, Url, Headers, Body, HackneyOpts, 0).
+    {ok, Ref} = hackney:request(Method, Url, Headers, Body, HackneyOpts),
+    LoopResult = hackney_loop(Ref),
+    handle_hackney_loop_result(Config, RequestState, LoopResult).
 
-call_hackney(Config, RequestState, Method, Url, Headers, Body, HackneyOpts, TriesSoFar) ->
-    Result = hackney:request(Method, Url, Headers, Body, HackneyOpts),
-    NewTriesSoFar = TriesSoFar + 1,
-    case Result of
-        {error, Error} ->
-            MaxRetries = max_retries_upon_hackney_error(Error),
-            case NewTriesSoFar > MaxRetries of
-                true ->
-                    handle_hackney_result(Config, RequestState, Result);
-                false ->
-                    call_hackney(Config, RequestState, Method, Url, Headers, Body, HackneyOpts,
-                                 NewTriesSoFar)
-            end;
-        Result ->
-            handle_hackney_result(Config, RequestState, Result)
+hackney_loop(Ref) ->
+    hackney_loop(Ref, waiting_status, #{ body_chunks => [] }).
+
+hackney_loop(Ref, State, Acc) ->
+    receive
+        {hackney_response, Ref, {status, StatusCode, _Reason}}
+          when State =:= waiting_status ->
+            hackney_loop(Ref, waiting_headers, Acc#{ status => StatusCode });
+        {hackney_response, Ref, {headers, Headers}}
+          when State =:= waiting_headers ->
+            hackney_loop(Ref, waiting_body, Acc#{ headers => Headers });
+        {hackney_response, Ref, done}
+          when State =:= waiting_body ->
+            {ok, Acc};
+        {hackney_response, Ref, BodyChunk}
+          when State =:= waiting_body ->
+            NewAcc =
+                maps:update_with(
+                  body_chunks, fun (PrevBodyChunks) -> [PrevBodyChunks, BodyChunk] end,
+                  Acc),
+            hackney_loop(Ref, State, NewAcc);
+        {hackney_response, Ref, {error, Error}} ->
+            {error, {State, Error}}
     end.
 
-handle_hackney_result(Config, RequestState, {ok, StatusCode, Headers, Body}) ->
+handle_hackney_loop_result(Config, RequestState, {ok, Acc}) ->
+    #{ status := StatusCode, headers := Headers, body_chunks := BodyChunks } = Acc,
+    Body = iolist_to_binary(BodyChunks),
     Options = maps:with(?HTTP_RESPONSE_DECODING_OPTION_NAMES, Config),
     backwater_http_response:decode(StatusCode, Headers, Body, RequestState, Options);
-handle_hackney_result(_Config, _RequestState, {error, Error}) ->
+handle_hackney_loop_result(_Config, _RequestState, {error, Error}) ->
     {error, {hackney, Error}}.
 
 default_hackney_opts(Config) ->
@@ -208,28 +220,6 @@ default_hackney_opts(Config) ->
      {recv_timeout, RecvTimeout},
      {max_body, MaxEncodedResultSize}
     ].
-
-
--ifdef(RUNNING_ON_TRAVIS_CI).
-
-max_retries_upon_hackney_error(closed) ->
-    % intermittent issue that appears to be related to hackney connection pools. try again
-    5;
-max_retries_upon_hackney_error(einval) ->
-    % so far only seen on Travis CI
-    5;
-max_retries_upon_hackney_error(_) ->
-    0.
-
--else.
-
-max_retries_upon_hackney_error(closed) ->
-    % intermittent issue that appears to be related to hackney connection pools. try again
-    2;
-max_retries_upon_hackney_error(_) ->
-    0.
-
--endif.
 
 %% ------------------------------------------------------------------
 %% Common Test Helper Definitions
