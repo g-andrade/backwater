@@ -20,10 +20,10 @@
 
 %% @reference
 %%
-%% * [ranch:opt()](https://ninenines.eu/docs/en/ranch/1.3/manual/ranch/#_opt) documentation
-%% * [ranch_tcp:opt()](https://ninenines.eu/docs/en/ranch/1.3/manual/ranch_tcp/#_opt) documentation
-%% * [ranch_ssl:opt()](https://ninenines.eu/docs/en/ranch/1.3/manual/ranch_ssl/#_opt_ranch_tcp_opt_ssl_opt) documentation
-%% * [cowboy_protocol:opts()](https://ninenines.eu/docs/en/cowboy/1.0/manual/cowboy_protocol/#opts) documentation
+%% * [ranch:opt()](https://ninenines.eu/docs/en/ranch/1.4/manual/ranch/#_opt) documentation
+%% * [ranch_tcp:opt()](https://ninenines.eu/docs/en/ranch/1.4/manual/ranch_tcp/#_opt) documentation
+%% * [ranch_ssl:opt()](https://ninenines.eu/docs/en/ranch/1.4/manual/ranch_ssl/#_opt_ranch_tcp_opt_ssl_opt) documentation
+%% * [cowboy_http:opts()](https://ninenines.eu/docs/en/cowboy/2.0/manual/cowboy_http/#_options) documentation
 
 -module(backwater_server).
 
