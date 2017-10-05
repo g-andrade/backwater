@@ -1,5 +1,5 @@
 {application, backwater,
- [{description, "RPC framework for Erlang and Elixir"},
+ [{description, "Distribution independent RPC framework"},
   {vsn, git},
   {registered, []},
   {mod, {backwater_app, []}},
