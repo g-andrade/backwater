@@ -64,7 +64,7 @@
 -export_type([tls_opts/0]).
 
 -type proto_opts() ::
-        cowboy:opts() |
+        cowboy_http:opts() |
         [{atom(), term()}]. % for (reasonable) retro-compatibility with cowboy 1.x
 -export_type([proto_opts/0]).
 
@@ -134,7 +134,7 @@ ensure_num_acceptors_in_transport_opts(TransportOpts) ->
       {num_acceptors, ?DEFAULT_NB_ACCEPTORS},
       TransportOpts).
 
--spec map_proto_opts(proto_opts()) -> cowboy:opts().
+-spec map_proto_opts(proto_opts()) -> cowboy_http:opts().
 map_proto_opts(Map) when is_map(Map) ->
     Map;
 map_proto_opts(KvList) when is_list(KvList) ->
@@ -148,7 +148,7 @@ map_proto_opts(KvList) when is_list(KvList) ->
         2, KvList)).
 
 -spec inject_backwater_dispatch_in_map_proto_opts(
-        cowboy_router:dispatch_rules(), cowboy:opts()) -> cowboy:opts().
+        cowboy_router:dispatch_rules(), cowboy_http:opts()) -> cowboy_http:opts().
 inject_backwater_dispatch_in_map_proto_opts(BackwaterDispatch, ProtoOpts) ->
     maps:update_with(
       env,
@@ -158,7 +158,7 @@ inject_backwater_dispatch_in_map_proto_opts(BackwaterDispatch, ProtoOpts) ->
       #{ dispatch => BackwaterDispatch },
       ProtoOpts).
 
--spec ensure_max_keepalive_in_map_proto_opts(cowboy:opts()) -> cowboy:opts().
+-spec ensure_max_keepalive_in_map_proto_opts(cowboy_http:opts()) -> cowboy_http:opts().
 ensure_max_keepalive_in_map_proto_opts(ProtoOpts) ->
     maps:merge(
       #{ max_keepalive => ?DEFAULT_MAX_KEEPALIVE },
