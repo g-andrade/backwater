@@ -32,8 +32,8 @@ all() ->
 
 groups() ->
     GroupNames = group_names(),
-    [{individual_tests, [parallel, shuffle], all_individual_tests()}
-     | [{GroupName, [parallel, shuffle], all_group_tests()} || GroupName <- GroupNames]].
+    [{individual_tests, [parallel], all_individual_tests()}
+     | [{GroupName, [parallel], all_group_tests()} || GroupName <- GroupNames]].
 
 init_per_group(individual_tests, Config) ->
     {ok, _} = application:ensure_all_started(backwater),
