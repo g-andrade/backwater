@@ -148,7 +148,7 @@ map_proto_opts(KvList) when is_list(KvList) ->
         2, KvList)).
 
 -spec inject_backwater_dispatch_in_map_proto_opts(
-        cowboy_route:dispatch_rules(), cowboy:opts()) -> cowboy:opts().
+        cowboy_router:dispatch_rules(), cowboy:opts()) -> cowboy:opts().
 inject_backwater_dispatch_in_map_proto_opts(BackwaterDispatch, ProtoOpts) ->
     maps:update_with(
       env,
