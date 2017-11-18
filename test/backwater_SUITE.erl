@@ -539,26 +539,42 @@ wrong_arguments_digest_grouptest(Config) ->
        backwater_client:'_call'(Ref, erlang, '-', [DummyArg], Override)).
 
 too_big_arguments_grouptest(Config) ->
+    too_big_compressed_arguments_grouptest(Config, 9).
+
+too_big_arguments_grouptest(Config, RetriesLeft) ->
     {ref, Ref} = lists:keyfind(ref, 1, Config),
     DummyArg = rand:uniform(1000),
     EncodedArguments = ?ZEROES_PAYLOAD_50MiB,
     Override =
         #{ request =>
             #{ {update_body_with, before_authentication} => value_fun1(EncodedArguments) } },
-    ?assertMatch(
-       {error, {remote, {payload_too_large, _Headers, _Body}}},
-       backwater_client:'_call'(Ref, erlang, '-', [DummyArg], Override)).
+
+    case backwater_client:'_call'(Ref, erlang, '-', [DummyArg], Override) of
+        {error, {remote, {payload_too_large, _Headers, _Body}}} ->
+            ok;
+        {error, {hackney, closed}} when RetriesLeft > 0 ->
+            % annoying concurrency issue
+            too_big_arguments_grouptest(Config, RetriesLeft - 1)
+    end.
 
 too_big_compressed_arguments_grouptest(Config) ->
+    too_big_compressed_arguments_grouptest(Config, 9).
+
+too_big_compressed_arguments_grouptest(Config, RetriesLeft) ->
     {ref, Ref} = lists:keyfind(ref, 1, Config),
     DummyArg = rand:uniform(1000),
     EncodedArguments = ?ZEROES_PAYLOAD_50MiB,
     Override =
         #{ request =>
             #{ {update_body_with, before_compression} => value_fun1(EncodedArguments) } },
-    ?assertMatch(
-       {error, {remote, {payload_too_large, _Headers, _Body}}},
-       backwater_client:'_call'(Ref, erlang, '-', [DummyArg], Override)).
+
+    case backwater_client:'_call'(Ref, erlang, '-', [DummyArg], Override) of
+        {error, {remote, {payload_too_large, _Headers, _Body}}} ->
+            ok;
+        {error, {hackney, closed}} when RetriesLeft > 0 ->
+            % annoying concurrency issue
+            too_big_compressed_arguments_grouptest(Config, RetriesLeft - 1)
+    end.
 
 exception_error_result_grouptest(Config) ->
     {name, Name} = lists:keyfind(name, 1, Config),
