@@ -1,7 +1,7 @@
 {"1.1.0",
 [{<<"certifi">>,{pkg,<<"certifi">>,<<"2.0.0">>},1},
- {<<"cowboy">>,{pkg,<<"cowboy">>,<<"2.0.0">>},0},
- {<<"cowlib">>,{pkg,<<"cowlib">>,<<"2.0.0">>},1},
+ {<<"cowboy">>,{pkg,<<"cowboy">>,<<"2.1.0">>},0},
+ {<<"cowlib">>,{pkg,<<"cowlib">>,<<"2.0.1">>},1},
  {<<"hackney">>,{pkg,<<"hackney">>,<<"1.9.0">>},0},
  {<<"idna">>,{pkg,<<"idna">>,<<"5.1.0">>},1},
  {<<"metrics">>,{pkg,<<"metrics">>,<<"1.0.1">>},1},
@@ -12,8 +12,8 @@
 [
 {pkg_hash,[
  {<<"certifi">>, <<"A0C0E475107135F76B8C1D5BC7EFB33CD3815CB3CF3DEA7AEFDD174DABEAD064">>},
- {<<"cowboy">>, <<"A3B680BCC1156C6FBCB398CC56ADC35177037012D7DC28D8F7E7926D6C243561">>},
- {<<"cowlib">>, <<"C2977105473DFD520EC158EDB7FDA1AEB3EFA323192DD4533481DA0AE32950D4">>},
+ {<<"cowboy">>, <<"69F9DB3B23C24AB6B3A169A6357130C16B39CDA1A1F8C582F818883EE552589D">>},
+ {<<"cowlib">>, <<"4DFFFB1DB296EAB9F2E8B95EE3017007F674BC920CE30AEB5A53BBDA82FC38C0">>},
  {<<"hackney">>, <<"51C506AFC0A365868469DCFC79A9D0B94D896EC741CFD5BD338F49A5EC515BFE">>},
  {<<"idna">>, <<"D72B4EFFEB324AD5DA3CAB1767CB16B17939004E789D8C0AD5B70F3CEA20C89A">>},
  {<<"metrics">>, <<"25F094DEA2CDA98213CECC3AEFF09E940299D950904393B2A29D191C346A8486">>},
