@@ -5,8 +5,10 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
 ## [2.0.0] - 2017-11-18
+### Added
+- Support for specifying cowboy start-up options as a map (see info on upgrade below)
 ### Changed
-- Request type was transformed from a tuple into more detailed map (breaking change)
+- Request type was transformed from a tuple into a more detailed map (breaking change)
 - cowboy upgraded from 1.1.2 to 2.1.0 (breaking change)
 - hackney upgraded from 1.9.0 to 1.10.1
 ### Removed
