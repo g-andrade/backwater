@@ -168,30 +168,15 @@ encode_request(Config, Module, Function, Args) ->
 -spec call_hackney(config(), backwater_http_request:state(), backwater_http_request:t())
         -> backwater_http_response:t(Error) when Error :: {hackney, term()}.
 call_hackney(Config, RequestState, Request) ->
-    {Method, Url, Headers, Body} = Request,
+    #{ http_params := HttpParams, full_url := FullUrl } = Request,
+    #{ method := Method, headers := Headers, body := Body } = HttpParams,
     DefaultHackneyOpts = default_hackney_opts(Config),
     ConfigHackneyOpts = maps:get(hackney_opts, Config, []),
     MandatoryHackneyOpts = [with_body],
     HackneyOpts = backwater_util:proplists_sort_and_merge([DefaultHackneyOpts, ConfigHackneyOpts,
                                                            MandatoryHackneyOpts]),
-    call_hackney(Config, RequestState, Method, Url, Headers, Body, HackneyOpts, 0).
-
-call_hackney(Config, RequestState, Method, Url, Headers, Body, HackneyOpts, TriesSoFar) ->
-    Result = hackney:request(Method, Url, Headers, Body, HackneyOpts),
-    NewTriesSoFar = TriesSoFar + 1,
-    case Result of
-        {error, Error} ->
-            MaxRetries = max_retries_upon_hackney_error(Error),
-            case NewTriesSoFar > MaxRetries of
-                true ->
-                    handle_hackney_result(Config, RequestState, Result);
-                false ->
-                    call_hackney(Config, RequestState, Method, Url, Headers, Body, HackneyOpts,
-                                 NewTriesSoFar)
-            end;
-        Result ->
-            handle_hackney_result(Config, RequestState, Result)
-    end.
+    Result = hackney:request(Method, FullUrl, Headers, Body, HackneyOpts),
+    handle_hackney_result(Config, RequestState, Result).
 
 handle_hackney_result(Config, RequestState, {ok, StatusCode, Headers, Body}) ->
     Options = maps:with(?HTTP_RESPONSE_DECODING_OPTION_NAMES, Config),
@@ -210,27 +195,6 @@ default_hackney_opts(Config) ->
     ].
 
 
--ifdef(RUNNING_ON_TRAVIS_CI).
-
-max_retries_upon_hackney_error(closed) ->
-    % intermittent issue that appears to be related to hackney connection pools. try again
-    5;
-max_retries_upon_hackney_error(einval) ->
-    % so far only seen on Travis CI
-    5;
-max_retries_upon_hackney_error(_) ->
-    0.
-
--else.
-
-max_retries_upon_hackney_error(closed) ->
-    % intermittent issue that appears to be related to hackney connection pools. try again
-    2;
-max_retries_upon_hackney_error(_) ->
-    0.
-
--endif.
-
 %% ------------------------------------------------------------------
 %% Common Test Helper Definitions
 %% ------------------------------------------------------------------
@@ -241,8 +205,11 @@ max_retries_upon_hackney_error(_) ->
     {ok, Config} = backwater_client_instances:find_client_config(Ref),
     #{ endpoint := Endpoint, secret := Secret } = Config,
     RequestEncodingOverride = maps:get(request, Override, #{}),
-    {Request, State} =
-        backwater_http_request:'_encode'(Endpoint, Module, Function, Args, Secret,
-                                         RequestEncodingOverride),
-    call_hackney(Config, State, Request).
+    PrevDictionaryKeyValue = put(override, RequestEncodingOverride),
+    {Request, State} = backwater_http_request:encode(Endpoint, Module, Function, Args, Secret),
+    try
+        call_hackney(Config, State, Request)
+    after
+        put(override, PrevDictionaryKeyValue)
+    end.
 -endif.

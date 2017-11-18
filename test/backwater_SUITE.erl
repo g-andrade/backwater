@@ -32,8 +32,8 @@ all() ->
 
 groups() ->
     GroupNames = group_names(),
-    [{individual_tests, [parallel, shuffle], all_individual_tests()}
-     | [{GroupName, [parallel, shuffle], all_group_tests()} || GroupName <- GroupNames]].
+    [{individual_tests, [parallel], all_individual_tests()}
+     | [{GroupName, [parallel], all_group_tests()} || GroupName <- GroupNames]].
 
 init_per_group(individual_tests, Config) ->
     {ok, _} = application:ensure_all_started(backwater),
@@ -53,7 +53,7 @@ init_per_group(Name, Config) ->
            decode_unsafe_terms => DecodeUnsafeTerms,
            return_exception_stacktraces => ReturnExceptionStacktraces
          },
-    ProtoOpts = [{max_keepalive,max_keepalive()}],
+    ProtoOpts = #{},
     {ok, _Pid} = backwater_server:StartFun(Name, ServerConfig, TransportOpts, ProtoOpts),
 
     BaseClientConfig =
@@ -182,7 +182,7 @@ bad_server_start_config_grouptest(Config, Name) ->
     WrappedStartFun =
         fun (ServerConfig) ->
                 TransportOpts = [{port,12345}],
-                ProtoOpts = [{max_keepalive,max_keepalive()}],
+                ProtoOpts = #{},
                 backwater_server:StartFun(Ref, ServerConfig, TransportOpts, ProtoOpts)
         end,
 
@@ -241,7 +241,7 @@ server_start_ref_clash_grouptest(Config, Name, _Protocol) ->
     WrappedStartFun =
         fun (ServerConfig) ->
                 TransportOpts = [{port,12346}],
-                ProtoOpts = [{max_keepalive,max_keepalive()}],
+                ProtoOpts = #{},
                 backwater_server:StartFun(Ref, ServerConfig, TransportOpts, ProtoOpts)
         end,
 
@@ -255,7 +255,7 @@ server_start_ref_clash_grouptest(Config, Name, _Protocol) ->
        ok,
        backwater_server:stop_listener(Ref)).
 
-simple_call_grouptest(Config) ->
+escaped_function_name_grouptest(Config) ->
     {ref, Ref} = lists:keyfind(ref, 1, Config),
     Arg1 = rand:uniform(1000),
     Arg2 = rand:uniform(1000),
@@ -497,7 +497,7 @@ malformed_compressed_arguments_grouptest(Config) ->
 maliciously_compressed_arguments_grouptest(Config) ->
     {ref, Ref} = lists:keyfind(ref, 1, Config),
     % try to work around request and response limits by compressing when encoding
-    EncodedArguments = term_to_binary([?ZEROES_PAYLOAD_20MiB], [compressed]),
+    EncodedArguments = term_to_binary([?ZEROES_PAYLOAD_50MiB], [compressed]),
     Override =
         #{ request =>
             #{ {update_body_with, before_compression} => value_fun1(EncodedArguments) } },
@@ -539,26 +539,42 @@ wrong_arguments_digest_grouptest(Config) ->
        backwater_client:'_call'(Ref, erlang, '-', [DummyArg], Override)).
 
 too_big_arguments_grouptest(Config) ->
+    too_big_compressed_arguments_grouptest(Config, 9).
+
+too_big_arguments_grouptest(Config, RetriesLeft) ->
     {ref, Ref} = lists:keyfind(ref, 1, Config),
     DummyArg = rand:uniform(1000),
-    EncodedArguments = ?ZEROES_PAYLOAD_20MiB,
+    EncodedArguments = ?ZEROES_PAYLOAD_50MiB,
     Override =
         #{ request =>
             #{ {update_body_with, before_authentication} => value_fun1(EncodedArguments) } },
-    ?assertMatch(
-       {error, {remote, {payload_too_large, _Headers, _Body}}},
-       backwater_client:'_call'(Ref, erlang, '-', [DummyArg], Override)).
+
+    case backwater_client:'_call'(Ref, erlang, '-', [DummyArg], Override) of
+        {error, {remote, {payload_too_large, _Headers, _Body}}} ->
+            ok;
+        {error, {hackney, closed}} when RetriesLeft > 0 ->
+            % annoying concurrency issue
+            too_big_arguments_grouptest(Config, RetriesLeft - 1)
+    end.
 
 too_big_compressed_arguments_grouptest(Config) ->
+    too_big_compressed_arguments_grouptest(Config, 9).
+
+too_big_compressed_arguments_grouptest(Config, RetriesLeft) ->
     {ref, Ref} = lists:keyfind(ref, 1, Config),
     DummyArg = rand:uniform(1000),
-    EncodedArguments = ?ZEROES_PAYLOAD_20MiB,
+    EncodedArguments = ?ZEROES_PAYLOAD_50MiB,
     Override =
         #{ request =>
             #{ {update_body_with, before_compression} => value_fun1(EncodedArguments) } },
-    ?assertMatch(
-       {error, {remote, {payload_too_large, _Headers, _Body}}},
-       backwater_client:'_call'(Ref, erlang, '-', [DummyArg], Override)).
+
+    case backwater_client:'_call'(Ref, erlang, '-', [DummyArg], Override) of
+        {error, {remote, {payload_too_large, _Headers, _Body}}} ->
+            ok;
+        {error, {hackney, closed}} when RetriesLeft > 0 ->
+            % annoying concurrency issue
+            too_big_compressed_arguments_grouptest(Config, RetriesLeft - 1)
+    end.
 
 exception_error_result_grouptest(Config) ->
     {name, Name} = lists:keyfind(name, 1, Config),
@@ -786,5 +802,3 @@ lists_keywithout(Keys, N, List) ->
     lists:foldl(
       fun (Key, Acc) -> lists:keydelete(Key, N, Acc) end,
       List, Keys).
-
-max_keepalive() -> 15.
