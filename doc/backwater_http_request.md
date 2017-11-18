@@ -12,6 +12,26 @@
 
 
 
+### <a name="type-conn_params">conn_params()</a> ###
+
+
+<pre><code>
+conn_params() = #{transport =&gt; <a href="#type-transport">transport()</a>, host =&gt; nonempty_string(), port =&gt; <a href="inet.md#type-port_number">inet:port_number()</a>}
+</code></pre>
+
+
+
+
+### <a name="type-http_params">http_params()</a> ###
+
+
+<pre><code>
+http_params() = #{method =&gt; <a href="#type-nonempty_binary">nonempty_binary()</a>, path =&gt; <a href="#type-nonempty_binary">nonempty_binary()</a>, headers =&gt; <a href="#type-nonempty_headers">nonempty_headers()</a>, body =&gt; binary()}
+</code></pre>
+
+
+
+
 ### <a name="type-nonempty_headers">nonempty_headers()</a> ###
 
 
@@ -46,7 +66,17 @@ state() = #{signed_request_msg =&gt; <a href="backwater_http_signatures.md#type-
 
 
 <pre><code>
-t() = {Method::<a href="#type-nonempty_binary">nonempty_binary()</a>, Url::<a href="#type-nonempty_binary">nonempty_binary()</a>, Headers::<a href="#type-nonempty_headers">nonempty_headers()</a>, Body::binary()}
+t() = #{conn_params =&gt; <a href="#type-conn_params">conn_params()</a>, http_params =&gt; <a href="#type-http_params">http_params()</a>, full_url =&gt; <a href="#type-nonempty_binary">nonempty_binary()</a>}
+</code></pre>
+
+
+
+
+### <a name="type-transport">transport()</a> ###
+
+
+<pre><code>
+transport() = hackney_tcp | hackney_ssl
 </code></pre>
 
 <a name="index"></a>
