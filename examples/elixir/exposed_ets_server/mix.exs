@@ -29,7 +29,7 @@ defmodule ExposedEtsServer.Mixfile do
   #
   # Type "mix help deps" for more examples and options
   defp deps do
-    # Change the following to something like e.g. [{:backwater, "-> 1.0"}]
+    # Change the following to something like e.g. [{:backwater, "-> 2.0"}]
     [{:backwater, path: "../../.."}]
   end
 end
