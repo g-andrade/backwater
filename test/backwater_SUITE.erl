@@ -255,7 +255,7 @@ server_start_ref_clash_grouptest(Config, Name, _Protocol) ->
        ok,
        backwater_server:stop_listener(Ref)).
 
-simple_call_grouptest(Config) ->
+escaped_function_name_grouptest(Config) ->
     {ref, Ref} = lists:keyfind(ref, 1, Config),
     Arg1 = rand:uniform(1000),
     Arg2 = rand:uniform(1000),
