@@ -689,7 +689,7 @@ encode_group_name(Protocol, DecodeUnsafeTerms, ReturnExceptionStacktraces) ->
           [Protocol,
            encode_decode_unsafe_terms_value(DecodeUnsafeTerms),
            encode_return_exception_stacktraces_value(ReturnExceptionStacktraces)]),
-    Joined = lists:join("__", Parts),
+    Joined = backwater_util:lists_join("__", Parts),
     Flattened = lists:foldr(fun string:concat/2, "", Joined),
     list_to_atom(Flattened).
 
@@ -776,7 +776,7 @@ replace_url_part_fun(UpdatedValue, Index) ->
             end,
         {Left, [_PrevValue | Right]} = lists:split(CanonIndex - 1, Parts),
         UpdatedParts = Left ++ [UpdatedValue | Right],
-        list_to_binary(lists:join("/", UpdatedParts))
+        list_to_binary(backwater_util:lists_join("/", UpdatedParts))
     end.
 
 value_fun1(Value) ->

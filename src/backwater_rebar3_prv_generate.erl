@@ -39,7 +39,7 @@
                {default, install_deps} % crucial in order for source paths of dependencies to be available
               ]).
 -define(SHORT_DESC, "Generate wrapper modules for RPC calls to exposed modules").
--define(DESC, lists:join("\n",
+-define(DESC, backwater_util:lists_join("\n",
                          ["Configure generation options (backwater_gen) in your rebar.config, e.g."
                           "    {backwater_gen,"
                           "     [{client_ref, %REF_OF_THE_CLIENT_YOU'LL_START%},"

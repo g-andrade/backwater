@@ -56,14 +56,14 @@
 -export_type([fun_arity_pair/0]).
 
 -type fun_properties() ::
-        #{ known_content_types := [content_type(), ...],
-           function_ref := fun() }.
+        #{ known_content_types => [content_type(), ...],
+           function_ref => fun() }.
 -export_type([fun_properties/0]).
 
 -type lookup_result() :: {true, {BinModule :: nonempty_binary(), module_info()}} | false.
 -export_type([lookup_result/0]).
 
--type module_info() :: #{ exports := exports() }.
+-type module_info() :: #{ exports => exports() }.
 -export_type([module_info/0]).
 
 -type raw_module_info() :: [{atom(), term()}].

@@ -102,7 +102,7 @@
         invalid_auth_type | missing_authorization_header | header_params_failure().
 -export_type([auth_parse_failure/0]).
 
--opaque config() :: #{ key := binary() }.
+-opaque config() :: #{ key => binary() }.
 -export_type([config/0]).
 
 -type header_list() :: [{binary(), binary()}].
@@ -152,17 +152,17 @@
 -export_type([sig_parse_failure/0]).
 
 -opaque signed_message() ::
-    #{ pseudo_headers := #{ binary() => binary() },
-       real_headers := #{ binary() => binary() },
-       config := config(),
-       request_id := binary(),
-       signed_header_names := [binary()],
-       body_digest := binary() }.
+    #{ pseudo_headers => #{ binary() => binary() },
+       real_headers => #{ binary() => binary() },
+       config => config(),
+       request_id => binary(),
+       signed_header_names => [binary()],
+       body_digest => binary() }.
 -export_type([signed_message/0]).
 
 -opaque unsigned_message() ::
-    #{ pseudo_headers := #{ binary() => binary() },
-       real_headers := #{ binary() => binary() }  }.
+    #{ pseudo_headers => #{ binary() => binary() },
+       real_headers => #{ binary() => binary() }  }.
 -export_type([message/0]).
 
 -type validation_failure() :: key_id_failure().
@@ -294,7 +294,7 @@ get_request_auth_challenge_headers(RequestMsg) ->
                      lists:member(Name, ?VALIDATION_MANDATORILY_SIGNED_HEADER_NAMES_IF_PRESENT)],
 
     HeaderNamesToSign = lists:usort(PseudoHeaderNamesToSign ++ RealHeaderNamesToSign),
-    EncodedHeaderNamesToSign = iolist_to_binary(lists:join(" ", HeaderNamesToSign)),
+    EncodedHeaderNamesToSign = iolist_to_binary(backwater_util:lists_join(" ", HeaderNamesToSign)),
     Params = #{ <<"realm">> => <<"backwater">>,
                 <<"headers">> => EncodedHeaderNamesToSign },
     BinParams = backwater_http_header_params:encode(Params),
@@ -567,7 +567,7 @@ encode_signature_auth_params(Params) ->
 
 -spec encode_signature_param_value(binary(), term()) -> binary().
 encode_signature_param_value(<<"headers">>, List) ->
-    lists:join(" ", List);
+    backwater_util:lists_join(" ", List);
 encode_signature_param_value(<<"signature">>, Signature) ->
     base64:encode(Signature);
 encode_signature_param_value(_Key, Value) ->
@@ -605,7 +605,7 @@ build_signature_iodata(SignedHeaderNames, Msg) ->
         {false, Name} ->
             {error, {missing_header, Name}};
         {true, Parts} ->
-            OnePerLine = lists:join("\n", Parts),
+            OnePerLine = backwater_util:lists_join("\n", Parts),
             {ok, OnePerLine}
     end.
 
@@ -746,7 +746,7 @@ missing_mandatorily_signed_headers_test() ->
     SignedResponseMsg = sign_response(Config, ResponseMsg, <<"response body">>, SignedRequestMsg),
     EncodedSignatureHeaders =
         iolist_to_binary(
-          lists:join(" ", (list_pseudo_msg_header_names(SignedResponseMsg) ++
+          backwater_util:lists_join(" ", (list_pseudo_msg_header_names(SignedResponseMsg) ++
                            ?VALIDATION_MANDATORILY_SIGNED_HEADER_NAMES))),
 
     ExtraHeaderName = hd(?VALIDATION_MANDATORILY_SIGNED_HEADER_NAMES_IF_PRESENT),

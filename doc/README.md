@@ -23,7 +23,7 @@ __Jump directly to some quick examples__ or to the [function reference](#modules
 * [Example 4](#example4): Module exposure through custom callback (Elixir)
 
 Requirements:
-* Erlang/OTP 19 and up
+* Erlang/OTP 18 and up
 * rebar3
 
 Features:

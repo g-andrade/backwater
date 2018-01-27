@@ -57,7 +57,7 @@
         #{ compression_threshold => non_neg_integer() }.
 -export_type([options/0]).
 
--type state() :: #{ signed_request_msg := backwater_http_signatures:signed_message() }.
+-type state() :: #{ signed_request_msg => backwater_http_signatures:signed_message() }.
 -export_type([state/0]).
 
 -type t() :: {Method :: nonempty_binary(), Url :: nonempty_binary(),

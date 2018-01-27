@@ -55,7 +55,7 @@
 %% ------------------------------------------------------------------
 
 -opaque state() ::
-        #{ config := config(),
+        #{ config => config(),
 
            req => req(),
            bin_module => binary(),
@@ -76,8 +76,8 @@
 -export_type([state/0]).
 
 -type config() ::
-        #{ secret := binary(),
-           exposed_modules := [backwater_module_info:exposed_module()],
+        #{ secret => binary(),
+           exposed_modules => [backwater_module_info:exposed_module()],
 
            compression_threshold => non_neg_integer(),
            decode_unsafe_terms => boolean(),
@@ -109,9 +109,9 @@
 -type raisable_class() :: error | exit | throw.
 
 -type response() ::
-        #{ status_code := http_status(),
-           headers := http_headers(),
-           body := iodata() }.
+        #{ status_code => http_status(),
+           headers => http_headers(),
+           body => iodata() }.
 
 %% ------------------------------------------------------------------
 %% API Function Definitions
@@ -161,7 +161,7 @@ handle(Req1, State1) ->
            fun execute_call/1],
           State2),
 
-    {Req2, State4} = maps:take(req, State3),
+    {Req2, State4} = backwater_util:maps_take(req, State3),
     {ok, Req2, State4}.
 
 -spec terminate(term(), req(), state()) -> ok.

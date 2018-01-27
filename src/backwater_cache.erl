@@ -72,16 +72,16 @@
 %% ------------------------------------------------------------------
 
 -type child_spec(Id) ::
-        #{ id := Id,
-           start := {?MODULE, start_link, []},
-           restart := permanent,
-           type := worker,
-           modules := [?MODULE, ...] }.
+        #{ id => Id,
+           start => {?MODULE, start_link, []},
+           restart => permanent,
+           type => worker,
+           modules => [?MODULE, ...] }.
 -export_type([child_spec/1]).
 
 -type state() ::
-        #{ table := atom(),
-           purge_interval := pos_integer() % in milliseconds
+        #{ table => atom(),
+           purge_interval => pos_integer() % in milliseconds
          }.
 
 %% ------------------------------------------------------------------

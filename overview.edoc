@@ -23,7 +23,7 @@ Backwater is built on top of <a href="https://github.com/ninenines/cowboy">cowbo
 * <a href="#example4">Example 4</a>: Module exposure through custom callback (Elixir)
 
 Requirements:
-* Erlang/OTP 19 and up
+* Erlang/OTP 18 and up
 * rebar3
 
 Features:

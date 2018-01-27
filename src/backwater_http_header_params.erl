@@ -37,7 +37,7 @@ encode(Map) ->
     Pairs = maps:to_list(Map),
     SortedPairs = lists:keysort(1, Pairs),
     EncodedPairs = lists:map(fun encode_pair/1, SortedPairs),
-    iolist_to_binary(lists:join(",", EncodedPairs)).
+    iolist_to_binary(backwater_util:lists_join(",", EncodedPairs)).
 
 -spec decode(binary()) -> {ok, #{ binary() => binary() }} | error.
 decode(Encoded) ->

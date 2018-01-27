@@ -60,8 +60,8 @@
 %% ------------------------------------------------------------------
 
 -type config() ::
-    #{ endpoint := nonempty_binary(),
-       secret := binary(),
+    #{ endpoint => nonempty_binary(),
+       secret => binary(),
        hackney_opts => [hackney_option()],
 
        compression_threshold => non_neg_integer(),

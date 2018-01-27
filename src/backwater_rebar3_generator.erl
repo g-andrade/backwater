@@ -79,26 +79,26 @@
 -export_type([overridable_opt/0]).
 
 -type generation_params() ::
-        #{ (module_name | module_path) := (atom() | file:name_all()), % compiled vs. source modules
+        #{ (module_name | module_path) => (atom() | file:name_all()), % compiled vs. source modules
            current_app_info => rebar_app_info:t(),
            target_opts => [target_opt()] }.
 
 -type module_info() ::
-        #{ module := module(),
-           original_path := file:name_all(),
-           exports := sets:set(name_arity()),
-           type_exports := sets:set(name_arity()),
-           deprecation_attributes := sets:set(tuple() | [tuple()]),
-           backwater_exports := sets:set(name_arity()),
-           function_specs := #{ name_arity() => [erl_parse:abstract_form()]  },
-           function_definitions := #{ name_arity() => [function_definition()] },
+        #{ module => module(),
+           original_path => file:name_all(),
+           exports => sets:set(name_arity()),
+           type_exports => sets:set(name_arity()),
+           deprecation_attributes => sets:set(tuple() | [tuple()]),
+           backwater_exports => sets:set(name_arity()),
+           function_specs => #{ name_arity() => [erl_parse:abstract_form()]  },
+           function_definitions => #{ name_arity() => [function_definition()] },
            original_module => atom(),
            missing_types_messages => sets:set(missing_types_message())
          }.
 
 -type name_arity() :: {Name :: atom(), arity()}.
 
--type function_definition() :: #{ vars := [term()] }.
+-type function_definition() :: #{ vars => [term()] }.
 
 -type missing_types_message() ::
         {ModulePath :: file:name_all(),
@@ -638,7 +638,7 @@ externalize_user_types({var, _Line, _Name} = T, Acc) ->
         -> module_info().
 handle_unexported_record_reference(Line, Name, Acc) ->
     % XXX consider using this: http://erlang.org/doc/man/erl_expand_records.html
-    maps:update_with(
+    backwater_util:maps_update_with(
       missing_types_messages,
       fun (Prev) ->
               #{ original_path := ModulePath } = Acc,
@@ -650,7 +650,7 @@ handle_unexported_record_reference(Line, Name, Acc) ->
 -spec handle_unexported_type(pos_integer(), atom(), arity(), module_info())
         -> module_info().
 handle_unexported_type(Line, Name, Arity, Acc) ->
-    maps:update_with(
+    backwater_util:maps_update_with(
       missing_types_messages,
       fun (Prev) ->
               #{ original_path := ModulePath } = Acc,
@@ -740,7 +740,7 @@ generate_module_source_function_specs(ModuleInfo) ->
                   generate_module_source_function_spec({Name, Arity}, ModuleInfo)
           end,
           FunctionNameArities),
-    lists:join("\n", List).
+    backwater_util:lists_join("\n", List).
 
 -spec generate_module_source_function_spec(name_arity(), module_info()) -> iolist().
 generate_module_source_function_spec({Name, Arity}, ModuleInfo) ->
@@ -767,7 +767,7 @@ generate_module_source_function_definitions(ClientRef, ModuleInfo) ->
                   generate_module_source_function(ClientRef, FunctionDefinitionKV, ModuleInfo)
           end,
           FunctionDefinitionsList),
-    lists:join("\n", List).
+    backwater_util:lists_join("\n", List).
 
 wrap_function_spec_return_types({type, Line, 'fun', [ArgSpecs, ReturnSpec]}) ->
     WrappedReturnSpec = wrap_return_type(ReturnSpec),

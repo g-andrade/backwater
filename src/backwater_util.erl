@@ -31,11 +31,14 @@
 -export([lists_anymap/2]).
 -export([lists_enumerate/1]).
 -export([lists_foreach_until_error/2]).
+-export([lists_join/2]).
 -export([lists_keyupdate_with/5]).
 -export([lists_map_until_error/2]).
 -export([iodata_to_list/1]).
 -export([is_iodata/1]).
 -export([maps_mapfold/3]).
+-export([maps_take/2]).
+-export([maps_update_with/3]).
 -export([proplists_sort_and_merge/1]).
 -export([proplists_sort_and_merge/2]).
 -export([purge_stacktrace_below/2]).
@@ -118,6 +121,24 @@ lists_foreach_until_error(Fun, List) ->
         {true, Error} -> {error, Error}
     end.
 
+-spec lists_join(term(), [term()]) -> [term()].
+-ifdef(pre19).
+%% @private
+lists_join(_Sep, List) when length(List) < 2 ->
+    List;
+lists_join(Sep, List) ->
+    [Head | Tail] = lists:reverse(List),
+    lists:foldl(
+      fun (Value, Acc) ->
+              [Value, Sep | Acc]
+      end,
+      [Head], Tail).
+-else.
+%% @private
+lists_join(Sep, List) ->
+    lists:join(Sep, List).
+-endif.
+
 -spec lists_keyupdate_with(term(), pos_integer(), fun ((tuple()) -> tuple()), tuple(), [tuple()])
         -> [tuple(), ...].
 %% @private
@@ -172,6 +193,35 @@ maps_mapfold(Fun, Acc0, Map) ->
           List),
     MappedMap = maps:from_list(MappedList),
     {MappedMap, AccN}.
+
+-spec maps_take(term(), map()) -> {term(), map()} | error.
+-ifdef(pre19).
+%% @private
+maps_take(Key, Map) ->
+    case maps:find(Key, Map) of
+        {ok, Value} ->
+            Map2 = maps:remove(Key, Map),
+            {Value, Map2};
+        error ->
+            error
+    end.
+-else.
+%% @private
+maps_take(Key, Map) ->
+    maps:take(Key, Map).
+-endif.
+
+-spec maps_update_with(term(), fun((term()) -> term()), map()) ->  map().
+-ifdef(pre19).
+%% @private
+maps_update_with(Key, Fun, Map) ->
+    {ok, Value} = maps:find(Key, Map),
+    maps:update(Key, Fun(Value), Map).
+-else.
+%% @private
+maps_update_with(Key, Fun, Map) ->
+    maps:update_with(Key, Fun, Map).
+-endif.
 
 -spec proplists_sort_and_merge([proplist()]) -> proplist().
 %% @private
