@@ -78,8 +78,8 @@ Some more examples are under 'examples/'; for all possible configuration options
  [{client_ref, example1},
   {target, {stdlib, string, [{exports,all}]}}]}.
 
-{deps, [{backwater, "2.0.0"}]}.
-{plugins, [{backwater, "2.0.0"}]}.
+{deps, [{backwater, "2.0.1"}]}.
+{plugins, [{backwater, "2.0.1"}]}.
 </pre>
 
 === 1.2. Generate the client code ===
@@ -177,7 +177,7 @@ secret = :crypto.strong_rand_bytes(32)
 === 3.1. Configure dependencies ===
 <pre lang="erlang">
 % rebar.config
-{deps, [{backwater, "2.0.0"}]}.
+{deps, [{backwater, "2.0.1"}]}.
 </pre>
 
 === 3.2. Add custom attributes to module within your application ===
