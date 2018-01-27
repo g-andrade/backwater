@@ -102,7 +102,11 @@
         invalid_auth_type | missing_authorization_header | header_params_failure().
 -export_type([auth_parse_failure/0]).
 
+-ifdef(pre19).
 -opaque config() :: #{ key => binary() }.
+-else.
+-opaque config() :: #{ key := binary() }.
+-endif.
 -export_type([config/0]).
 
 -type header_list() :: [{binary(), binary()}].
@@ -151,6 +155,7 @@
 -type sig_parse_failure() :: missing_signature_header | header_params_failure().
 -export_type([sig_parse_failure/0]).
 
+-ifdef(pre19).
 -opaque signed_message() ::
     #{ pseudo_headers => #{ binary() => binary() },
        real_headers => #{ binary() => binary() },
@@ -158,11 +163,26 @@
        request_id => binary(),
        signed_header_names => [binary()],
        body_digest => binary() }.
+-else.
+-opaque signed_message() ::
+    #{ pseudo_headers := #{ binary() := binary() },
+       real_headers := #{ binary() := binary() },
+       config := config(),
+       request_id := binary(),
+       signed_header_names := [binary()],
+       body_digest := binary() }.
+-endif.
 -export_type([signed_message/0]).
 
+-ifdef(pre19).
 -opaque unsigned_message() ::
     #{ pseudo_headers => #{ binary() => binary() },
        real_headers => #{ binary() => binary() }  }.
+-else.
+-opaque unsigned_message() ::
+    #{ pseudo_headers := #{ binary() := binary() },
+       real_headers := #{ binary() := binary() }  }.
+-endif.
 -export_type([message/0]).
 
 -type validation_failure() :: key_id_failure().

@@ -78,11 +78,19 @@
         {output_src_dir, file:name_all()}. % "src/rpc" by default
 -export_type([overridable_opt/0]).
 
+-ifdef(pre19).
 -type generation_params() ::
         #{ (module_name | module_path) => (atom() | file:name_all()), % compiled vs. source modules
            current_app_info => rebar_app_info:t(),
            target_opts => [target_opt()] }.
+-else.
+-type generation_params() ::
+        #{ (module_name | module_path) := (atom() | file:name_all()), % compiled vs. source modules
+           current_app_info => rebar_app_info:t(),
+           target_opts => [target_opt()] }.
+-endif.
 
+-ifdef(pre19).
 -type module_info() ::
         #{ module => module(),
            original_path => file:name_all(),
@@ -95,10 +103,28 @@
            original_module => atom(),
            missing_types_messages => sets:set(missing_types_message())
          }.
+-else.
+-type module_info() ::
+        #{ module => module(),
+           original_path => file:name_all(),
+           exports => sets:set(name_arity()),
+           type_exports => sets:set(name_arity()),
+           deprecation_attributes => sets:set(tuple() | [tuple()]),
+           backwater_exports => sets:set(name_arity()),
+           function_specs => #{ name_arity() => [erl_parse:abstract_form()]  },
+           function_definitions => #{ name_arity() => [function_definition()] },
+           original_module => atom(),
+           missing_types_messages => sets:set(missing_types_message())
+         }.
+-endif.
 
 -type name_arity() :: {Name :: atom(), arity()}.
 
+-ifdef(pre19).
 -type function_definition() :: #{ vars => [term()] }.
+-else.
+-type function_definition() :: #{ vars := [term()] }.
+-endif.
 
 -type missing_types_message() ::
         {ModulePath :: file:name_all(),

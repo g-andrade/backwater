@@ -54,6 +54,7 @@
 %% Type Definitions
 %% ------------------------------------------------------------------
 
+-ifdef(pre19).
 -opaque state() ::
         #{ config => config(),
 
@@ -73,8 +74,30 @@
            accepted_result_content_encodings => [accepted_content_encoding()],
            result_content_type => content_type(),
            result_content_encoding => binary() }.
+-else.
+-opaque state() ::
+        #{ config := config(),
+
+           req => req(),
+           bin_module => binary(),
+           bin_function => binary(),
+           arity => arity(),
+
+           signed_request_msg => backwater_http_signatures:signed_message(),
+
+           function_properties => backwater_module_info:fun_properties(),
+           args_content_type => content_type(),
+           args_content_encoding => binary(),
+           args => [term()],
+           response => response(),
+           accepted_result_content_types => [accepted_content_type()],
+           accepted_result_content_encodings => [accepted_content_encoding()],
+           result_content_type => content_type(),
+           result_content_encoding => binary() }.
+-endif.
 -export_type([state/0]).
 
+-ifdef(pre19).
 -type config() ::
         #{ secret => binary(),
            exposed_modules => [backwater_module_info:exposed_module()],
@@ -84,6 +107,17 @@
            max_encoded_args_size => non_neg_integer(),
            recv_timeout => timeout(),
            return_exception_stacktraces => boolean() }.
+-else.
+-type config() ::
+        #{ secret := binary(),
+           exposed_modules := [backwater_module_info:exposed_module()],
+
+           compression_threshold => non_neg_integer(),
+           decode_unsafe_terms => boolean(),
+           max_encoded_args_size => non_neg_integer(),
+           recv_timeout => timeout(),
+           return_exception_stacktraces => boolean() }.
+-endif.
 -export_type([config/0]).
 
 -type accepted_content_type() :: {content_type(), Quality :: 0..1000, accepted_ext()}.
@@ -108,10 +142,17 @@
 
 -type raisable_class() :: error | exit | throw.
 
+-ifdef(pre19).
 -type response() ::
         #{ status_code => http_status(),
            headers => http_headers(),
            body => iodata() }.
+-else.
+-type response() ::
+        #{ status_code := http_status(),
+           headers := http_headers(),
+           body := iodata() }.
+-endif.
 
 %% ------------------------------------------------------------------
 %% API Function Definitions

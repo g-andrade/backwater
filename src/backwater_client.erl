@@ -59,6 +59,7 @@
 %% Type Definitions
 %% ------------------------------------------------------------------
 
+-ifdef(pre19).
 -type config() ::
     #{ endpoint => nonempty_binary(),
        secret => binary(),
@@ -71,6 +72,20 @@
        recv_timeout => timeout(),
        rethrow_remote_exceptions => boolean()
      }.
+-else.
+-type config() ::
+    #{ endpoint := nonempty_binary(),
+       secret := binary(),
+       hackney_opts => [hackney_option()],
+
+       compression_threshold => non_neg_integer(),
+       connect_timeout => timeout(),
+       decode_unsafe_terms => boolean(),
+       max_encoded_result_size => non_neg_integer(),
+       recv_timeout => timeout(),
+       rethrow_remote_exceptions => boolean()
+     }.
+-endif.
 -export_type([config/0]).
 
 -type hackney_error() :: {hackney, term()}.

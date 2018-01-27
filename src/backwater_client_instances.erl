@@ -55,12 +55,21 @@
 %% Type Definitions
 %% ------------------------------------------------------------------
 
+-ifdef(pre19).
 -type child_spec(Id) ::
         #{ id => Id,
            start => {?MODULE, start_link, []},
            restart => permanent,
            type => worker,
            modules => [?MODULE, ...] }.
+-else.
+-type child_spec(Id) ::
+        #{ id := Id,
+           start := {?MODULE, start_link, []},
+           restart := permanent,
+           type := worker,
+           modules := [?MODULE, ...] }.
+-endif.
 -export_type([child_spec/1]).
 
 -type state() :: no_state.
