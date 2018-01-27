@@ -26,6 +26,8 @@ Requirements:
 * Erlang/OTP 19 and up
 * rebar3
 
+For Erlang/OTP 18 support, check the 1.1.x support versions.
+
 Features:
 * Arbitrary modules can be wholly or partially exposed
 * Module-specific wrappers for remote calls can be generated using a bundled rebar3 plugin (Erlang only)
@@ -82,8 +84,8 @@ Some more examples are under 'examples/'; for all possible configuration options
  [{client_ref, example1},
   {target, {stdlib, string, [{exports,all}]}}]}.
 
-{deps, [{backwater, "2.0.0"}]}.
-{plugins, [{backwater, "2.0.0"}]}.
+{deps, [{backwater, "2.0.1"}]}.
+{plugins, [{backwater, "2.0.1"}]}.
 
 ```
 
@@ -238,7 +240,7 @@ secret = :crypto.strong_rand_bytes(32)
 ```erlang
 
 % rebar.config
-{deps, [{backwater, "2.0.0"}]}.
+{deps, [{backwater, "2.0.1"}]}.
 
 ```
 
