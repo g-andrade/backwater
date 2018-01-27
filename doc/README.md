@@ -26,6 +26,8 @@ Requirements:
 * Erlang/OTP 19 and up
 * rebar3
 
+For Erlang/OTP 18 support, check the 1.1.x support versions.
+
 Features:
 * Arbitrary modules can be wholly or partially exposed
 * Module-specific wrappers for remote calls can be generated using a bundled rebar3 plugin (Erlang only)
