@@ -82,8 +82,8 @@ Some more examples are under 'examples/'; for all possible configuration options
  [{client_ref, example1},
   {target, {stdlib, string, [{exports,all}]}}]}.
 
-{deps, [{backwater, "1.1.0"}]}.
-{plugins, [{backwater, "1.1.0"}]}.
+{deps, [{backwater, "1.1.1"}]}.
+{plugins, [{backwater, "1.1.1"}]}.
 
 ```
 
@@ -166,7 +166,7 @@ ok = backwater_client:start(
 # mix.exs
 # [...]
   defp deps do
-    [{:backwater, "-> 1.0"}]
+    [{:backwater, "-> 1.1"}]
   end
 # [...]
 
@@ -238,7 +238,7 @@ secret = :crypto.strong_rand_bytes(32)
 ```erlang
 
 % rebar.config
-{deps, [{backwater, "1.1.0"}]}.
+{deps, [{backwater, "1.1.1"}]}.
 
 ```
 
@@ -330,7 +330,7 @@ ok = backwater_client:start(
 #mix.exs
 # [...]
   defp deps do
-    [{:backwater, "-> 1.0"}]
+    [{:backwater, "-> 1.1"}]
   end
 # [...]
 
