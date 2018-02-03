@@ -1,5 +1,5 @@
 {application, backwater,
- [{description, "Distribution independent RPC framework"},
+ [{description, "Intercluster RPC"},
   {vsn, git},
   {registered, []},
   {mod, {backwater_app, []}},

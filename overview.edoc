@@ -5,7 +5,7 @@
 [![Build Status](https://travis-ci.org/g-andrade/backwater.png?branch=master)](https://travis-ci.org/g-andrade/backwater)
 [![Hex pm](http://img.shields.io/hexpm/v/backwater.svg?style=flat)](https://hex.pm/packages/backwater)
 
-==== Backwater - an RPC framework for Erlang and Elixir ====
+==== Backwater - Intercluster RPC calls for Erlang and Elixir ====
 
 Backwater aims to make execution of calls to modules/functions on individual remote machines as
 close to local calls as they can get, with little to no boilerplate code.
