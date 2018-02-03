@@ -5,7 +5,7 @@
 [![Build Status](https://travis-ci.org/g-andrade/backwater.png?branch=master)](https://travis-ci.org/g-andrade/backwater)
 [![Hex pm](http://img.shields.io/hexpm/v/backwater.svg?style=flat)](https://hex.pm/packages/backwater)
 
-<h5><a name="Backwater_-_Intercluster_RPC_calls_for_Erlang_and_Elixir">Backwater - Intercluster RPC calls for Erlang and Elixir</a></h5>
+<h5><a name="Backwater_-_Intercluster_RPC_for_Erlang_and_Elixir">Backwater - Intercluster RPC for Erlang and Elixir</a></h5>
 
 Backwater aims to make execution of calls to modules/functions on individual remote machines as
 close to local calls as they can get, with little to no boilerplate code.
