@@ -2,6 +2,8 @@
 
 # Module backwater_module_info #
 * [Data Types](#types)
+* [Function Index](#index)
+* [Function Details](#functions)
 
 <a name="types"></a>
 
@@ -86,4 +88,25 @@ lookup_result() = {true, {BinModule::<a href="#type-nonempty_binary">nonempty_bi
 <pre><code>
 module_info() = #{exports =&gt; <a href="#type-exports">exports()</a>}
 </code></pre>
+
+<a name="index"></a>
+
+## Function Index ##
+
+
+<table width="100%" border="1" cellspacing="0" cellpadding="2" summary="function index"><tr><td valign="top"><a href="#metadata_export_list-0">metadata_export_list/0</a></td><td></td></tr></table>
+
+
+<a name="functions"></a>
+
+## Function Details ##
+
+<a name="metadata_export_list-0"></a>
+
+### metadata_export_list/0 ###
+
+<pre><code>
+metadata_export_list() -&gt; [{atom(), arity()}]
+</code></pre>
+<br />
 

@@ -24,23 +24,16 @@
 %% API Function Exports
 %% ------------------------------------------------------------------
 
--export([copies/2]).
 -export([latin1_binary_to_lower/1]).
 -export([latin1_binary_trim_whitespaces/1]).
 -export([lists_allmap/2]).
 -export([lists_anymap/2]).
--export([lists_enumerate/1]).
--export([lists_foreach_until_error/2]).
 -export([lists_keyupdate_with/5]).
--export([lists_map_until_error/2]).
--export([iodata_to_list/1]).
 -export([is_iodata/1]).
--export([maps_mapfold/3]).
 -export([proplists_sort_and_merge/1]).
 -export([proplists_sort_and_merge/2]).
 -export([purge_stacktrace_below/2]).
 -export([validate_config_map/3]).
--export([with_success/2]).
 
 %% ------------------------------------------------------------------
 %% Type Definitions
@@ -58,13 +51,6 @@
 %% ------------------------------------------------------------------
 %% API Function Definitions
 %% ------------------------------------------------------------------
-
--spec copies(term(), non_neg_integer()) -> [term()].
-%% @private
-copies(_Value, 0) ->
-    [];
-copies(Value, Count) ->
-    copies_recur([Value], Count).
 
 -spec latin1_binary_to_lower(binary()) -> binary().
 %% @private
@@ -94,59 +80,11 @@ lists_anymap(Fun, [H|T]) ->
         false -> lists_anymap(Fun, T)
     end.
 
--spec lists_enumerate([term()]) -> [{pos_integer(), term()}].
-%% @private
-lists_enumerate(List) ->
-    lists:zip(lists:seq(1, length(List)), List).
-
--spec lists_foreach_until_error(fun ((term()) -> ok | {error, term()}), [term()])
-        -> ok | {error, term()}.
-%% @private
-lists_foreach_until_error(Fun, List) ->
-    AnyError =
-        lists_anymap(
-          fun (Element) ->
-                  case Fun(Element) of
-                      ok -> false;
-                      {error, Error} -> {true, Error}
-                  end
-          end,
-          List),
-
-    case AnyError of
-        false -> ok;
-        {true, Error} -> {error, Error}
-    end.
-
 -spec lists_keyupdate_with(term(), pos_integer(), fun ((tuple()) -> tuple()), tuple(), [tuple()])
         -> [tuple(), ...].
 %% @private
 lists_keyupdate_with(Key, N, Fun, Initial, List) when element(N, Initial) =:= Key ->
     lists_keyupdate_with_recur(Key, N, Fun, Initial, List, []).
-
--spec lists_map_until_error(fun ((term()) -> {ok, term()} | {error, term()}), [term()])
-        -> {ok, [term()]} | {error, term()}.
-%% @private
-lists_map_until_error(Fun, List) ->
-    AllSuccesses =
-        lists_allmap(
-          fun (Element) ->
-                  case Fun(Element) of
-                      {ok, Success} -> {true, Success};
-                      {error, Error} -> {false, Error}
-                  end
-          end,
-          List),
-
-    case AllSuccesses of
-        {true, Successes} -> {ok, Successes};
-        {false, Error} -> {error, Error}
-    end.
-
--spec iodata_to_list(iodata()) -> [byte()].
-%% @private
-iodata_to_list(Data) ->
-    binary_to_list( iolist_to_binary(Data) ).
 
 -spec is_iodata(term()) -> boolean().
 %% @private
@@ -156,22 +94,6 @@ is_iodata(Term) ->
     catch
         error:badarg -> false
     end.
-
--spec maps_mapfold(fun ((term(), term(), term()) -> {term(), term()}),
-                   term(), map()) -> {map(), term()}.
-%% @private
-maps_mapfold(Fun, Acc0, Map) ->
-    List = maps:to_list(Map),
-    {MappedList, AccN} =
-        lists:mapfoldl(
-          fun ({K, V1}, Acc1) ->
-                  {V2, Acc2} = Fun(K, V1, Acc1),
-                  {{K, V2}, Acc2}
-          end,
-          Acc0,
-          List),
-    MappedMap = maps:from_list(MappedList),
-    {MappedMap, AccN}.
 
 -spec proplists_sort_and_merge([proplist()]) -> proplist().
 %% @private
@@ -227,28 +149,9 @@ validate_config_map(Config, MandatoryKeys, PairValidationFun) when is_map(Config
 validate_config_map(_Config, _MandatoryKeys, _PairValidationFun) ->
     {error, config_not_a_map}.
 
--spec with_success(fun() | fun((term()) -> term()), ok | {ok | error, term()}) -> term().
-%% @private
-with_success(Fun, Success) when is_tuple(Success),
-                                tuple_size(Success) > 0,
-                                element(1, Success) =:= ok,
-                                is_function(Fun, tuple_size(Success) - 1) ->
-    [ok | Args] = tuple_to_list(Success),
-    apply(Fun, Args);
-with_success(Fun, ok) when is_function(Fun, 0) ->
-    Fun();
-with_success(_Fun, {error, Error}) ->
-    {error, Error}.
-
 %% ------------------------------------------------------------------
 %% Internal Function Definitions
 %% ------------------------------------------------------------------
-
--spec copies_recur([term(), ...], pos_integer()) -> [term(), ...].
-copies_recur(Acc, Count) when Count < 2 ->
-    Acc;
-copies_recur([Value | _] = Acc, Count) ->
-    copies_recur([Value | Acc], Count - 1).
 
 -spec lists_allmap_recur(Fun :: fun((term()) -> {boolean(), term()} | boolean()), [term()], [term()])
         -> {true, [term()]} | {false, term()}.

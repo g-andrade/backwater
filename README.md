@@ -424,7 +424,6 @@ secret = :crypto.strong_rand_bytes(32)
 <tr><td><a href="https://github.com/g-andrade/backwater/blob/master/doc/backwater_http_response.md" class="module">backwater_http_response</a></td></tr>
 <tr><td><a href="https://github.com/g-andrade/backwater/blob/master/doc/backwater_http_signatures.md" class="module">backwater_http_signatures</a></td></tr>
 <tr><td><a href="https://github.com/g-andrade/backwater/blob/master/doc/backwater_module_info.md" class="module">backwater_module_info</a></td></tr>
-<tr><td><a href="https://github.com/g-andrade/backwater/blob/master/doc/backwater_rebar3_generator.md" class="module">backwater_rebar3_generator</a></td></tr>
 <tr><td><a href="https://github.com/g-andrade/backwater/blob/master/doc/backwater_server.md" class="module">backwater_server</a></td></tr>
 <tr><td><a href="https://github.com/g-andrade/backwater/blob/master/doc/backwater_util.md" class="module">backwater_util</a></td></tr></table>
 

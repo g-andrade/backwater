@@ -21,7 +21,6 @@
 -module(backwater_module_info).
 
 -include("backwater_common.hrl").
--include("backwater_module_info.hrl").
 
 %% ------------------------------------------------------------------
 %% API Function Exports
@@ -29,6 +28,9 @@
 
 -export([exposed_module_name/1]).
 -export([generate/1]).
+-export([metadata_export_list/0]).      -ignore_xref([metadata_export_list/0]).
+
+-dialyzer({nowarn_function, metadata_export_list/0}).
 
 %% ------------------------------------------------------------------
 %% Macro Definitions
@@ -86,6 +88,14 @@ generate(ExposedModules) ->
     KvList = lists:filtermap(fun find_and_parse_module_info/1, ExposedModules),
     maps:from_list(KvList).
 
+-spec metadata_export_list() -> [{atom(), arity()}].
+metadata_export_list() ->
+    [{backwater_export,0}, % faux backwater export attribute in Elixir modules
+     {behaviour_info,1},   % callbacks
+     {module_info,0},      % Erlang module info
+     {module_info,1},      % Erlang module info
+     {'__info__',1}].      % Elixir module info
+
 %% ------------------------------------------------------------------
 %% Internal Function Definitions
 %% ------------------------------------------------------------------
@@ -100,7 +110,7 @@ find_and_parse_module_info(ExposedModule) ->
                 maps:filter(
                   fun ({BinFunction, Arity}, _Info) ->
                           Function = binary_to_existing_atom(BinFunction, utf8),
-                          not lists:member({Function, Arity}, ?METADATA_EXPORT_LIST)
+                          not lists:member({Function, Arity}, metadata_export_list())
                   end,
                   BackwaterExports),
             BinModule = atom_to_binary(Module, utf8),
