@@ -533,9 +533,13 @@ ensure_directory_exists_recur([], _) ->
 ensure_directory_exists_recur([H|T], Acc) ->
     Path = filename:join(Acc, H),
     case file:make_dir(Path) of
-        ok -> ensure_directory_exists_recur(T, Path);
-        {error, eexist} -> ensure_directory_exists_recur(T, Path);
-        {error, _} = Error -> Error
+        ok ->
+            ensure_directory_exists_recur(T, Path);
+        {error, Error} when Error =:= eexist;
+                            Error =:= eisdir ->
+            ensure_directory_exists_recur(T, Path);
+        {error, Error} ->
+            {error, Error}
     end.
 
 -spec externalize_function_specs_user_types(generation_params(), module_info())
