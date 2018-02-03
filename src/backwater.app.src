@@ -9,6 +9,7 @@
     edoc,
     crypto,
     ssl,
+    % external dependencies
     cowboy,
     hackney
    ]},
