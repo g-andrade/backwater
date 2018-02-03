@@ -12,7 +12,7 @@ endif
 
 TEST_PROFILE ?= test
 
-.PHONY: all build clean check dialyzer xref run test cover travis doc publish
+.PHONY: all build clean check dialyzer xref run test cover console travis doc publish
 
 all: build
 
@@ -43,6 +43,9 @@ test:
 
 cover: test
 	@$(REBAR3) as test cover
+
+console:
+	@$(REBAR3) as development shell --apps backwater
 
 travis: TEST_PROFILE = travis_test
 travis: test
