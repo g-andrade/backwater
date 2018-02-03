@@ -9,8 +9,11 @@
 ### <a name="Backwater_-_Intercluster_RPC_for_Erlang_and_Elixir">Backwater - Intercluster RPC for Erlang and Elixir</a> ###
 
 `backwater` is a library for Erlang/OTP and Elixir that allows you to
-do remote calls to modules without depending on the Erlang distribution
-(that is, nodes don't have to be know about each other.)
+call remote modules without depending on the Erlang distribution.
+
+Because nodes don't have to know about each other, it's ideal for situations
+where machines in one datacenter need to call machines in another datacenter,
+over potentially unsecure networks.
 
 
 #### <a name="Usage">Usage</a> ####
@@ -62,6 +65,23 @@ ok = backwater_client:start(
 
 ```
 
+
+#### <a name="Details">Details</a> ####
+
+<h5><a name="Requirements">Requirements</a></h5>
+
+* Erlang/OTP 19 or higher
+* rebar3
+
+For Erlang/OTP 18 support, check the 1.1.x support versions.
+
+<h5><a name="On_serialisation">On serialisation</a></h5>
+
+
+#### <a name="Alternatives_(Erlang)">Alternatives (Erlang)</a> ####
+
+
+#### <a name="Alternatives_(Elixir)">Alternatives (Elixir)</a> ####
 
 
 ## Modules ##
