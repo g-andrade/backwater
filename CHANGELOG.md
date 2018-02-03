@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Fixed
 - Occasional crash of rebar3 plugin on macOS
 
+## [1.1.1] - 2018-02-03
+### Fixed
+- Occasional crash of rebar3 plugin on macOS
+
 ## [2.0.1] - 2018-01-27
 ### Added
 - Enforcement of minimum OTP version on rebar.config
