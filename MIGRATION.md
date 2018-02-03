@@ -4,10 +4,10 @@
 ### Update
 - your declaration of the rebar3 plugin import (if using), like this:
 ```
+    % change this
     {plugins, [{backwater, "2.0.2"}]}.
-```
-    To
-```
+
+    % into this
     {plugins, [{rebar3_backwater, "1.0.0"}]}.
 ```
 
