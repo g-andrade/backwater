@@ -34,8 +34,11 @@
 %% API Function Exports
 %% ------------------------------------------------------------------
 
+-export([start_clear/1]).               -ignore_xref({start_clear,1}).
 -export([start_clear/4]).               -ignore_xref({start_clear,4}).
+-export([start_tls/2]).                 -ignore_xref({start_tls,2}).
 -export([start_tls/4]).                 -ignore_xref({start_tls,4}).
+-export([stop_listener/0]).             -ignore_xref({stop_listener,0}).
 -export([stop_listener/1]).             -ignore_xref({stop_listener,1}).
 
 %% ------------------------------------------------------------------
@@ -77,6 +80,13 @@
 %% API Function Definitions
 %% ------------------------------------------------------------------
 
+-spec start_clear(Config)  -> {ok, pid()} | {error, term()}
+            when Config :: backwater_cowboy_handler:config().
+
+start_clear(Config) ->
+    start_clear(default, Config, [], #{}).
+
+
 -spec start_clear(Ref, Config, TransportOpts, ProtoOpts)  -> {ok, pid()} | {error, term()}
             when Ref :: term(),
                  Config :: backwater_cowboy_handler:config(),
@@ -89,6 +99,14 @@ start_clear(Ref, Config, TransportOpts0, ProtoOpts) ->
     start_cowboy(start_clear, Ref, Config, TransportOpts, ProtoOpts).
 
 
+-spec start_tls(Config, TransportOpts) -> {ok, pid()} | {error, term()}
+            when Config :: backwater_cowboy_handler:config(),
+                 TransportOpts :: tls_opts().
+
+start_tls(Config, TransportOpts) ->
+    start_tls(default, Config, TransportOpts, #{}).
+
+
 -spec start_tls(Ref, Config, TransportOpts, ProtoOpts) -> {ok, pid()} | {error, term()}
             when Ref :: term(),
                  Config :: backwater_cowboy_handler:config(),
@@ -99,6 +117,12 @@ start_tls(Ref, Config, TransportOpts0, ProtoOpts) ->
     DefaultTransportOpts = default_transport_options(?DEFAULT_TLS_PORT),
     TransportOpts = backwater_util:proplists_sort_and_merge(DefaultTransportOpts, TransportOpts0),
     start_cowboy(start_tls, Ref, Config, TransportOpts, ProtoOpts).
+
+
+-spec stop_listener() -> ok | {error, not_found}.
+
+stop_listener() ->
+    stop_listener(default).
 
 
 -spec stop_listener(Ref) -> ok | {error, not_found}

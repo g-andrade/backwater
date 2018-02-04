@@ -31,11 +31,9 @@ Secret = crypto:strong_rand_bytes(32).
 <![CDATA[
 {ok, _ServerPid} =
     backwater_server:start_clear(
-        example,
         #{ secret => Secret,
-           exposed_modules => [{string, [{exports,all}]}] },
-        [{port, 8080}],
-        []).]]>
+           exposed_modules => [{string, [{exports,all}]}]
+         }).]]>
 </pre>
 
 ==== 3. Start the client ====
