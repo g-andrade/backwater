@@ -50,7 +50,7 @@ hackney_option() = <a href="proplists.md#type-property">proplists:property()</a>
 
 
 <pre><code>
-result() = <a href="backwater_http_response.md#type-t">backwater_http_response:t</a>(<a href="#type-hackney_error">hackney_error()</a> | not_started)
+result() = <a href="backwater_response.md#type-t">backwater_response:t</a>(<a href="#type-hackney_error">hackney_error()</a> | not_started)
 </code></pre>
 
 <a name="index"></a>

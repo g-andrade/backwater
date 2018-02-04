@@ -1,6 +1,6 @@
 
 
-# Module backwater_http_signatures #
+# Module backwater_signatures #
 * [Data Types](#types)
 
 <a name="types"></a>

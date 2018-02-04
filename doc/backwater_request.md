@@ -1,6 +1,6 @@
 
 
-# Module backwater_http_request #
+# Module backwater_request #
 * [Data Types](#types)
 * [Function Index](#index)
 * [Function Details](#functions)
@@ -56,7 +56,7 @@ options() = #{compression_threshold =&gt; non_neg_integer()}
 
 
 <pre><code>
-state() = #{signed_request_msg =&gt; <a href="backwater_http_signatures.md#type-signed_message">backwater_http_signatures:signed_message()</a>}
+state() = #{signed_request_msg =&gt; <a href="backwater_signatures.md#type-signed_message">backwater_signatures:signed_message()</a>}
 </code></pre>
 
 

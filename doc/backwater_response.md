@@ -1,6 +1,6 @@
 
 
-# Module backwater_http_response #
+# Module backwater_response #
 * [Data Types](#types)
 * [Function Index](#index)
 * [Function Details](#functions)
@@ -66,7 +66,7 @@ raw_response() = {<a href="#type-status_code_name">status_code_name()</a>, CiHea
 
 
 <pre><code>
-response_authentication_failure() = <a href="backwater_http_signatures.md#type-response_validation_failure">backwater_http_signatures:response_validation_failure()</a> | wrong_body_digest
+response_authentication_failure() = <a href="backwater_signatures.md#type-response_validation_failure">backwater_signatures:response_validation_failure()</a> | wrong_body_digest
 </code></pre>
 
 
@@ -139,7 +139,7 @@ t() = {ok, Value::term()} | {error, <a href="#type-error">error()</a>} | no_retu
 decode(StatusCode, Headers, Body, RequestState) -&gt; Response | no_return()
 </code></pre>
 
-<ul class="definitions"><li><code>StatusCode = <a href="#type-status_code">status_code()</a></code></li><li><code>Headers = <a href="#type-headers">headers()</a></code></li><li><code>Body = binary()</code></li><li><code>RequestState = <a href="backwater_http_request.md#type-state">backwater_http_request:state()</a></code></li><li><code>Response = <a href="#type-t">t()</a></code></li></ul>
+<ul class="definitions"><li><code>StatusCode = <a href="#type-status_code">status_code()</a></code></li><li><code>Headers = <a href="#type-headers">headers()</a></code></li><li><code>Body = binary()</code></li><li><code>RequestState = <a href="backwater_request.md#type-state">backwater_request:state()</a></code></li><li><code>Response = <a href="#type-t">t()</a></code></li></ul>
 
 <a name="decode-5"></a>
 
@@ -149,5 +149,5 @@ decode(StatusCode, Headers, Body, RequestState) -&gt; Response | no_return()
 decode(StatusCode, Headers, Body, RequestState, Options) -&gt; Response | no_return()
 </code></pre>
 
-<ul class="definitions"><li><code>StatusCode = <a href="#type-status_code">status_code()</a></code></li><li><code>Headers = <a href="#type-headers">headers()</a></code></li><li><code>Body = binary()</code></li><li><code>RequestState = <a href="backwater_http_request.md#type-state">backwater_http_request:state()</a></code></li><li><code>Options = <a href="#type-options">options()</a></code></li><li><code>Response = <a href="#type-t">t()</a></code></li></ul>
+<ul class="definitions"><li><code>StatusCode = <a href="#type-status_code">status_code()</a></code></li><li><code>Headers = <a href="#type-headers">headers()</a></code></li><li><code>Body = binary()</code></li><li><code>RequestState = <a href="backwater_request.md#type-state">backwater_request:state()</a></code></li><li><code>Options = <a href="#type-options">options()</a></code></li><li><code>Response = <a href="#type-t">t()</a></code></li></ul>
 
