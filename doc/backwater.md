@@ -84,10 +84,9 @@ hackney_option() = <a href="proplists.md#type-property">proplists:property()</a>
 
 
 <pre><code>
-http_opts() = <a href="cowboy_http.md#type-opts">cowboy_http:opts()</a> | [{atom(), term()}]
+http_opts() = <a href="cowboy_http.md#type-opts">cowboy_http:opts()</a>
 </code></pre>
 
-for (reasonable) retro-compatibility with cowboy 1.x
 
 
 
