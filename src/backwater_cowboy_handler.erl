@@ -51,7 +51,7 @@
 -opaque state() ::
         #{ secret := binary(),
            exposed_modules := [backwater_module_exposure:t()],
-           options := opts(),
+           options := backwater_opts(),
 
            req => req(),
            bin_module => binary(),
@@ -71,13 +71,20 @@
            result_content_encoding => binary() }.
 -export_type([state/0]).
 
--type opts() ::
+-type opts(TransportOpts, HttpOpts) ::
+        #{ transport => TransportOpts,
+           http => HttpOpts,
+           backwater => backwater_opts()
+         }.
+-export_type([opts/2]).
+
+-type backwater_opts() ::
         #{ compression_threshold => non_neg_integer(),
            decode_unsafe_terms => boolean(),
            max_encoded_args_size => non_neg_integer(),
            recv_timeout => timeout(),
            return_exception_stacktraces => boolean() }.
--export_type([opts/0]).
+-export_type([backwater_opts/0]).
 
 -type accepted_content_type() :: {content_type(), Quality :: 0..1000, accepted_ext()}.
 
@@ -110,7 +117,8 @@
 %% API Function Definitions
 %% ------------------------------------------------------------------
 
--spec initial_state(binary(), [backwater_module_exposure:t()], opts())
+-spec initial_state(binary(), [backwater_module_exposure:t()],
+                    opts(term(), term()))
         -> {ok, state()} |
            {error, invalid_secret} |
            {error, invalid_module_exposure} |
@@ -121,11 +129,13 @@ initial_state(Secret, _ExposedModules, _Options) when not is_binary(Secret) ->
 initial_state(_Secret, ExposedModules, _Options) when not is_list(ExposedModules) ->
     {error, invalid_exposed_modules};
 initial_state(Secret, ExposedModules, Options) ->
-    case backwater_util:validate_config_map(Options, [], fun validate_option/1) of
-        {ok, ValidatedOptions} ->
+    BackwaterOptions = maps:get(backwater, Options, #{}),
+    case backwater_util:validate_config_map(BackwaterOptions, [], fun validate_option/1)
+    of
+        {ok, ValidatedBackwaterOptions} ->
             {ok, #{ secret => Secret,
                     exposed_modules => ExposedModules,
-                    options => ValidatedOptions }};
+                    options => ValidatedBackwaterOptions }};
         {error, Error} ->
             {error, Error}
     end.

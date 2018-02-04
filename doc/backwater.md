@@ -80,11 +80,11 @@ hackney_option() = <a href="proplists.md#type-property">proplists:property()</a>
 
 
 
-### <a name="type-proto_opts">proto_opts()</a> ###
+### <a name="type-http_opts">http_opts()</a> ###
 
 
 <pre><code>
-proto_opts() = <a href="cowboy_http.md#type-opts">cowboy_http:opts()</a> | [{atom(), term()}]
+http_opts() = <a href="cowboy_http.md#type-opts">cowboy_http:opts()</a> | [{atom(), term()}]
 </code></pre>
 
 for (reasonable) retro-compatibility with cowboy 1.x
@@ -113,7 +113,7 @@ tls_opts() = [<a href="#type-tls_opt">tls_opt()</a>]
 ## Function Index ##
 
 
-<table width="100%" border="1" cellspacing="0" cellpadding="2" summary="function index"><tr><td valign="top"><a href="#call-4">call/4</a></td><td>Performs remote call on <code>Endpoint</code>.</td></tr><tr><td valign="top"><a href="#call-5">call/5</a></td><td>Performs remote call on <code>Endpoint</code>.</td></tr><tr><td valign="top"><a href="#start_clear_server-2">start_clear_server/2</a></td><td>Starts a cleartext cowboy listener that can handle remote calls.</td></tr><tr><td valign="top"><a href="#start_clear_server-6">start_clear_server/6</a></td><td>Like <code>:start_clear_server/2</code> but one can specify the listener name  and tune settings.</td></tr><tr><td valign="top"><a href="#start_tls_server-3">start_tls_server/3</a></td><td>Starts a TLS cowboy listener that can handle remote calls.</td></tr><tr><td valign="top"><a href="#start_tls_server-6">start_tls_server/6</a></td><td>Like <code>:start_tls_server/3</code> but one can specify the listener name and tune (more) settings.</td></tr><tr><td valign="top"><a href="#stop_server-0">stop_server/0</a></td><td>Stops the cowboy listener under the default name.</td></tr><tr><td valign="top"><a href="#stop_server-1">stop_server/1</a></td><td>Stops the cowboy listener under a specific name.</td></tr></table>
+<table width="100%" border="1" cellspacing="0" cellpadding="2" summary="function index"><tr><td valign="top"><a href="#call-4">call/4</a></td><td>Performs remote call on <code>Endpoint</code>.</td></tr><tr><td valign="top"><a href="#call-5">call/5</a></td><td>Performs remote call on <code>Endpoint</code>.</td></tr><tr><td valign="top"><a href="#start_clear_server-2">start_clear_server/2</a></td><td>Starts a cleartext cowboy listener that can handle remote calls.</td></tr><tr><td valign="top"><a href="#start_clear_server-4">start_clear_server/4</a></td><td>Like <code>:start_clear_server/2</code> but one can specify the listener name  and tune settings.</td></tr><tr><td valign="top"><a href="#start_tls_server-3">start_tls_server/3</a></td><td>Starts a TLS cowboy listener that can handle remote calls.</td></tr><tr><td valign="top"><a href="#start_tls_server-4">start_tls_server/4</a></td><td>Like <code>:start_tls_server/3</code> but one can specify the listener name and tune (more) settings.</td></tr><tr><td valign="top"><a href="#stop_server-0">stop_server/0</a></td><td>Stops the cowboy listener under the default name.</td></tr><tr><td valign="top"><a href="#stop_server-1">stop_server/1</a></td><td>Stops the cowboy listener under a specific name.</td></tr></table>
 
 
 <a name="functions"></a>
@@ -172,17 +172,17 @@ Returns:
 - `{ok, ServerPid}` in case of success
 - `{error, term()}` otherwise.
 
-__See also:__ [call/4](#call-4), [start_clear_server/6](#start_clear_server-6).
+__See also:__ [start_clear_server/4](#start_clear_server-4).
 
-<a name="start_clear_server-6"></a>
+<a name="start_clear_server-4"></a>
 
-### start_clear_server/6 ###
+### start_clear_server/4 ###
 
 <pre><code>
-start_clear_server(Ref, Secret, ExposedModules, Opts, TransportOpts, ProtoOpts) -&gt; {ok, pid()} | {error, term()}
+start_clear_server(Ref, Secret, ExposedModules, Opts) -&gt; {ok, pid()} | {error, term()}
 </code></pre>
 
-<ul class="definitions"><li><code>Ref = term()</code></li><li><code>Secret = binary()</code></li><li><code>ExposedModules = [<a href="backwater_module_exposure.md#type-t">backwater_module_exposure:t()</a>]</code></li><li><code>Opts = <a href="backwater_cowboy_handler.md#type-opts">backwater_cowboy_handler:opts()</a></code></li><li><code>TransportOpts = <a href="#type-clear_opts">clear_opts()</a></code></li><li><code>ProtoOpts = <a href="#type-proto_opts">proto_opts()</a></code></li></ul>
+<ul class="definitions"><li><code>Ref = term()</code></li><li><code>Secret = binary()</code></li><li><code>ExposedModules = [<a href="backwater_module_exposure.md#type-t">backwater_module_exposure:t()</a>]</code></li><li><code>Opts = <a href="backwater_cowboy_handler.md#type-opts">backwater_cowboy_handler:opts</a>(<a href="#type-clear_opts">clear_opts()</a>, <a href="#type-http_opts">http_opts()</a>)</code></li></ul>
 
 Like `:start_clear_server/2` but one can specify the listener name  and tune settings.
 
@@ -190,17 +190,17 @@ Returns:
 - `{ok, ServerPid}` in case of success
 - `{error, term()}` otherwise.
 
-__See also:__ [call/4](#call-4), [start_clear_server/2](#start_clear_server-2).
+__See also:__ [start_clear_server/2](#start_clear_server-2).
 
 <a name="start_tls_server-3"></a>
 
 ### start_tls_server/3 ###
 
 <pre><code>
-start_tls_server(Secret, ExposedModules, TransportOpts) -&gt; {ok, pid()} | {error, term()}
+start_tls_server(Secret, ExposedModules, TLSOpts) -&gt; {ok, pid()} | {error, term()}
 </code></pre>
 
-<ul class="definitions"><li><code>Secret = binary()</code></li><li><code>ExposedModules = [<a href="backwater_module_exposure.md#type-t">backwater_module_exposure:t()</a>]</code></li><li><code>TransportOpts = <a href="#type-tls_opts">tls_opts()</a></code></li></ul>
+<ul class="definitions"><li><code>Secret = binary()</code></li><li><code>ExposedModules = [<a href="backwater_module_exposure.md#type-t">backwater_module_exposure:t()</a>]</code></li><li><code>TLSOpts = <a href="#type-tls_opts">tls_opts()</a></code></li></ul>
 
 Starts a TLS cowboy listener that can handle remote calls.
 
@@ -208,17 +208,17 @@ Returns:
 - `{ok, ServerPid}` in case of success
 - `{error, term()}` otherwise.
 
-__See also:__ [call/4](#call-4), [start_tls_server/6](#start_tls_server-6).
+__See also:__ [start_tls_server/4](#start_tls_server-4).
 
-<a name="start_tls_server-6"></a>
+<a name="start_tls_server-4"></a>
 
-### start_tls_server/6 ###
+### start_tls_server/4 ###
 
 <pre><code>
-start_tls_server(Ref, Secret, ExposedModules, Opts, TransportOpts, ProtoOpts) -&gt; {ok, pid()} | {error, term()}
+start_tls_server(Ref, Secret, ExposedModules, Opts) -&gt; {ok, pid()} | {error, term()}
 </code></pre>
 
-<ul class="definitions"><li><code>Ref = term()</code></li><li><code>Secret = binary()</code></li><li><code>ExposedModules = [<a href="backwater_module_exposure.md#type-t">backwater_module_exposure:t()</a>]</code></li><li><code>Opts = <a href="backwater_cowboy_handler.md#type-opts">backwater_cowboy_handler:opts()</a></code></li><li><code>TransportOpts = <a href="#type-tls_opts">tls_opts()</a></code></li><li><code>ProtoOpts = <a href="#type-proto_opts">proto_opts()</a></code></li></ul>
+<ul class="definitions"><li><code>Ref = term()</code></li><li><code>Secret = binary()</code></li><li><code>ExposedModules = [<a href="backwater_module_exposure.md#type-t">backwater_module_exposure:t()</a>]</code></li><li><code>Opts = <a href="backwater_cowboy_handler.md#type-opts">backwater_cowboy_handler:opts</a>(<a href="#type-tls_opts">tls_opts()</a>, <a href="#type-http_opts">http_opts()</a>)</code></li></ul>
 
 Like `:start_tls_server/3` but one can specify the listener name and tune (more) settings.
 
@@ -226,7 +226,7 @@ Returns:
 - `{ok, ServerPid}` in case of success
 - `{error, term()}` otherwise.
 
-__See also:__ [call/4](#call-4), [start_tls_server/3](#start_tls_server-3).
+__See also:__ [start_tls_server/3](#start_tls_server-3).
 
 <a name="stop_server-0"></a>
 

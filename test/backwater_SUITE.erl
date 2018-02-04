@@ -45,12 +45,14 @@ init_per_group(Name, Config) ->
          non_existing_module
         ],
     ServerOptions =
-        #{ decode_unsafe_terms => DecodeUnsafeTerms,
-           return_exception_stacktraces => ReturnExceptionStacktraces
+        #{ transport => TransportOpts,
+           %http => #{},
+           backwater =>
+                #{ decode_unsafe_terms => DecodeUnsafeTerms,
+                   return_exception_stacktraces => ReturnExceptionStacktraces
+                 }
          },
-    ProtoOpts = #{},
-    {ok, _Pid} = backwater:StartFun(Name, Secret, ExposedModules, ServerOptions,
-                                    TransportOpts, ProtoOpts),
+    {ok, _Pid} = backwater:StartFun(Name, Secret, ExposedModules, ServerOptions),
 
     ClientEndpoint = {Location, Secret},
     ClientOptions = #{ hackney_opts => HackneyOpts },
@@ -77,11 +79,11 @@ bad_server_start_config_grouptest(Config, Name) ->
     {server_start_fun, StartFun} = lists:keyfind(server_start_fun, 1, Config),
     Ref = {Name, bad_server_start_config_grouptest},
     WrappedStartFun =
-        fun (Secret, ExposedModules, ServerOptions) ->
-                TransportOpts = [{port,12345}],
-                ProtoOpts = #{},
-                backwater:StartFun(Ref, Secret, ExposedModules, ServerOptions,
-                                   TransportOpts, ProtoOpts)
+        fun (Secret, ExposedModules, BackwaterOptions) ->
+                ServerOptions =
+                    #{ transport => [{port,12345}],
+                       backwater => BackwaterOptions },
+                backwater:StartFun(Ref, Secret, ExposedModules, ServerOptions)
         end,
 
     % not a map
@@ -123,11 +125,11 @@ server_start_ref_clash_grouptest(Config, Name, _Protocol) ->
     {server_start_fun, StartFun} = lists:keyfind(server_start_fun, 1, Config),
     Ref = {Name, server_start_ref_clash_test},
     WrappedStartFun =
-        fun (Secret, ExposedModules, ServerOptions) ->
-                TransportOpts = [{port,12346}],
-                ProtoOpts = #{},
-                backwater:StartFun(Ref, Secret, ExposedModules, ServerOptions,
-                                   TransportOpts, ProtoOpts)
+        fun (Secret, ExposedModules, BackwaterOptions) ->
+                ServerOptions =
+                    #{ transport => [{port,12346}],
+                       backwater => BackwaterOptions },
+                backwater:StartFun(Ref, Secret, ExposedModules, ServerOptions)
         end,
 
     ?assertMatch(
