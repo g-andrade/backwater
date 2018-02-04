@@ -33,7 +33,8 @@ Secret = crypto:strong_rand_bytes(32).
 
 ```erlang
 
-{ok, _ServerPid} = backwater:start_clear_server(Secret, [string]).
+backwater:start_clear_server(Secret, [string]).
+% {ok, _ServerPid}
 
 ```
 
@@ -42,6 +43,7 @@ Secret = crypto:strong_rand_bytes(32).
 ```erlang
 
 backwater:call({"127.0.0.1", Secret}, string, to_upper, ["hello"]).
+% {ok, "HELLO"}
 
 ```
 
