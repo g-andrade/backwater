@@ -169,7 +169,6 @@
 call(Endpoint, Module, Function, Args) ->
     call(Endpoint, Module, Function, Args, #{}).
 
-
 -spec call(Endpoint, Module, Function, Args, Options) -> Result | no_return()
         when Endpoint :: backwater_request:endpoint(),
              Module :: module(),
@@ -189,7 +188,6 @@ call(Endpoint, Module, Function, Args, Options) ->
             when Config :: backwater_cowboy_handler:config().
 start_clear_listener(Config) ->
     start_clear_listener(default, Config, [], #{}).
-
 
 -spec start_clear_listener(Ref, Config, TransportOpts, ProtoOpts)  -> {ok, pid()} | {error, term()}
             when Ref :: term(),
@@ -219,11 +217,9 @@ start_tls_listener(Ref, Config, TransportOpts0, ProtoOpts) ->
     TransportOpts = backwater_util:proplists_sort_and_merge(DefaultTransportOpts, TransportOpts0),
     start_cowboy(start_tls, Ref, Config, TransportOpts, ProtoOpts).
 
-
 -spec stop_listener() -> ok | {error, not_found}.
 stop_listener() ->
     stop_listener(default).
-
 
 -spec stop_listener(Ref) -> ok | {error, not_found}
             when Ref :: term().
