@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Changed
 - cowboy upgraded from 2.1.0 to 2.2.2
 - hackney upgraded from 1.10.1 to 1.11.0
+- the `backwater_http_request` module was renamed to `backwater_request`
+- the `backwater_http_response` module was renamed to `backwater_response`
+- the `backwater_http_signatures` module was renamed to `backwater_signatures`
 ### Removed
 - rebar3 plugin (it has its own project now - rebar3_backwater)
 

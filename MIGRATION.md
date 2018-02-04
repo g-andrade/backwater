@@ -10,6 +10,9 @@
     % into this
     {plugins, [{rebar3_backwater, "1.0.0"}]}.
 ```
+- any use of the `backwater_http_request` module to `backwater_request`
+- any use of the `backwater_http_response` module to `backwater_response`
+- any use of the `backwater_http_signatures` module to `backwater_signatures`
 
 ## From [1.x] to [2.x]
 ### Update
