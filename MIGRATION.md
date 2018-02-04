@@ -10,8 +10,22 @@
     % into this
     {plugins, [{rebar3_backwater, "1.0.0"}]}.
 ```
-- calls to `backwater_server:start_clear/4` to `backwater:start_clear_server/4`
-- calls to `backwater_server:start_tls/4` to `backwater:start_tls_server/4`
+- calls to `backwater_server:start_clear/4` to `backwater:start_clear_server/6`, like this:
+```
+    % change this
+    backwater_server:start(Ref, #{ secret => Secret, exposed_modules => ExposedModules, ..Opts... }, [], #{}).
+
+    % into this
+    backwater:start(Ref, Secret, ExposedModules, Opts, [], #{}).
+```
+- calls to `backwater_server:start_tls/4` to `backwater:start_tls_server/6`, like this:
+```
+    % change this
+    backwater_server:start(Ref, #{ secret => Secret, exposed_modules => ExposedModules, ..Opts... }, [], #{}).
+
+    % into this
+    backwater:start(Ref, Secret, ExposedModules, Opts, [], #{}).
+```
 - calls to `backwater_server:stop_listener/1` to `backwater:stop_server/1`
 - calls to `backwater_client:call/4`, like this:
 ```
@@ -48,7 +62,7 @@
     -backwater_export({bar,3}).
 
     % and declare it upon server start instead
-    backwater:start_clear_server(#{ ... exposed_modules := [{foo, [{exports,[{bar,3}]}]}] }).
+    backwater:start_clear_server(Secret, [{foo, [{exports,[{bar,3}]}]}]).
 ```
 - use of custom `backwater_export` functions (Elixir), like this:
 ```
@@ -59,7 +73,7 @@
         end
 
     % and declare it upon server start instead
-    :backwater.start_clear_server(%{ ... exposed_modules => [{Foo, [{:exports,[{:bar,3}]}]}] }).
+    :backwater.start_clear_server(secret, [{Foo, [{:exports,[{:bar,3}]}]}])
 ```
 ### Delete
 - Calls to `backwater_client:start/2`

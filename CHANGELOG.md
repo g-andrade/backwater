@@ -11,15 +11,14 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - the `backwater_http_request` module was renamed to `backwater_request`
 - the `backwater_http_response` module was renamed to `backwater_response`
 - the `backwater_http_signatures` module was renamed to `backwater_signatures`
-- `backwater_client:call` no longer takes a `Ref` - it now receives endpoint, secret and options explicitly.
-- `backwater_client:call` is now `backwater:call`
-- `backwater_server:start_clear` is now `backwater:start_clear_server`
-- `backwater_server:start_tls` is now `backwater:start_tls_server`
-- `backwater_server:stop_listener` is now `backwater:stop_server`
-- the default exposure policy, per module, from `use_backwater_attributes` to `all`
+- `backwater_client:call/4` is now `backwater:call/5` (see migration guide)
+- `backwater_server:start_clear/4` is now `backwater:start_clear_server/6` (see migration guide)
+- `backwater_server:start_tls/4` is now `backwater:start_tls_server/6` (see migration guide)
+- `backwater_server:stop_listener/1` is now `backwater:stop_server/1` (see migration guide)
+- the default exposure policy, per module, from `use_backwater_attributes` to `all` (see migration guide)
 ### Removed
-- rebar3 plugin (it has its own project now - rebar3_backwater)
-- support for defining module exposure through custom `backwater_export` attributes and functions
+- rebar3 plugin (it has its own project now - rebar3_backwater; see migration guide)
+- support for defining module exposure through custom `backwater_export` attributes and functions (see migration guide)
 
 ## [2.0.2] - 2018-02-03
 ### Fixed

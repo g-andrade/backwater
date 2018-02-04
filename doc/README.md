@@ -33,12 +33,7 @@ Secret = crypto:strong_rand_bytes(32).
 
 ```erlang
 
-
-{ok, _ServerPid} =
-    backwater:start_clear_server(
-        #{ secret => Secret,
-           exposed_modules => [string]
-         }).
+{ok, _ServerPid} = backwater:start_clear_server(Secret, [string]).
 
 ```
 
@@ -46,9 +41,7 @@ Secret = crypto:strong_rand_bytes(32).
 
 ```erlang
 
-
 backwater:call({"127.0.0.1", Secret}, string, to_upper, ["hello"]).
-% {ok, "HELLO"}
 
 ```
 
@@ -77,7 +70,7 @@ For Erlang/OTP 18 support, check the 1.1.x support versions.
 <table width="100%" border="0" summary="list of modules">
 <tr><td><a href="backwater.md" class="module">backwater</a></td></tr>
 <tr><td><a href="backwater_cowboy_handler.md" class="module">backwater_cowboy_handler</a></td></tr>
-<tr><td><a href="backwater_module_info.md" class="module">backwater_module_info</a></td></tr>
+<tr><td><a href="backwater_module_exposure.md" class="module">backwater_module_exposure</a></td></tr>
 <tr><td><a href="backwater_request.md" class="module">backwater_request</a></td></tr>
 <tr><td><a href="backwater_response.md" class="module">backwater_response</a></td></tr>
 <tr><td><a href="backwater_signatures.md" class="module">backwater_signatures</a></td></tr>

@@ -1,6 +1,6 @@
 
 
-# Module backwater_module_info #
+# Module backwater_module_exposure #
 * [Data Types](#types)
 * [Function Index](#index)
 * [Function Details](#functions)
@@ -27,26 +27,6 @@ content_type() = {<a href="#type-nonempty_binary">nonempty_binary()</a>, <a href
 
 <pre><code>
 exports() = #{<a href="#type-fun_arity_pair">fun_arity_pair()</a> =&gt; <a href="#type-fun_properties">fun_properties()</a>}
-</code></pre>
-
-
-
-
-### <a name="type-exposed_module">exposed_module()</a> ###
-
-
-<pre><code>
-exposed_module() = module() | {module(), [<a href="#type-exposed_module_opt">exposed_module_opt()</a>]}
-</code></pre>
-
-
-
-
-### <a name="type-exposed_module_opt">exposed_module_opt()</a> ###
-
-
-<pre><code>
-exposed_module_opt() = {exports, all | [atom()]}
 </code></pre>
 
 
@@ -87,6 +67,26 @@ lookup_result() = {true, {BinModule::<a href="#type-nonempty_binary">nonempty_bi
 
 <pre><code>
 module_info() = #{exports =&gt; <a href="#type-exports">exports()</a>}
+</code></pre>
+
+
+
+
+### <a name="type-opt">opt()</a> ###
+
+
+<pre><code>
+opt() = {exports, all | [{atom(), arity()}]}
+</code></pre>
+
+
+
+
+### <a name="type-t">t()</a> ###
+
+
+<pre><code>
+t() = module() | {module(), [<a href="#type-opt">opt()</a>]}
 </code></pre>
 
 <a name="index"></a>

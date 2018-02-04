@@ -45,7 +45,7 @@
 -type config_validation_error() ::
     {invalid_config_parameter, {Key :: term(), Value :: term()}} |
     {missing_mandatory_config_parameters, [Key :: term(), ...]} |
-    config_not_a_map.
+    options_not_a_map.
 -export_type([config_validation_error/0]).
 
 %% ------------------------------------------------------------------
@@ -147,7 +147,7 @@ validate_config_map(Config, MandatoryKeys, PairValidationFun) when is_map(Config
             {error, {missing_mandatory_config_parameters, lists:usort(MissingKeys)}}
     end;
 validate_config_map(_Config, _MandatoryKeys, _PairValidationFun) ->
-    {error, config_not_a_map}.
+    {error, options_not_a_map}.
 
 %% ------------------------------------------------------------------
 %% Internal Function Definitions

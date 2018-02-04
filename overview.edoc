@@ -28,20 +28,13 @@ Secret = crypto:strong_rand_bytes(32).
 ==== 2. Start the server ====
 
 <pre lang="erlang">
-<![CDATA[
-{ok, _ServerPid} =
-    backwater:start_clear_server(
-        #{ secret => Secret,
-           exposed_modules => [string]
-         }).]]>
+{ok, _ServerPid} = backwater:start_clear_server(Secret, [string]).
 </pre>
 
 ==== 3. Execute a remote call ====
 
 <pre lang="erlang">
-<![CDATA[
 backwater:call({"127.0.0.1", Secret}, string, to_upper, ["hello"]).
-% {ok, "HELLO"}]]>
 </pre>
 
 === Details ===

@@ -113,7 +113,7 @@ tls_opts() = [<a href="#type-tls_opt">tls_opt()</a>]
 ## Function Index ##
 
 
-<table width="100%" border="1" cellspacing="0" cellpadding="2" summary="function index"><tr><td valign="top"><a href="#call-4">call/4</a></td><td></td></tr><tr><td valign="top"><a href="#call-5">call/5</a></td><td></td></tr><tr><td valign="top"><a href="#start_clear_server-1">start_clear_server/1</a></td><td></td></tr><tr><td valign="top"><a href="#start_clear_server-4">start_clear_server/4</a></td><td></td></tr><tr><td valign="top"><a href="#start_tls_server-2">start_tls_server/2</a></td><td></td></tr><tr><td valign="top"><a href="#start_tls_server-4">start_tls_server/4</a></td><td></td></tr><tr><td valign="top"><a href="#stop_server-0">stop_server/0</a></td><td></td></tr><tr><td valign="top"><a href="#stop_server-1">stop_server/1</a></td><td></td></tr></table>
+<table width="100%" border="1" cellspacing="0" cellpadding="2" summary="function index"><tr><td valign="top"><a href="#call-4">call/4</a></td><td></td></tr><tr><td valign="top"><a href="#call-5">call/5</a></td><td></td></tr><tr><td valign="top"><a href="#start_clear_server-2">start_clear_server/2</a></td><td></td></tr><tr><td valign="top"><a href="#start_clear_server-6">start_clear_server/6</a></td><td></td></tr><tr><td valign="top"><a href="#start_tls_server-3">start_tls_server/3</a></td><td></td></tr><tr><td valign="top"><a href="#start_tls_server-6">start_tls_server/6</a></td><td></td></tr><tr><td valign="top"><a href="#stop_server-0">stop_server/0</a></td><td></td></tr><tr><td valign="top"><a href="#stop_server-1">stop_server/1</a></td><td></td></tr></table>
 
 
 <a name="functions"></a>
@@ -140,45 +140,45 @@ call(Endpoint, Module, Function, Args, Options) -&gt; Result | no_return()
 
 <ul class="definitions"><li><code>Endpoint = <a href="backwater_request.md#type-endpoint">backwater_request:endpoint()</a></code></li><li><code>Module = module()</code></li><li><code>Function = atom()</code></li><li><code>Args = [term()]</code></li><li><code>Options = <a href="#type-call_opts">call_opts()</a></code></li><li><code>Result = <a href="#type-call_result">call_result()</a></code></li></ul>
 
-<a name="start_clear_server-1"></a>
+<a name="start_clear_server-2"></a>
 
-### start_clear_server/1 ###
-
-<pre><code>
-start_clear_server(Config) -&gt; {ok, pid()} | {error, term()}
-</code></pre>
-
-<ul class="definitions"><li><code>Config = <a href="backwater_cowboy_handler.md#type-config">backwater_cowboy_handler:config()</a></code></li></ul>
-
-<a name="start_clear_server-4"></a>
-
-### start_clear_server/4 ###
+### start_clear_server/2 ###
 
 <pre><code>
-start_clear_server(Ref, Config, TransportOpts, ProtoOpts) -&gt; {ok, pid()} | {error, term()}
+start_clear_server(Secret, ExposedModules) -&gt; {ok, pid()} | {error, term()}
 </code></pre>
 
-<ul class="definitions"><li><code>Ref = term()</code></li><li><code>Config = <a href="backwater_cowboy_handler.md#type-config">backwater_cowboy_handler:config()</a></code></li><li><code>TransportOpts = <a href="#type-clear_opts">clear_opts()</a></code></li><li><code>ProtoOpts = <a href="#type-proto_opts">proto_opts()</a></code></li></ul>
+<ul class="definitions"><li><code>Secret = binary()</code></li><li><code>ExposedModules = [<a href="backwater_module_exposure.md#type-t">backwater_module_exposure:t()</a>]</code></li></ul>
 
-<a name="start_tls_server-2"></a>
+<a name="start_clear_server-6"></a>
 
-### start_tls_server/2 ###
+### start_clear_server/6 ###
 
 <pre><code>
-start_tls_server(Config, TransportOpts) -&gt; {ok, pid()} | {error, term()}
+start_clear_server(Ref, Secret, ExposedModules, Opts, TransportOpts, ProtoOpts) -&gt; {ok, pid()} | {error, term()}
 </code></pre>
 
-<ul class="definitions"><li><code>Config = <a href="backwater_cowboy_handler.md#type-config">backwater_cowboy_handler:config()</a></code></li><li><code>TransportOpts = <a href="#type-tls_opts">tls_opts()</a></code></li></ul>
+<ul class="definitions"><li><code>Ref = term()</code></li><li><code>Secret = binary()</code></li><li><code>ExposedModules = [<a href="backwater_module_exposure.md#type-t">backwater_module_exposure:t()</a>]</code></li><li><code>Opts = <a href="backwater_cowboy_handler.md#type-opts">backwater_cowboy_handler:opts()</a></code></li><li><code>TransportOpts = <a href="#type-clear_opts">clear_opts()</a></code></li><li><code>ProtoOpts = <a href="#type-proto_opts">proto_opts()</a></code></li></ul>
 
-<a name="start_tls_server-4"></a>
+<a name="start_tls_server-3"></a>
 
-### start_tls_server/4 ###
+### start_tls_server/3 ###
 
 <pre><code>
-start_tls_server(Ref, Config, TransportOpts, ProtoOpts) -&gt; {ok, pid()} | {error, term()}
+start_tls_server(Secret, ExposedModules, TransportOpts) -&gt; {ok, pid()} | {error, term()}
 </code></pre>
 
-<ul class="definitions"><li><code>Ref = term()</code></li><li><code>Config = <a href="backwater_cowboy_handler.md#type-config">backwater_cowboy_handler:config()</a></code></li><li><code>TransportOpts = <a href="#type-tls_opts">tls_opts()</a></code></li><li><code>ProtoOpts = <a href="#type-proto_opts">proto_opts()</a></code></li></ul>
+<ul class="definitions"><li><code>Secret = binary()</code></li><li><code>ExposedModules = [<a href="backwater_module_exposure.md#type-t">backwater_module_exposure:t()</a>]</code></li><li><code>TransportOpts = <a href="#type-tls_opts">tls_opts()</a></code></li></ul>
+
+<a name="start_tls_server-6"></a>
+
+### start_tls_server/6 ###
+
+<pre><code>
+start_tls_server(Ref, Secret, ExposedModules, Opts, TransportOpts, ProtoOpts) -&gt; {ok, pid()} | {error, term()}
+</code></pre>
+
+<ul class="definitions"><li><code>Ref = term()</code></li><li><code>Secret = binary()</code></li><li><code>ExposedModules = [<a href="backwater_module_exposure.md#type-t">backwater_module_exposure:t()</a>]</code></li><li><code>Opts = <a href="backwater_cowboy_handler.md#type-opts">backwater_cowboy_handler:opts()</a></code></li><li><code>TransportOpts = <a href="#type-tls_opts">tls_opts()</a></code></li><li><code>ProtoOpts = <a href="#type-proto_opts">proto_opts()</a></code></li></ul>
 
 <a name="stop_server-0"></a>
 

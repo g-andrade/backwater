@@ -18,7 +18,7 @@
 %% FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 %% DEALINGS IN THE SOFTWARE.
 
--module(backwater_module_info).
+-module(backwater_module_exposure).
 
 -include("backwater_common.hrl").
 
@@ -26,8 +26,8 @@
 %% API Function Exports
 %% ------------------------------------------------------------------
 
--export([exposed_module_name/1]).
--export([generate/1]).
+-export([module_name/1]).
+-export([interpret_list/1]).
 -export([metadata_export_list/0]).      -ignore_xref([metadata_export_list/0]).
 
 -dialyzer({nowarn_function, metadata_export_list/0}).
@@ -48,11 +48,11 @@
 -type exports() :: #{ fun_arity_pair() => fun_properties() }.
 -export_type([exports/0]).
 
--type exposed_module() :: module() | {module(), [exposed_module_opt()]}.
--export_type([exposed_module/0]).
+-type t() :: module() | {module(), [opt()]}.
+-export_type([t/0]).
 
--type exposed_module_opt() :: {exports, all | [atom()]}.
--export_type([exposed_module_opt/0]).
+-type opt() :: {exports, all | [{atom(),arity()}]}.
+-export_type([opt/0]).
 
 -type fun_arity_pair() :: {binary(), arity()}.
 -export_type([fun_arity_pair/0]).
@@ -74,16 +74,16 @@
 %% API Function Definitions
 %% ------------------------------------------------------------------
 
--spec exposed_module_name(exposed_module()) -> module().
+-spec module_name(t()) -> module().
 %% @private
-exposed_module_name({Module, _Opts}) ->
+module_name({Module, _Opts}) ->
     Module;
-exposed_module_name(Module) ->
+module_name(Module) ->
     Module.
 
--spec generate([exposed_module()]) -> #{ BinModule :: nonempty_binary() => module_info() }.
+-spec interpret_list([t()]) -> #{ BinModule :: nonempty_binary() => module_info() }.
 %% @private
-generate(ExposedModules) ->
+interpret_list(ExposedModules) ->
     KvList = lists:filtermap(fun find_and_parse_module_info/1, ExposedModules),
     maps:from_list(KvList).
 
@@ -99,9 +99,9 @@ metadata_export_list() ->
 %% Internal Function Definitions
 %% ------------------------------------------------------------------
 
--spec find_and_parse_module_info(exposed_module()) -> lookup_result().
+-spec find_and_parse_module_info(t()) -> lookup_result().
 find_and_parse_module_info(ExposedModule) ->
-    Module = exposed_module_name(ExposedModule),
+    Module = module_name(ExposedModule),
     case find_module_info(Module) of
         {ok, RawModuleInfo} ->
             BackwaterExports = determine_module_exports(ExposedModule, RawModuleInfo),
@@ -118,7 +118,7 @@ find_and_parse_module_info(ExposedModule) ->
             false
     end.
 
--spec exposed_module_opts(exposed_module()) -> [exposed_module_opt()].
+-spec exposed_module_opts(t()) -> [opt()].
 exposed_module_opts({_Module, Opts}) ->
     Opts;
 exposed_module_opts(_Module) ->
@@ -132,9 +132,9 @@ find_module_info(Module) ->
         error:undef -> error
     end.
 
--spec determine_module_exports(exposed_module(), raw_module_info()) -> exports().
+-spec determine_module_exports(t(), raw_module_info()) -> exports().
 determine_module_exports(ExposedModule, RawModuleInfo) ->
-    Module = exposed_module_name(ExposedModule),
+    Module = module_name(ExposedModule),
     Opts = exposed_module_opts(ExposedModule),
     {exports, AtomKeyedExports} = lists:keyfind(exports, 1, RawModuleInfo),
 

@@ -51,20 +51,20 @@
 %% ------------------------------------------------------------------
 
 -export(
-   [start_clear_server/1,
-    start_clear_server/4,
-    start_tls_server/2,
-    start_tls_server/4,
+   [start_clear_server/2,
+    start_clear_server/6,
+    start_tls_server/3,
+    start_tls_server/6,
     stop_server/0,
     stop_server/1,
     base_cowboy_route_parts/0 % internal
    ]).
 
 -ignore_xref(
-   [start_clear_server/1,
-    start_clear_server/4,
-    start_tls_server/2,
-    start_tls_server/4,
+   [start_clear_server/2,
+    start_clear_server/6,
+    start_tls_server/3,
+    start_tls_server/6,
     stop_server/0,
     stop_server/1
    ]).
@@ -183,38 +183,46 @@ call(Endpoint, Module, Function, Args, Options) ->
 %% API Function Definitions (server)
 %% ------------------------------------------------------------------
 
--spec start_clear_server(Config)  -> {ok, pid()} | {error, term()}
-            when Config :: backwater_cowboy_handler:config().
-start_clear_server(Config) ->
-    start_clear_server(default, Config, [], #{}).
+-spec start_clear_server(Secret, ExposedModules)
+    -> {ok, pid()} | {error, term()}
+            when Secret :: binary(),
+                 ExposedModules :: [backwater_module_exposure:t()].
+start_clear_server(Secret, ExposedModules) ->
+    start_clear_server(default, Secret, ExposedModules, #{}, [], #{}).
 
--spec start_clear_server(Ref, Config, TransportOpts, ProtoOpts)  -> {ok, pid()} | {error, term()}
+-spec start_clear_server(Ref, Secret, ExposedModules, Opts, TransportOpts, ProtoOpts)
+    -> {ok, pid()} | {error, term()}
             when Ref :: term(),
-                 Config :: backwater_cowboy_handler:config(),
+                 Secret :: binary(),
+                 ExposedModules :: [backwater_module_exposure:t()],
+                 Opts :: backwater_cowboy_handler:opts(),
                  TransportOpts :: clear_opts(),
                  ProtoOpts :: proto_opts().
-start_clear_server(Ref, Config, TransportOpts0, ProtoOpts) ->
+start_clear_server(Ref, Secret, ExposedModules, Opts, TransportOpts0, ProtoOpts) ->
     DefaultTransportOpts = default_transport_options(?DEFAULT_CLEAR_PORT),
     TransportOpts = backwater_util:proplists_sort_and_merge(DefaultTransportOpts, TransportOpts0),
-    start_cowboy(start_clear, Ref, Config, TransportOpts, ProtoOpts).
+    start_cowboy(start_clear, Ref, Secret, ExposedModules, Opts, TransportOpts, ProtoOpts).
 
-
--spec start_tls_server(Config, TransportOpts) -> {ok, pid()} | {error, term()}
-            when Config :: backwater_cowboy_handler:config(),
+-spec start_tls_server(Secret, ExposedModules, TransportOpts)
+    -> {ok, pid()} | {error, term()}
+            when Secret :: binary(),
+                 ExposedModules :: [backwater_module_exposure:t()],
                  TransportOpts :: tls_opts().
-start_tls_server(Config, TransportOpts) ->
-    start_tls_server(default, Config, TransportOpts, #{}).
+start_tls_server(Secret, ExposedModules, TransportOpts) ->
+    start_tls_server(default, Secret, ExposedModules, #{}, TransportOpts, #{}).
 
-
--spec start_tls_server(Ref, Config, TransportOpts, ProtoOpts) -> {ok, pid()} | {error, term()}
+-spec start_tls_server(Ref, Secret, ExposedModules, Opts, TransportOpts, ProtoOpts)
+    -> {ok, pid()} | {error, term()}
             when Ref :: term(),
-                 Config :: backwater_cowboy_handler:config(),
+                 Secret :: binary(),
+                 ExposedModules :: [backwater_module_exposure:t()],
+                 Opts :: backwater_cowboy_handler:opts(),
                  TransportOpts :: tls_opts(),
                  ProtoOpts :: proto_opts().
-start_tls_server(Ref, Config, TransportOpts0, ProtoOpts) ->
+start_tls_server(Ref, Secret, ExposedModules, Opts, TransportOpts0, ProtoOpts) ->
     DefaultTransportOpts = default_transport_options(?DEFAULT_TLS_PORT),
     TransportOpts = backwater_util:proplists_sort_and_merge(DefaultTransportOpts, TransportOpts0),
-    start_cowboy(start_tls, Ref, Config, TransportOpts, ProtoOpts).
+    start_cowboy(start_tls, Ref, Secret, ExposedModules, Opts, TransportOpts, ProtoOpts).
 
 -spec stop_server() -> ok | {error, not_found}.
 stop_server() ->
@@ -333,11 +341,11 @@ ensure_max_keepalive_in_map_proto_opts(ProtoOpts) ->
 ref(Ref) ->
     {backwater, Ref}.
 
--spec start_cowboy(start_clear | start_tls, term(), backwater_cowboy_handler:config(),
-                   clear_opts() | tls_opts(), proto_opts())
+-spec start_cowboy(start_clear | start_tls, term(), binary(), [backwater_module_exposure:t()],
+                   backwater_cowboy_handler:opts(), clear_opts() | tls_opts(), proto_opts())
         -> {ok, pid()} | {error, term()}.
-start_cowboy(StartFunction, Ref, Config, TransportOpts1, ProtoOpts) ->
-    case backwater_cowboy_handler:initial_state(Config) of
+start_cowboy(StartFunction, Ref, Secret, ExposedModules, Opts, TransportOpts1, ProtoOpts) ->
+    case backwater_cowboy_handler:initial_state(Secret, ExposedModules, Opts) of
         {ok, InitialHandlerState} ->
             RouteRule = cowboy_route_rule(InitialHandlerState),
             BackwaterDispatch = cowboy_router:compile([RouteRule]),
