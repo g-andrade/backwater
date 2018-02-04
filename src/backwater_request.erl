@@ -23,7 +23,6 @@
 -include_lib("hackney/include/hackney_lib.hrl").
 -include("backwater_client.hrl").
 -include("backwater_common.hrl").
--include("backwater_api.hrl").
 
 %% ------------------------------------------------------------------
 %% API Function Exports
@@ -149,9 +148,8 @@ base_request(Location, Method, Module, Function, Arity, Headers, Body) ->
     % encode full URL
     BaseURL = base_url(Location),
     AllPathComponents =
-        [iolist_to_binary(?BACKWATER_HTTP_API_BASE_ENDPOINT),
-         iolist_to_binary(?BACKWATER_HTTP_API_VERSION),
-         hackney_url:urlencode(atom_to_binary(Module, utf8)),
+        lists:map(fun list_to_binary/1, backwater:base_cowboy_route_parts()) ++
+        [hackney_url:urlencode(atom_to_binary(Module, utf8)),
          hackney_url:urlencode(atom_to_binary(Function, utf8)),
          integer_to_binary(Arity)],
     QueryString = <<>>,

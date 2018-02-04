@@ -28,7 +28,6 @@
 
 -module(backwater).
 
--include("backwater_api.hrl").
 -include("backwater_client.hrl").
 -include("backwater_common.hrl").
 
@@ -56,7 +55,8 @@
     start_tls_listener/2,
     start_tls_listener/4,
     stop_listener/0,
-    stop_listener/1
+    stop_listener/1,
+    base_cowboy_route_parts/0 % internal
    ]).
 
 -ignore_xref(
@@ -67,6 +67,11 @@
     stop_listener/0,
     stop_listener/1
    ]).
+
+-dialyzer(
+   {nowarn_function,
+    [base_cowboy_route_parts/0
+    ]}).
 
 %% ------------------------------------------------------------------
 %% Common Test Helper Exports
@@ -96,6 +101,9 @@
 -define(DEFAULT_TLS_PORT, 8443).
 -define(DEFAULT_NB_ACCEPTORS, 20).
 -define(DEFAULT_MAX_KEEPALIVE, 200). % max. nr of requests before closing a keep-alive connection
+
+-define(HTTP_API_API_BASE_ENDPOINT, "/backwater"). % we could make this configurable
+-define(HTTP_API_API_VERSION, "1").
 
 %% ------------------------------------------------------------------
 %% Type Definitions (caller)
@@ -222,6 +230,11 @@ stop_listener() ->
 stop_listener(Ref) ->
     cowboy:stop_listener(ref(Ref)).
 
+-spec base_cowboy_route_parts() -> [nonempty_string()].
+%% @private
+base_cowboy_route_parts() ->
+    [?HTTP_API_API_BASE_ENDPOINT, ?HTTP_API_API_VERSION].
+
 %% ------------------------------------------------------------------
 %% Internal Function Definitions (caller)
 %% ------------------------------------------------------------------
@@ -272,7 +285,8 @@ default_transport_options(Port) ->
 
 -spec cowboy_route_path(backwater_cowboy_handler:state()) -> route_path().
 cowboy_route_path(InitialHandlerState) ->
-    Path = io_lib:format("~s/~s/[...]", [?BACKWATER_HTTP_API_BASE_ENDPOINT, ?BACKWATER_HTTP_API_VERSION]),
+    Parts = base_cowboy_route_parts() ++ ["[...]"],
+    Path = string:join(Parts, "/"),
     {Path, [], backwater_cowboy_handler, InitialHandlerState}.
 
 -spec cowboy_route_rule(backwater_cowboy_handler:state()) -> route_rule().

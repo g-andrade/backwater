@@ -1,2 +1,0 @@
--define(BACKWATER_HTTP_API_BASE_ENDPOINT, "/backwater"). % we could make this configurable
--define(BACKWATER_HTTP_API_VERSION, "1").
