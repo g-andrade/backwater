@@ -40,8 +40,8 @@ Secret = crypto:strong_rand_bytes(32).
 
 <pre lang="erlang">
 <![CDATA[
-Endpoint = {"127.0.0.1", Secret},
-{ok, "hello"} = backwater:call(Endpoint, string, to_lower, ["Hello"]).]]>
+backwater:call({"127.0.0.1", Secret}, Endpoint, string, to_upper, ["hello"]).
+% {ok, "HELLO"}]]>
 </pre>
 
 === Details ===
