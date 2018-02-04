@@ -35,7 +35,7 @@ Secret = crypto:strong_rand_bytes(32).
 
 
 {ok, _ServerPid} =
-    backwater_server:start_clear(
+    backwater:start_clear_listener(
         #{ secret => Secret,
            exposed_modules => [{string, [{exports,all}]}]
          }).
@@ -48,7 +48,7 @@ Secret = crypto:strong_rand_bytes(32).
 
 
 Endpoint = {"127.0.0.1", Secret},
-{ok, "hello"} = backwater_client:call(Endpoint, string, to_lower, ["Hello"]).
+{ok, "hello"} = backwater:call(Endpoint, string, to_lower, ["Hello"]).
 
 ```
 
