@@ -20,6 +20,26 @@ __References__*
 
 
 
+### <a name="type-call_opts">call_opts()</a> ###
+
+
+<pre><code>
+call_opts() = #{hackney_opts =&gt; [<a href="#type-hackney_option">hackney_option()</a>], compression_threshold =&gt; non_neg_integer(), connect_timeout =&gt; timeout(), decode_unsafe_terms =&gt; boolean(), max_encoded_result_size =&gt; non_neg_integer(), recv_timeout =&gt; timeout(), rethrow_remote_exceptions =&gt; boolean()}
+</code></pre>
+
+
+
+
+### <a name="type-call_result">call_result()</a> ###
+
+
+<pre><code>
+call_result() = <a href="backwater_response.md#type-t">backwater_response:t</a>(<a href="#type-hackney_error">hackney_error()</a>)
+</code></pre>
+
+
+
+
 ### <a name="type-clear_opt">clear_opt()</a> ###
 
 
@@ -60,16 +80,6 @@ hackney_option() = <a href="proplists.md#type-property">proplists:property()</a>
 
 
 
-### <a name="type-options">options()</a> ###
-
-
-<pre><code>
-options() = #{hackney_opts =&gt; [<a href="#type-hackney_option">hackney_option()</a>], compression_threshold =&gt; non_neg_integer(), connect_timeout =&gt; timeout(), decode_unsafe_terms =&gt; boolean(), max_encoded_result_size =&gt; non_neg_integer(), recv_timeout =&gt; timeout(), rethrow_remote_exceptions =&gt; boolean()}
-</code></pre>
-
-
-
-
 ### <a name="type-proto_opts">proto_opts()</a> ###
 
 
@@ -78,16 +88,6 @@ proto_opts() = <a href="cowboy_http.md#type-opts">cowboy_http:opts()</a> | [{ato
 </code></pre>
 
 for (reasonable) retro-compatibility with cowboy 1.x
-
-
-
-### <a name="type-result">result()</a> ###
-
-
-<pre><code>
-result() = <a href="backwater_response.md#type-t">backwater_response:t</a>(<a href="#type-hackney_error">hackney_error()</a> | not_started)
-</code></pre>
-
 
 
 
@@ -128,7 +128,7 @@ tls_opts() = [<a href="#type-tls_opt">tls_opt()</a>]
 call(Endpoint, Module, Function, Args) -&gt; Result | no_return()
 </code></pre>
 
-<ul class="definitions"><li><code>Endpoint = <a href="backwater_request.md#type-endpoint">backwater_request:endpoint()</a></code></li><li><code>Module = module()</code></li><li><code>Function = atom()</code></li><li><code>Args = [term()]</code></li><li><code>Result = <a href="#type-result">result()</a></code></li></ul>
+<ul class="definitions"><li><code>Endpoint = <a href="backwater_request.md#type-endpoint">backwater_request:endpoint()</a></code></li><li><code>Module = module()</code></li><li><code>Function = atom()</code></li><li><code>Args = [term()]</code></li><li><code>Result = <a href="#type-call_result">call_result()</a></code></li></ul>
 
 <a name="call-5"></a>
 
@@ -138,7 +138,7 @@ call(Endpoint, Module, Function, Args) -&gt; Result | no_return()
 call(Endpoint, Module, Function, Args, Options) -&gt; Result | no_return()
 </code></pre>
 
-<ul class="definitions"><li><code>Endpoint = <a href="backwater_request.md#type-endpoint">backwater_request:endpoint()</a></code></li><li><code>Module = module()</code></li><li><code>Function = atom()</code></li><li><code>Args = [term()]</code></li><li><code>Options = <a href="#type-options">options()</a></code></li><li><code>Result = <a href="#type-result">result()</a></code></li></ul>
+<ul class="definitions"><li><code>Endpoint = <a href="backwater_request.md#type-endpoint">backwater_request:endpoint()</a></code></li><li><code>Module = module()</code></li><li><code>Function = atom()</code></li><li><code>Args = [term()]</code></li><li><code>Options = <a href="#type-call_opts">call_opts()</a></code></li><li><code>Result = <a href="#type-call_result">call_result()</a></code></li></ul>
 
 <a name="start_clear_listener-1"></a>
 
