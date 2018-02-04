@@ -158,16 +158,27 @@
 %% API Function Definitions (caller)
 %% ------------------------------------------------------------------
 
+%% @doc Performs remote call on `Endpoint'.
+%%
+%% Returns:
+%% - `{ok, ReturnValue}' in case of success
+%% - `{error, term()}' otherwise.
+%% @see call/5
 -spec call(Endpoint, Module, Function, Args) -> Result | no_return()
         when Endpoint :: backwater_request:endpoint(),
              Module :: module(),
              Function :: atom(),
              Args :: [term()],
              Result :: call_result().
-
 call(Endpoint, Module, Function, Args) ->
     call(Endpoint, Module, Function, Args, #{}).
 
+%% @doc Performs remote call on `Endpoint'.
+%%
+%% Returns:
+%% - `{ok, ReturnValue}' in case of success
+%% - `{error, term()}' otherwise.
+%% @see call/4
 -spec call(Endpoint, Module, Function, Args, Options) -> Result | no_return()
         when Endpoint :: backwater_request:endpoint(),
              Module :: module(),
@@ -175,7 +186,6 @@ call(Endpoint, Module, Function, Args) ->
              Args :: [term()],
              Options :: call_opts(),
              Result :: call_result().
-
 call(Endpoint, Module, Function, Args, Options) ->
     encode_request(Endpoint, Module, Function, Args, Options).
 
@@ -183,6 +193,13 @@ call(Endpoint, Module, Function, Args, Options) ->
 %% API Function Definitions (server)
 %% ------------------------------------------------------------------
 
+%% @doc Starts a cleartext cowboy listener that can handle remote calls.
+%%
+%% Returns:
+%% - `{ok, ServerPid}' in case of success
+%% - `{error, term()}' otherwise.
+%% @see call/4
+%% @see start_clear_server/6
 -spec start_clear_server(Secret, ExposedModules)
     -> {ok, pid()} | {error, term()}
             when Secret :: binary(),
@@ -190,6 +207,13 @@ call(Endpoint, Module, Function, Args, Options) ->
 start_clear_server(Secret, ExposedModules) ->
     start_clear_server(default, Secret, ExposedModules, #{}, [], #{}).
 
+%% @doc Like `:start_clear_server/2' but one can specify the listener name  and tune settings.
+%%
+%% Returns:
+%% - `{ok, ServerPid}' in case of success
+%% - `{error, term()}' otherwise.
+%% @see call/4
+%% @see start_clear_server/2
 -spec start_clear_server(Ref, Secret, ExposedModules, Opts, TransportOpts, ProtoOpts)
     -> {ok, pid()} | {error, term()}
             when Ref :: term(),
@@ -203,6 +227,13 @@ start_clear_server(Ref, Secret, ExposedModules, Opts, TransportOpts0, ProtoOpts)
     TransportOpts = backwater_util:proplists_sort_and_merge(DefaultTransportOpts, TransportOpts0),
     start_cowboy(start_clear, Ref, Secret, ExposedModules, Opts, TransportOpts, ProtoOpts).
 
+%% @doc Starts a TLS cowboy listener that can handle remote calls.
+%%
+%% Returns:
+%% - `{ok, ServerPid}' in case of success
+%% - `{error, term()}' otherwise.
+%% @see call/4
+%% @see start_tls_server/6
 -spec start_tls_server(Secret, ExposedModules, TransportOpts)
     -> {ok, pid()} | {error, term()}
             when Secret :: binary(),
@@ -211,6 +242,13 @@ start_clear_server(Ref, Secret, ExposedModules, Opts, TransportOpts0, ProtoOpts)
 start_tls_server(Secret, ExposedModules, TransportOpts) ->
     start_tls_server(default, Secret, ExposedModules, #{}, TransportOpts, #{}).
 
+%% @doc Like `:start_tls_server/3' but one can specify the listener name and tune (more) settings.
+%%
+%% Returns:
+%% - `{ok, ServerPid}' in case of success
+%% - `{error, term()}' otherwise.
+%% @see call/4
+%% @see start_tls_server/3
 -spec start_tls_server(Ref, Secret, ExposedModules, Opts, TransportOpts, ProtoOpts)
     -> {ok, pid()} | {error, term()}
             when Ref :: term(),
@@ -224,10 +262,12 @@ start_tls_server(Ref, Secret, ExposedModules, Opts, TransportOpts0, ProtoOpts) -
     TransportOpts = backwater_util:proplists_sort_and_merge(DefaultTransportOpts, TransportOpts0),
     start_cowboy(start_tls, Ref, Secret, ExposedModules, Opts, TransportOpts, ProtoOpts).
 
+%% @doc Stops the cowboy listener under the default name.
 -spec stop_server() -> ok | {error, not_found}.
 stop_server() ->
     stop_server(default).
 
+%% @doc Stops the cowboy listener under a specific name.
 -spec stop_server(Ref) -> ok | {error, not_found}
             when Ref :: term().
 stop_server(Ref) ->
