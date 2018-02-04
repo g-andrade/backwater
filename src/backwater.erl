@@ -24,25 +24,72 @@
 %% * [ranch_tcp:opt()](https://ninenines.eu/docs/en/ranch/1.4/manual/ranch_tcp/#_opt) documentation
 %% * [ranch_ssl:opt()](https://ninenines.eu/docs/en/ranch/1.4/manual/ranch_ssl/#_opt_ranch_tcp_opt_ssl_opt) documentation
 %% * [cowboy_http:opts()](https://ninenines.eu/docs/en/cowboy/2.0/manual/cowboy_http/#_options) documentation
+%% * hackney request options listed [here](https://github.com/benoitc/hackney/blob/master/doc/hackney.md)
 
--module(backwater_server).
+-module(backwater).
 
--include("backwater_common.hrl").
 -include("backwater_api.hrl").
+-include("backwater_client.hrl").
+-include("backwater_common.hrl").
 
 %% ------------------------------------------------------------------
-%% API Function Exports
+%% API Function Exports (caller)
 %% ------------------------------------------------------------------
 
--export([start_clear/1]).               -ignore_xref({start_clear,1}).
--export([start_clear/4]).               -ignore_xref({start_clear,4}).
--export([start_tls/2]).                 -ignore_xref({start_tls,2}).
--export([start_tls/4]).                 -ignore_xref({start_tls,4}).
--export([stop_listener/0]).             -ignore_xref({stop_listener,0}).
--export([stop_listener/1]).             -ignore_xref({stop_listener,1}).
+-export(
+   [call/4,
+    call/5
+   ]).
+
+-ignore_xref(
+   [call/4,
+    call/5
+   ]).
 
 %% ------------------------------------------------------------------
-%% Macro Definitions
+%% API Function Exports (listener)
+%% ------------------------------------------------------------------
+
+-export(
+   [start_clear_listener/1,
+    start_clear_listener/4,
+    start_tls_listener/2,
+    start_tls_listener/4,
+    stop_listener/0,
+    stop_listener/1
+   ]).
+
+-ignore_xref(
+   [start_clear_listener/1,
+    start_clear_listener/4,
+    start_tls_listener/2,
+    start_tls_listener/4,
+    stop_listener/0,
+    stop_listener/1
+   ]).
+
+%% ------------------------------------------------------------------
+%% Common Test Helper Exports
+%% ------------------------------------------------------------------
+
+-ifdef(TEST).
+-export(['_call'/6]).
+-endif.
+
+%% ------------------------------------------------------------------
+%% Macro Definitions (caller)
+%% ------------------------------------------------------------------
+
+-define(HTTP_REQUEST_ENCODING_OPTION_NAMES,
+        [compression_threshold]).
+
+-define(HTTP_RESPONSE_DECODING_OPTION_NAMES,
+        [decode_unsafe_terms,
+         max_encoded_result_size,
+         rethrow_remote_exceptions]).
+
+%% ------------------------------------------------------------------
+%% Macro Definitions (listener)
 %% ------------------------------------------------------------------
 
 -define(DEFAULT_CLEAR_PORT, 8080).
@@ -51,7 +98,31 @@
 -define(DEFAULT_MAX_KEEPALIVE, 200). % max. nr of requests before closing a keep-alive connection
 
 %% ------------------------------------------------------------------
-%% Type Definitions
+%% Type Definitions (caller)
+%% ------------------------------------------------------------------
+
+-type options() ::
+    #{ hackney_opts => [hackney_option()],
+       compression_threshold => non_neg_integer(),
+       connect_timeout => timeout(),
+       decode_unsafe_terms => boolean(),
+       max_encoded_result_size => non_neg_integer(),
+       recv_timeout => timeout(),
+       rethrow_remote_exceptions => boolean()
+     }.
+-export_type([options/0]).
+
+-type hackney_error() :: {hackney, term()}.
+-export_type([hackney_error/0]).
+
+-type hackney_option() :: proplists:property().
+-export_type([hackney_option/0]).
+
+-type result() :: backwater_response:t(hackney_error() | not_started).
+-export_type([result/0]).
+
+%% ------------------------------------------------------------------
+%% Type Definitions (listener)
 %% ------------------------------------------------------------------
 
 -type clear_opt() :: ranch:opt() | ranch_tcp:opt().
@@ -77,62 +148,123 @@
 -type route_rule() :: {'_' | nonempty_string(), [route_path(), ...]}.
 
 %% ------------------------------------------------------------------
-%% API Function Definitions
+%% API Function Definitions (caller)
 %% ------------------------------------------------------------------
 
--spec start_clear(Config)  -> {ok, pid()} | {error, term()}
+-spec call(Endpoint, Module, Function, Args) -> Result | no_return()
+        when Endpoint :: backwater_request:endpoint(),
+             Module :: module(),
+             Function :: atom(),
+             Args :: [term()],
+             Result :: result().
+
+call(Endpoint, Module, Function, Args) ->
+    call(Endpoint, Module, Function, Args, #{}).
+
+
+-spec call(Endpoint, Module, Function, Args, Options) -> Result | no_return()
+        when Endpoint :: backwater_request:endpoint(),
+             Module :: module(),
+             Function :: atom(),
+             Args :: [term()],
+             Options :: options(),
+             Result :: result().
+
+call(Endpoint, Module, Function, Args, Options) ->
+    encode_request(Endpoint, Module, Function, Args, Options).
+
+%% ------------------------------------------------------------------
+%% API Function Definitions (listener)
+%% ------------------------------------------------------------------
+
+-spec start_clear_listener(Config)  -> {ok, pid()} | {error, term()}
             when Config :: backwater_cowboy_handler:config().
+start_clear_listener(Config) ->
+    start_clear_listener(default, Config, [], #{}).
 
-start_clear(Config) ->
-    start_clear(default, Config, [], #{}).
 
-
--spec start_clear(Ref, Config, TransportOpts, ProtoOpts)  -> {ok, pid()} | {error, term()}
+-spec start_clear_listener(Ref, Config, TransportOpts, ProtoOpts)  -> {ok, pid()} | {error, term()}
             when Ref :: term(),
                  Config :: backwater_cowboy_handler:config(),
                  TransportOpts :: clear_opts(),
                  ProtoOpts :: proto_opts().
-
-start_clear(Ref, Config, TransportOpts0, ProtoOpts) ->
+start_clear_listener(Ref, Config, TransportOpts0, ProtoOpts) ->
     DefaultTransportOpts = default_transport_options(?DEFAULT_CLEAR_PORT),
     TransportOpts = backwater_util:proplists_sort_and_merge(DefaultTransportOpts, TransportOpts0),
     start_cowboy(start_clear, Ref, Config, TransportOpts, ProtoOpts).
 
 
--spec start_tls(Config, TransportOpts) -> {ok, pid()} | {error, term()}
+-spec start_tls_listener(Config, TransportOpts) -> {ok, pid()} | {error, term()}
             when Config :: backwater_cowboy_handler:config(),
                  TransportOpts :: tls_opts().
+start_tls_listener(Config, TransportOpts) ->
+    start_tls_listener(default, Config, TransportOpts, #{}).
 
-start_tls(Config, TransportOpts) ->
-    start_tls(default, Config, TransportOpts, #{}).
 
-
--spec start_tls(Ref, Config, TransportOpts, ProtoOpts) -> {ok, pid()} | {error, term()}
+-spec start_tls_listener(Ref, Config, TransportOpts, ProtoOpts) -> {ok, pid()} | {error, term()}
             when Ref :: term(),
                  Config :: backwater_cowboy_handler:config(),
                  TransportOpts :: tls_opts(),
                  ProtoOpts :: proto_opts().
-
-start_tls(Ref, Config, TransportOpts0, ProtoOpts) ->
+start_tls_listener(Ref, Config, TransportOpts0, ProtoOpts) ->
     DefaultTransportOpts = default_transport_options(?DEFAULT_TLS_PORT),
     TransportOpts = backwater_util:proplists_sort_and_merge(DefaultTransportOpts, TransportOpts0),
     start_cowboy(start_tls, Ref, Config, TransportOpts, ProtoOpts).
 
 
 -spec stop_listener() -> ok | {error, not_found}.
-
 stop_listener() ->
     stop_listener(default).
 
 
 -spec stop_listener(Ref) -> ok | {error, not_found}
             when Ref :: term().
-
 stop_listener(Ref) ->
     cowboy:stop_listener(ref(Ref)).
 
 %% ------------------------------------------------------------------
-%% Internal Function Definitions
+%% Internal Function Definitions (caller)
+%% ------------------------------------------------------------------
+
+-spec encode_request(backwater_request:endpoint(), module(), atom(), [term()], options())
+        -> backwater_response:t(Error) when Error :: {hackney, term()}.
+encode_request(Endpoint, Module, Function, Args, Options) ->
+    RequestOptions = maps:with(?HTTP_REQUEST_ENCODING_OPTION_NAMES, Options),
+    {Request, State} =
+        backwater_request:encode(Endpoint, Module, Function, Args, RequestOptions),
+    call_hackney(Request, State, Options).
+
+-spec call_hackney(backwater_request:t(), backwater_request:state(), options())
+        -> backwater_response:t(Error) when Error :: {hackney, term()}.
+call_hackney(Request, RequestState, Options) ->
+    #{ http_params := HttpParams, full_url := FullUrl } = Request,
+    #{ method := Method, headers := Headers, body := Body } = HttpParams,
+    DefaultHackneyOpts = default_hackney_opts(Options),
+    ExplicitHackneyOpts = maps:get(hackney_opts, Options, []),
+    MandatoryHackneyOpts = [with_body],
+    HackneyOpts = backwater_util:proplists_sort_and_merge(
+                    [DefaultHackneyOpts, ExplicitHackneyOpts, MandatoryHackneyOpts]),
+    Result = hackney:request(Method, FullUrl, Headers, Body, HackneyOpts),
+    handle_hackney_result(Result, RequestState, Options).
+
+handle_hackney_result({ok, StatusCode, Headers, Body}, RequestState, Options) ->
+    ResponseOptions = maps:with(?HTTP_RESPONSE_DECODING_OPTION_NAMES, Options),
+    backwater_response:decode(StatusCode, Headers, Body, RequestState, ResponseOptions);
+handle_hackney_result({error, Error}, _RequestState, _Options) ->
+    {error, {hackney, Error}}.
+
+default_hackney_opts(Options) ->
+    ConnectTimeout = maps:get(connect_timeout, Options, ?DEFAULT_OPT_CONNECT_TIMEOUT),
+    RecvTimeout = maps:get(recv_timeout, Options, ?DEFAULT_OPT_RECV_TIMEOUT),
+    MaxEncodedResultSize = maps:get(max_encoded_result_size, Options, ?DEFAULT_OPT_MAX_ENCODED_RESULT_SIZE),
+    [{pool, backwater_client},
+     {connect_timeout, ConnectTimeout},
+     {recv_timeout, RecvTimeout},
+     {max_body, MaxEncodedResultSize}
+    ].
+
+%% ------------------------------------------------------------------
+%% Internal Function Definitions (listener)
 %% ------------------------------------------------------------------
 
 default_transport_options(Port) ->
@@ -208,3 +340,20 @@ start_cowboy(StartFunction, Ref, Config, TransportOpts1, ProtoOpts) ->
         {error, Error} ->
             {error, Error}
     end.
+
+%% ------------------------------------------------------------------
+%% Common Test Helper Definitions
+%% ------------------------------------------------------------------
+
+-ifdef(TEST).
+%% @private
+'_call'(Endpoint, Module, Function, Args, Options, Override) ->
+    RequestEncodingOverride = maps:get(request, Override, #{}),
+    PrevDictionaryKeyValue = put(override, RequestEncodingOverride),
+    {Request, RequestState} = backwater_request:encode(Endpoint, Module, Function, Args, Options),
+    try
+        call_hackney(Request, RequestState, Options)
+    after
+        put(override, PrevDictionaryKeyValue)
+    end.
+-endif.

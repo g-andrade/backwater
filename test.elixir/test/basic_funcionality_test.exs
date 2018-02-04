@@ -7,15 +7,15 @@ defmodule BasicFuncionalityTest do
 
     # call existing function
     assert {:ok, [1,2,3]} ==
-      :backwater_client.call(endpoint, :erlang, :binary_to_list, [<<1,2,3>>])
+      :backwater.call(endpoint, :erlang, :binary_to_list, [<<1,2,3>>])
 
     # call non-existing function
     assert {:error, {:remote, {:not_found, _headers, _body}}} =
-      :backwater_client.call(endpoint, :erlang, :binary_to_listsy, [<<1,2,3>>])
+      :backwater.call(endpoint, :erlang, :binary_to_listsy, [<<1,2,3>>])
 
     # call non-existing module
     assert {:error, {:remote, {:forbidden, _headers, _body}}} =
-      :backwater_client.call(endpoint, :erlangsy, :binary_to_list, [<<1,2,3>>])
+      :backwater.call(endpoint, :erlangsy, :binary_to_list, [<<1,2,3>>])
 
     stop_backwater(ref)
   end
@@ -25,15 +25,15 @@ defmodule BasicFuncionalityTest do
 
     # call existing function
     assert {:ok, [2,4,6]} ==
-      :backwater_client.call(endpoint, Enum, :map, [[1,2,3], fn (x) -> x * 2 end])
+      :backwater.call(endpoint, Enum, :map, [[1,2,3], fn (x) -> x * 2 end])
 
     # call non-existing function
     assert {:error, {:remote, {:not_found, _headers, _body}}} =
-      :backwater_client.call(endpoint, Enum, :mapsyy, [[1,2,3], fn (x) -> x * 2 end])
+      :backwater.call(endpoint, Enum, :mapsyy, [[1,2,3], fn (x) -> x * 2 end])
 
     # call non-existing module
     assert {:error, {:remote, {:forbidden, _headers, _body}}} =
-      :backwater_client.call(endpoint, Enumsyy, :map, [[1,2,3], fn (x) -> x * 2 end])
+      :backwater.call(endpoint, Enumsyy, :map, [[1,2,3], fn (x) -> x * 2 end])
 
     stop_backwater(ref)
   end
@@ -43,18 +43,18 @@ defmodule BasicFuncionalityTest do
     # start server
     secret = :crypto.strong_rand_bytes(32)
     {:ok, _pid} =
-      :backwater_server.start_clear(ref,
-                                    %{:secret => secret,
-                                      :exposed_modules => exposed_modules,
-                                      :decode_unsafe_terms => true },
-                                    [{:port, 8080}],
-                                    [])
+      :backwater.start_clear_listener(ref,
+                                      %{:secret => secret,
+                                        :exposed_modules => exposed_modules,
+                                        :decode_unsafe_terms => true },
+                                      [{:port, 8080}],
+                                      [])
     endpoint = {"http://127.0.0.1:8080", secret}
     {ref, endpoint}
   end
 
   def stop_backwater(ref) do
-    :ok = :backwater_server.stop_listener(ref)
+    :ok = :backwater.stop_listener(ref)
     :timer.sleep(100)
   end
 

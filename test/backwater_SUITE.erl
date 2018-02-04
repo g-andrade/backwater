@@ -50,7 +50,7 @@ init_per_group(Name, Config) ->
            return_exception_stacktraces => ReturnExceptionStacktraces
          },
     ProtoOpts = #{},
-    {ok, _Pid} = backwater_server:StartFun(Name, ServerConfig, TransportOpts, ProtoOpts),
+    {ok, _Pid} = backwater:StartFun(Name, ServerConfig, TransportOpts, ProtoOpts),
 
     ClientEndpoint = {Location, Secret},
     ClientOptions = #{ hackney_opts => HackneyOpts },
@@ -62,7 +62,7 @@ init_per_group(Name, Config) ->
 end_per_group(_Name, Config1) ->
     {value, {ref, Ref}, Config2} = lists:keytake(ref, 1, Config1),
     Config3 = lists_keywithout([server_start_fun, name], 1, Config2),
-    ok = backwater_server:stop_listener(Ref),
+    ok = backwater:stop_listener(Ref),
     _ = application:stop(backwater),
     _ = application:stop(cowboy),
     Config3.
@@ -80,7 +80,7 @@ bad_server_start_config_grouptest(Config, Name) ->
         fun (ServerConfig) ->
                 TransportOpts = [{port,12345}],
                 ProtoOpts = #{},
-                backwater_server:StartFun(Ref, ServerConfig, TransportOpts, ProtoOpts)
+                backwater:StartFun(Ref, ServerConfig, TransportOpts, ProtoOpts)
         end,
 
     % not a map
@@ -139,7 +139,7 @@ server_start_ref_clash_grouptest(Config, Name, _Protocol) ->
         fun (ServerConfig) ->
                 TransportOpts = [{port,12346}],
                 ProtoOpts = #{},
-                backwater_server:StartFun(Ref, ServerConfig, TransportOpts, ProtoOpts)
+                backwater:StartFun(Ref, ServerConfig, TransportOpts, ProtoOpts)
         end,
 
     ?assertMatch(
@@ -150,7 +150,7 @@ server_start_ref_clash_grouptest(Config, Name, _Protocol) ->
        WrappedStartFun(#{ secret => <<>>, exposed_modules => [] })),
     ?assertEqual(
        ok,
-       backwater_server:stop_listener(Ref)).
+       backwater:stop_listener(Ref)).
 
 escaped_function_name_grouptest(Config) ->
     {client_endpoint, Endpoint} = lists:keyfind(client_endpoint, 1, Config),
@@ -159,7 +159,7 @@ escaped_function_name_grouptest(Config) ->
     Arg2 = rand:uniform(1000),
     ExpectedResult = Arg1 * Arg2,
     ?assertEqual({ok, ExpectedResult},
-                 backwater_client:call(Endpoint, erlang, '*', [Arg1, Arg2], Options)).
+                 backwater:call(Endpoint, erlang, '*', [Arg1, Arg2], Options)).
 
 compressed_arguments_grouptest(Config) ->
     {client_endpoint, Endpoint} = lists:keyfind(client_endpoint, 1, Config),
@@ -167,7 +167,7 @@ compressed_arguments_grouptest(Config) ->
     Arg = ?STRING_COPIES_FOOBAR_1000,
     ExpectedResult = length(Arg),
     ?assertEqual({ok, ExpectedResult},
-                 backwater_client:call(Endpoint, erlang, length, [Arg], Options)).
+                 backwater:call(Endpoint, erlang, length, [Arg], Options)).
 
 compressed_result_grouptest(Config) ->
     {client_endpoint, Endpoint} = lists:keyfind(client_endpoint, 1, Config),
@@ -176,7 +176,7 @@ compressed_result_grouptest(Config) ->
     Arg2 = 1000,
     ExpectedResult = ?STRING_COPIES_FOOBAR_1000,
     ?assertEqual({ok, ExpectedResult},
-                 backwater_client:call(Endpoint, string, copies, [Arg1, Arg2], Options)).
+                 backwater:call(Endpoint, string, copies, [Arg1, Arg2], Options)).
 
 compressed_argument_and_result_grouptest(Config) ->
     {client_endpoint, Endpoint} = lists:keyfind(client_endpoint, 1, Config),
@@ -184,7 +184,7 @@ compressed_argument_and_result_grouptest(Config) ->
     Arg = ?STRING_COPIES_FOOBAR_1000,
     ExpectedResult = list_to_binary(Arg),
     ?assertEqual({ok, ExpectedResult},
-                 backwater_client:call(Endpoint, erlang, list_to_binary, [Arg], Options)).
+                 backwater:call(Endpoint, erlang, list_to_binary, [Arg], Options)).
 
 wrong_location_grouptest(Config) ->
     {client_endpoint, {ValidLocation, Secret}} = lists:keyfind(client_endpoint, 1, Config),
@@ -195,7 +195,7 @@ wrong_location_grouptest(Config) ->
     ?assertMatch(
        {error, {{response_authentication, missing_request_id},
                 {not_found, _Headers, _Body}}},
-       backwater_client:call(Endpoint, erlang, '-', [Arg], Options)).
+       backwater:call(Endpoint, erlang, '-', [Arg], Options)).
 
 wrong_secret_grouptest(Config) ->
     {client_endpoint, {Location, _ValidSecret}} = lists:keyfind(client_endpoint, 1, Config),
@@ -206,7 +206,7 @@ wrong_secret_grouptest(Config) ->
     ?assertMatch(
        {error, {{response_authentication, missing_request_id},
                 {unauthorized, _Headers, <<"invalid_signature">>}}},
-       backwater_client:call(Endpoint, erlang, '-', [Arg], Options)).
+       backwater:call(Endpoint, erlang, '-', [Arg], Options)).
 
 wrong_request_auth_type_grouptest(Config) ->
     {client_endpoint, Endpoint} = lists:keyfind(client_endpoint, 1, Config),
@@ -219,7 +219,7 @@ wrong_request_auth_type_grouptest(Config) ->
     ?assertMatch(
        {error, {{response_authentication, missing_request_id},
                 {unauthorized, _Headers, <<"invalid_auth_type">>}}},
-       backwater_client:'_call'(Endpoint, erlang, '-', [Arg], Options, Override)).
+       backwater:'_call'(Endpoint, erlang, '-', [Arg], Options, Override)).
 
 malformed_request_auth_not_params_grouptest(Config) ->
     {client_endpoint, Endpoint} = lists:keyfind(client_endpoint, 1, Config),
@@ -232,7 +232,7 @@ malformed_request_auth_not_params_grouptest(Config) ->
     ?assertMatch(
        {error, {{response_authentication, missing_request_id},
                 {unauthorized, _Headers, <<"invalid_header_params">>}}},
-       backwater_client:'_call'(Endpoint, erlang, '-', [Arg], Options, Override)).
+       backwater:'_call'(Endpoint, erlang, '-', [Arg], Options, Override)).
 
 malformed_request_auth_badly_quoted_params_grouptest(Config) ->
     {client_endpoint, Endpoint} = lists:keyfind(client_endpoint, 1, Config),
@@ -245,7 +245,7 @@ malformed_request_auth_badly_quoted_params_grouptest(Config) ->
     ?assertMatch(
        {error, {{response_authentication, missing_request_id},
                 {unauthorized, _Headers, <<"invalid_header_params">>}}},
-       backwater_client:'_call'(Endpoint, erlang, '-', [Arg], Options, Override)).
+       backwater:'_call'(Endpoint, erlang, '-', [Arg], Options, Override)).
 
 missing_request_auth_grouptest(Config) ->
     {client_endpoint, Endpoint} = lists:keyfind(client_endpoint, 1, Config),
@@ -257,7 +257,7 @@ missing_request_auth_grouptest(Config) ->
     ?assertMatch(
        {error, {{response_authentication, missing_request_id},
                 {unauthorized, _Headers, <<"missing_authorization_header">>}}},
-       backwater_client:'_call'(Endpoint, erlang, '-', [Arg], Options, Override)).
+       backwater:'_call'(Endpoint, erlang, '-', [Arg], Options, Override)).
 
 missing_request_digest_grouptest(Config) ->
     {client_endpoint, Endpoint} = lists:keyfind(client_endpoint, 1, Config),
@@ -269,7 +269,7 @@ missing_request_digest_grouptest(Config) ->
     ?assertMatch(
        {error, {{response_authentication, missing_request_id},
                 {unauthorized, _Headers, <<"{missing_header,<<\"digest\">>}">>}}},
-       backwater_client:'_call'(Endpoint, erlang, '-', [Arg], Options, Override)).
+       backwater:'_call'(Endpoint, erlang, '-', [Arg], Options, Override)).
 
 missing_request_request_id_grouptest(Config) ->
     {client_endpoint, Endpoint} = lists:keyfind(client_endpoint, 1, Config),
@@ -281,7 +281,7 @@ missing_request_request_id_grouptest(Config) ->
     ?assertMatch(
        {error, {{response_authentication, missing_request_id},
                 {unauthorized, _Headers, <<"{missing_header,<<\"x-request-id\">>}">>}}},
-       backwater_client:'_call'(Endpoint, erlang, '-', [Arg], Options, Override)).
+       backwater:'_call'(Endpoint, erlang, '-', [Arg], Options, Override)).
 
 invalid_path_grouptest(Config) ->
     {client_endpoint, Endpoint} = lists:keyfind(client_endpoint, 1, Config),
@@ -292,7 +292,7 @@ invalid_path_grouptest(Config) ->
             #{ update_url_with => append_to_binary_fun(<<"/blah">>) } },
     ?assertMatch(
        {error, {remote, {bad_request, _Headers, _Body}}},
-       backwater_client:'_call'(Endpoint, erlang, '-', [Arg], Options, Override)).
+       backwater:'_call'(Endpoint, erlang, '-', [Arg], Options, Override)).
 
 negative_url_arity_grouptest(Config) ->
     {client_endpoint, Endpoint} = lists:keyfind(client_endpoint, 1, Config),
@@ -303,7 +303,7 @@ negative_url_arity_grouptest(Config) ->
             #{ update_url_with => replace_url_part_fun(<<"-1">>, -1) } },
     ?assertMatch(
        {error, {remote, {bad_request, _Headers, _Body}}},
-       backwater_client:'_call'(Endpoint, erlang, '-', [Arg], Options, Override)).
+       backwater:'_call'(Endpoint, erlang, '-', [Arg], Options, Override)).
 
 big_url_arity_grouptest(Config) ->
     {client_endpoint, Endpoint} = lists:keyfind(client_endpoint, 1, Config),
@@ -314,7 +314,7 @@ big_url_arity_grouptest(Config) ->
             #{ update_url_with => replace_url_part_fun(<<"256">>, -1) } },
     ?assertMatch(
        {error, {remote, {bad_request, _Headers, _body}}},
-       backwater_client:'_call'(Endpoint, erlang, '-', [Arg], Options, Override)).
+       backwater:'_call'(Endpoint, erlang, '-', [Arg], Options, Override)).
 
 nonnumeric_url_arity_grouptest(Config) ->
     {client_endpoint, Endpoint} = lists:keyfind(client_endpoint, 1, Config),
@@ -325,7 +325,7 @@ nonnumeric_url_arity_grouptest(Config) ->
             #{ update_url_with => replace_url_part_fun(<<"foobar">>, -1) } },
     ?assertMatch(
        {error, {remote, {bad_request, _Headers, _Body}}},
-       backwater_client:'_call'(Endpoint, erlang, '-', [Arg], Options, Override)).
+       backwater:'_call'(Endpoint, erlang, '-', [Arg], Options, Override)).
 
 unallowed_method_grouptest(Config) ->
     {client_endpoint, Endpoint} = lists:keyfind(client_endpoint, 1, Config),
@@ -336,7 +336,7 @@ unallowed_method_grouptest(Config) ->
             #{ update_method_with => value_fun1(<<"GET">>) } },
     ?assertMatch(
        {error, {remote, {method_not_allowed, _Headers, _Body}}},
-       backwater_client:'_call'(Endpoint, erlang, '-', [Arg], Options, Override)).
+       backwater:'_call'(Endpoint, erlang, '-', [Arg], Options, Override)).
 
 unauthorized_module_grouptest(Config) ->
     {client_endpoint, Endpoint} = lists:keyfind(client_endpoint, 1, Config),
@@ -344,7 +344,7 @@ unauthorized_module_grouptest(Config) ->
     Arg = rand:uniform(1000),
     ?assertMatch(
        {error, {remote, {forbidden, _Headers, _Body}}},
-       backwater_client:call(Endpoint, erlangsssss, '-', [Arg], Options)).
+       backwater:call(Endpoint, erlangsssss, '-', [Arg], Options)).
 
 non_existing_module_grouptest(Config) ->
     {client_endpoint, Endpoint} = lists:keyfind(client_endpoint, 1, Config),
@@ -352,7 +352,7 @@ non_existing_module_grouptest(Config) ->
     Arg = rand:uniform(1000),
     ?assertMatch(
        {error, {remote, {not_found, _Headers, _Body}}},
-       backwater_client:call(Endpoint, non_existing_module, '-', [Arg], Options)).
+       backwater:call(Endpoint, non_existing_module, '-', [Arg], Options)).
 
 non_existing_function_grouptest(Config) ->
     {client_endpoint, Endpoint} = lists:keyfind(client_endpoint, 1, Config),
@@ -360,7 +360,7 @@ non_existing_function_grouptest(Config) ->
     Arg = rand:uniform(1000),
     ?assertMatch(
        {error, {remote, {not_found, _Headers, _Body}}},
-       backwater_client:call(Endpoint, erlang, '-----', [Arg], Options)).
+       backwater:call(Endpoint, erlang, '-----', [Arg], Options)).
 
 unsupported_content_type_grouptest(Config) ->
     {client_endpoint, Endpoint} = lists:keyfind(client_endpoint, 1, Config),
@@ -372,7 +372,7 @@ unsupported_content_type_grouptest(Config) ->
                     update_header_fun(<<"content-type">>, <<"text/plain">>) } },
     ?assertMatch(
        {error, {remote, {unsupported_media_type, _Headers, _Body}}},
-       backwater_client:'_call'(Endpoint, erlang, '-', [Arg], Options, Override)).
+       backwater:'_call'(Endpoint, erlang, '-', [Arg], Options, Override)).
 
 unsupported_content_encoding_grouptest(Config) ->
     {client_endpoint, Endpoint} = lists:keyfind(client_endpoint, 1, Config),
@@ -384,7 +384,7 @@ unsupported_content_encoding_grouptest(Config) ->
                     update_header_fun(<<"content-encoding">>, <<"deflate">>) } },
     ?assertMatch(
        {error, {remote, {unsupported_media_type, _Headers, _Body}}},
-       backwater_client:'_call'(Endpoint, erlang, '-', [Arg], Options, Override)).
+       backwater:'_call'(Endpoint, erlang, '-', [Arg], Options, Override)).
 
 unsupported_accepted_content_encoding_grouptest(Config) ->
     {client_endpoint, Endpoint} = lists:keyfind(client_endpoint, 1, Config),
@@ -396,7 +396,7 @@ unsupported_accepted_content_encoding_grouptest(Config) ->
                     update_header_fun(<<"accept">>, <<"text/plain">>) } },
     ?assertMatch(
        {error, {remote, {not_acceptable, _Headers, _Body}}},
-       backwater_client:'_call'(Endpoint, erlang, '-', [Arg], Options, Override)).
+       backwater:'_call'(Endpoint, erlang, '-', [Arg], Options, Override)).
 
 malformed_arguments_grouptest(Config) ->
     {client_endpoint, Endpoint} = lists:keyfind(client_endpoint, 1, Config),
@@ -408,7 +408,7 @@ malformed_arguments_grouptest(Config) ->
                     value_fun1(crypto:strong_rand_bytes(100)) } },
     ?assertMatch(
        {error, {remote, {bad_request, _Headers, _Body}}},
-       backwater_client:'_call'(Endpoint, erlang, '-', [Arg], Options, Override)).
+       backwater:'_call'(Endpoint, erlang, '-', [Arg], Options, Override)).
 
 malformed_compressed_arguments_grouptest(Config) ->
     {client_endpoint, Endpoint} = lists:keyfind(client_endpoint, 1, Config),
@@ -420,7 +420,7 @@ malformed_compressed_arguments_grouptest(Config) ->
                     value_fun1(crypto:strong_rand_bytes(100)) } },
     ?assertMatch(
        {error, {remote, {bad_request, _Headers, _Body}}},
-       backwater_client:'_call'(Endpoint, erlang, length, [Arg], Options, Override)).
+       backwater:'_call'(Endpoint, erlang, length, [Arg], Options, Override)).
 
 maliciously_compressed_arguments_grouptest(Config) ->
     {client_endpoint, Endpoint} = lists:keyfind(client_endpoint, 1, Config),
@@ -432,7 +432,7 @@ maliciously_compressed_arguments_grouptest(Config) ->
             #{ {update_body_with, before_compression} => value_fun1(EncodedArguments) } },
     ?assertMatch(
        {error, {remote, {bad_request, _Headers, _Body}}},
-       backwater_client:'_call'(Endpoint, erlang, length, [dummy], Options, Override)).
+       backwater:'_call'(Endpoint, erlang, length, [dummy], Options, Override)).
 
 inconsistent_arguments_arity_grouptest(Config) ->
     {client_endpoint, Endpoint} = lists:keyfind(client_endpoint, 1, Config),
@@ -443,7 +443,7 @@ inconsistent_arguments_arity_grouptest(Config) ->
             #{ update_arity_with => value_fun1(2) } },
     ?assertMatch(
        {error, {remote, {bad_request, _Headers, _Body}}},
-       backwater_client:'_call'(Endpoint, erlang, '-', [Arg], Options, Override)).
+       backwater:'_call'(Endpoint, erlang, '-', [Arg], Options, Override)).
 
 wrong_arguments_type_grouptest(Config) ->
     {client_endpoint, Endpoint} = lists:keyfind(client_endpoint, 1, Config),
@@ -454,7 +454,7 @@ wrong_arguments_type_grouptest(Config) ->
             #{ {update_body_with,before_compression} => value_fun1(EncodedArguments) } },
     ?assertMatch(
        {error, {remote, {bad_request, _Headers, _Body}}},
-       backwater_client:'_call'(Endpoint, erlang, '-', [dummy], Options, Override)).
+       backwater:'_call'(Endpoint, erlang, '-', [dummy], Options, Override)).
 
 wrong_arguments_digest_grouptest(Config) ->
     {client_endpoint, Endpoint} = lists:keyfind(client_endpoint, 1, Config),
@@ -468,7 +468,7 @@ wrong_arguments_digest_grouptest(Config) ->
                     end} },
     ?assertMatch(
        {error, {remote, {unauthorized, _Headers, _Body}}},
-       backwater_client:'_call'(Endpoint, erlang, '-', [DummyArg], Options, Override)).
+       backwater:'_call'(Endpoint, erlang, '-', [DummyArg], Options, Override)).
 
 too_big_arguments_grouptest(Config) ->
     too_big_compressed_arguments_grouptest(Config, 9).
@@ -482,7 +482,7 @@ too_big_arguments_grouptest(Config, RetriesLeft) ->
         #{ request =>
             #{ {update_body_with, before_authentication} => value_fun1(EncodedArguments) } },
 
-    case backwater_client:'_call'(Endpoint, erlang, '-', [DummyArg], Options, Override) of
+    case backwater:'_call'(Endpoint, erlang, '-', [DummyArg], Options, Override) of
         {error, {remote, {payload_too_large, _Headers, _Body}}} ->
             ok;
         {error, {hackney, closed}} when RetriesLeft > 0 ->
@@ -502,7 +502,7 @@ too_big_compressed_arguments_grouptest(Config, RetriesLeft) ->
         #{ request =>
             #{ {update_body_with, before_compression} => value_fun1(EncodedArguments) } },
 
-    case backwater_client:'_call'(Endpoint, erlang, '-', [DummyArg], Options, Override) of
+    case backwater:'_call'(Endpoint, erlang, '-', [DummyArg], Options, Override) of
         {error, {remote, {payload_too_large, _Headers, _Body}}} ->
             ok;
         {error, {hackney, closed}} when RetriesLeft > 0 ->
@@ -524,11 +524,11 @@ exception_error_result_grouptest(Config, ReturnExceptionStacktraces) ->
         true ->
             ?assertMatch(
                {error, {exception, {error, badarith, [{erlang,'/',[Arg1, Arg2], _}]}}},
-               backwater_client:call(Endpoint, erlang, '/', [Arg1, Arg2], Options));
+               backwater:call(Endpoint, erlang, '/', [Arg1, Arg2], Options));
         false ->
             ?assertMatch(
                {error, {exception, {error, badarith, []}}},
-               backwater_client:call(Endpoint, erlang, '/', [Arg1, Arg2], Options))
+               backwater:call(Endpoint, erlang, '/', [Arg1, Arg2], Options))
     end.
 
 exception_throwing_result_grouptest(Config) ->
@@ -542,7 +542,7 @@ exception_throwing_result_grouptest(Config, ReturnExceptionStacktraces) ->
     Options = BaseOptions#{ rethrow_remote_exceptions => true },
     Arg1 = rand:uniform(1000),
     Arg2 = 0,
-    CaughtResult = (catch backwater_client:call(Endpoint, erlang, '/', [Arg1, Arg2], Options)),
+    CaughtResult = (catch backwater:call(Endpoint, erlang, '/', [Arg1, Arg2], Options)),
     case ReturnExceptionStacktraces of
         true ->
             ?assertMatch(
@@ -570,7 +570,7 @@ unsafe_argument_grouptest(Config) ->
         #{ request =>
             #{ {update_body_with, before_authentication} => value_fun1(EncodedArguments) } },
 
-    Result = backwater_client:'_call'(Endpoint, erlang, atom_to_binary, [placeholder, utf8],
+    Result = backwater:'_call'(Endpoint, erlang, atom_to_binary, [placeholder, utf8],
                                       Options, Override),
     case DecodeUnsafeTerms of
         true ->
@@ -586,41 +586,41 @@ backwater_attributes_exported_grouptest(Config) ->
     % exported both regularly and through backwater attribute
     ?assertEqual(
        {ok, {foobar}},
-       backwater_client:call(Endpoint, module_with_backwater_attributes, 'exported_functionA',
-                             [], Options)),
+       backwater:call(Endpoint, module_with_backwater_attributes, 'exported_functionA',
+                      [], Options)),
 
     % exported only regularly
     ArgB = rand:uniform(1000),
     ?assertMatch(
        {error, {remote, {not_found, _Headers, _Body}}},
-       backwater_client:call(Endpoint, module_with_backwater_attributes, 'exported_functionB',
-                             [ArgB], Options)),
+       backwater:call(Endpoint, module_with_backwater_attributes, 'exported_functionB',
+                      [ArgB], Options)),
 
     % exported both regularly and through backwater attribute
     ?assertEqual(
        {ok, {barfoo}},
-       backwater_client:call(Endpoint, module_with_backwater_attributes, 'exported_functionC',
-                             [], Options)),
+       backwater:call(Endpoint, module_with_backwater_attributes, 'exported_functionC',
+                      [], Options)),
 
     % exported both regularly and through backwater attribute
     ArgD = rand:uniform(1000),
     ?assertEqual(
        {ok, {ArgD}},
-       backwater_client:call(Endpoint, module_with_backwater_attributes, 'exported_functionD',
-                             [ArgD], Options)),
+       backwater:call(Endpoint, module_with_backwater_attributes, 'exported_functionD',
+                      [ArgD], Options)),
 
     % exported only through backwater attribute
     ?assertMatch(
        {error, {remote, {not_found, _Headers, _Body}}},
-       backwater_client:call(Endpoint, module_with_backwater_attributes, 'exported_functionE',
-                             [], Options)),
+       backwater:call(Endpoint, module_with_backwater_attributes, 'exported_functionE',
+                      [], Options)),
 
     ArgInternal = rand:uniform(1000),
     % existing internal function
     ?assertMatch(
        {error, {remote, {not_found, _Headers, _Body}}},
-       backwater_client:call(Endpoint, module_with_backwater_attributes, 'internal_function',
-                             [ArgInternal], Options)).
+       backwater:call(Endpoint, module_with_backwater_attributes, 'internal_function',
+                      [ArgInternal], Options)).
 
 %%%
 all_group_tests() ->
@@ -679,7 +679,7 @@ get_starting_params_(http) ->
     Endpoint = <<"http://127.0.0.1:", (integer_to_binary(Port))/binary>>,
     TransportOpts = [{port, Port}],
     HackneyOpts = [],
-    {Endpoint, start_clear, TransportOpts, HackneyOpts};
+    {Endpoint, start_clear_listener, TransportOpts, HackneyOpts};
 get_starting_params_(https) ->
     Port = ?TLS_PORT,
     Endpoint = <<"https://127.0.0.1:", (integer_to_binary(Port))/binary>>,
@@ -690,7 +690,7 @@ get_starting_params_(https) ->
     HackneyOpts =
         [insecure,
          {ssl_options, [{server_name_indication, disable}]}],
-    {Endpoint, start_tls, TransportOpts, HackneyOpts}.
+    {Endpoint, start_tls_listener, TransportOpts, HackneyOpts}.
 
 ssl_certificate_path() ->
     Path = filename:join([source_directory(), "data", "ssl"]),

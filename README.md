@@ -75,12 +75,11 @@ For Erlang/OTP 18 support, check the 1.1.x support versions.
 
 
 <table width="100%" border="0" summary="list of modules">
-<tr><td><a href="https://github.com/g-andrade/backwater/blob/master/doc/backwater_client.md" class="module">backwater_client</a></td></tr>
+<tr><td><a href="https://github.com/g-andrade/backwater/blob/master/doc/backwater.md" class="module">backwater</a></td></tr>
 <tr><td><a href="https://github.com/g-andrade/backwater/blob/master/doc/backwater_cowboy_handler.md" class="module">backwater_cowboy_handler</a></td></tr>
 <tr><td><a href="https://github.com/g-andrade/backwater/blob/master/doc/backwater_module_info.md" class="module">backwater_module_info</a></td></tr>
 <tr><td><a href="https://github.com/g-andrade/backwater/blob/master/doc/backwater_request.md" class="module">backwater_request</a></td></tr>
 <tr><td><a href="https://github.com/g-andrade/backwater/blob/master/doc/backwater_response.md" class="module">backwater_response</a></td></tr>
-<tr><td><a href="https://github.com/g-andrade/backwater/blob/master/doc/backwater_server.md" class="module">backwater_server</a></td></tr>
 <tr><td><a href="https://github.com/g-andrade/backwater/blob/master/doc/backwater_signatures.md" class="module">backwater_signatures</a></td></tr>
 <tr><td><a href="https://github.com/g-andrade/backwater/blob/master/doc/backwater_util.md" class="module">backwater_util</a></td></tr></table>
 

@@ -10,15 +10,18 @@
     % into this
     {plugins, [{rebar3_backwater, "1.0.0"}]}.
 ```
+- calls to `backwater_server:start_clear/4` to `backwater:start_clear_listener/4`
+- calls to `backwater_server:start_tls/4` to `backwater:start_tls_listener/4`
+- calls to `backwater_server:stop_listener/1` to `backwater:stop_listener/1`
 - calls to `backwater_client:call/4`, like this:
 ```
-    % change this
+    % change these
     backwater_client:start(Ref, #{ endpoint => Location, secret => Secret }),
     backwater_client:call(Ref, Module, Function, Args).
 
     % into either of these (depending on whether you.re overriding default options)
-    backwater_client:call({Location, Secret}, Module, Function, Args).
-    backwater_client:call({Location, Secret}, Module, Function, Args, Options).
+    backwater:call({Location, Secret}, Module, Function, Args).
+    backwater:call({Location, Secret}, Module, Function, Args, Options).
 ```
 - calls to `backwater_http_response` module (rename to `backwater_response`)
 - calls to `backwater_http_signatures` module (rename to `backwater_signatures`)
@@ -39,8 +42,8 @@
     backwater_request:encode({Location, Secret}, Module, Function, Args, Options)
 ```
 ### Delete
-- Calls to `backwater_http_client:start/2`
-- Calls to `backwater_http_client:stop/1`
+- Calls to `backwater_client:start/2`
+- Calls to `backwater_client:stop/1`
 
 ## From [1.x] to [2.x]
 ### Update
