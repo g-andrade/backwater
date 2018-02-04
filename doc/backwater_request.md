@@ -46,7 +46,7 @@ http_params() = #{method =&gt; <a href="#type-nonempty_binary">nonempty_binary()
 
 
 <pre><code>
-location() = <a href="#type-nonempty_binary">nonempty_binary()</a>
+location() = <a href="#type-nonempty_binary">nonempty_binary()</a> | nonempty_string() | {nonempty_string(), <a href="inet.md#type-port_number">inet:port_number()</a>} | <a href="inet.md#type-ip_address">inet:ip_address()</a> | {<a href="inet.md#type-ip_address">inet:ip_address()</a>, <a href="inet.md#type-port_number">inet:port_number()</a>}
 </code></pre>
 
 

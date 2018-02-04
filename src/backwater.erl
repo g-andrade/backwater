@@ -28,6 +28,7 @@
 
 -module(backwater).
 
+-include("backwater_api.hrl").
 -include("backwater_client.hrl").
 -include("backwater_common.hrl").
 
@@ -97,8 +98,6 @@
 %% Macro Definitions (listener)
 %% ------------------------------------------------------------------
 
--define(DEFAULT_CLEAR_PORT, 8080).
--define(DEFAULT_TLS_PORT, 8443).
 -define(DEFAULT_NB_ACCEPTORS, 20).
 -define(DEFAULT_MAX_KEEPALIVE, 200). % max. nr of requests before closing a keep-alive connection
 

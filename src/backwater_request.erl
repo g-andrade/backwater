@@ -21,8 +21,13 @@
 -module(backwater_request).
 
 -include_lib("hackney/include/hackney_lib.hrl").
+-include("backwater_api.hrl").
 -include("backwater_client.hrl").
 -include("backwater_common.hrl").
+
+-ifdef(TEST).
+-include_lib("eunit/include/eunit.hrl").
+-endif.
 
 %% ------------------------------------------------------------------
 %% API Function Exports
@@ -53,7 +58,9 @@
 -type endpoint() :: {location(), secret()}.
 -export_type([endpoint/0]).
 
--type location() :: nonempty_binary().
+-type location() ::
+        (nonempty_binary() | nonempty_string() | {nonempty_string(), inet:port_number()} |
+         inet:ip_address() | {inet:ip_address(), inet:port_number()}).
 -export_type([location/0]).
 
 -type secret() :: binary().
@@ -175,9 +182,45 @@ base_request(Location, Method, Module, Function, Arity, Headers, Body) ->
        full_url => FullUrl }.
 
 -spec base_url(location()) -> nonempty_binary().
-base_url(<<BaseURL/binary>>) ->
-    % TODO more formats
-    BaseURL.
+base_url(<<"http://", _>> = Binary) ->
+    Binary;
+base_url(<<"https://", _>> = Binary) ->
+    Binary;
+base_url(<<Binary/binary>>) ->
+    String = binary_to_list(Binary), % what about unicode?
+    base_url(String);
+base_url("http://" ++ _ = BaseURL) ->
+    list_to_binary(BaseURL);
+base_url("https://" ++ _ = BaseURL) ->
+    list_to_binary(BaseURL);
+base_url(Host) when is_list(Host) ->
+    base_url({Host, ?DEFAULT_CLEAR_PORT});
+base_url({Host, Port}) when is_list(Host), is_integer(Port) ->
+    PortStr = integer_to_list(Port),
+    case is_probably_clear_port(Port) orelse {tls, is_probably_tls_port(Port)} of
+        true ->
+            list_to_binary("http://" ++ Host ++ ":" ++ PortStr ++ "/");
+        {tls, true} ->
+            list_to_binary("https://" ++ Host ++ ":" ++ PortStr ++ "/");
+        {tls, false} ->
+            % well, assume it's HTTP
+            list_to_binary("http://" ++ Host ++ ":" ++ PortStr ++ "/")
+    end;
+base_url({IpAddress, Port}) when is_tuple(IpAddress), is_integer(Port) ->
+    case inet:ntoa(IpAddress) of
+        Host when is_list(Host) ->
+            base_url({Host, Port})
+    end;
+base_url(IpAddress) when is_tuple(IpAddress) ->
+    base_url({IpAddress, ?DEFAULT_CLEAR_PORT}).
+
+is_probably_clear_port(Port) ->
+    Port =:= ?DEFAULT_CLEAR_PORT orelse
+    Port =:= 80.
+
+is_probably_tls_port(Port) ->
+    Port =:= ?DEFAULT_TLS_PORT orelse
+    Port =:= 443.
 
 -spec maybe_compress(http_params(), binary(), non_neg_integer())
         -> {http_params(), state()}.
@@ -229,8 +272,8 @@ content_length_header(Data) ->
 %% ------------------------------------------------------------------
 %% Common Test Helper Definitions
 %% ------------------------------------------------------------------
-
 -ifdef(TEST).
+
 override_hack(Key, Value) ->
     case get(override) of
         #{} = Override ->
@@ -239,4 +282,37 @@ override_hack(Key, Value) ->
         undefined ->
             Value
     end.
+-endif.
+
+%% ------------------------------------------------------------------
+%% Unit Tests
+%% ------------------------------------------------------------------
+-ifdef(TEST).
+
+-spec location_test() -> ok.
+location_test() ->
+    ?assertEqual("http://example.com/", base_url(<<"http://example.com/">>)),
+    ?assertEqual("https://example.com/", base_url(<<"https://example.com/">>)),
+
+    ?assertEqual("http://example.com/", base_url("http://example.com/")),
+    ?assertEqual("https://example.com/", base_url("https://example.com/")),
+
+    ?assertEqual("http://example.com:8080/", base_url("example.com")),
+    ?assertEqual("http://example.com:8080/", base_url({"example.com",8080})),
+    ?assertEqual("http://example.com:80/", base_url({"example.com",80})),
+
+    ?assertEqual("https://example.com:8443/", base_url({"example.com",8443})),
+    ?assertEqual("https://example.com:443/", base_url({"example.com",443})),
+
+    ?assertEqual("http://example.com:12345/", base_url({"example.com",12345})),
+
+    ?assertEqual("http://127.0.0.1:8080/", base_url({127,0,0,1})),
+    ?assertEqual("http://127.0.0.1:8080/", base_url({{127,0,0,1},8080})),
+    ?assertEqual("http://127.0.0.1:80/", base_url({{127,0,0,1},80})),
+
+    ?assertEqual("https://127.0.0.1:8443/", base_url({{127,0,0,1},8443})),
+    ?assertEqual("https://127.0.0.1:443/", base_url({{127,0,0,1},443})),
+
+    ?assertEqual("http://127.0.0.1:12345/", base_url({{127,0,0,1},12345})).
+
 -endif.

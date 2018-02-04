@@ -40,7 +40,7 @@ Secret = crypto:strong_rand_bytes(32).
 
 <pre lang="erlang">
 <![CDATA[
-Endpoint = {<<"http://127.0.0.1:8080/">>, Secret},
+Endpoint = {"127.0.0.1", Secret},
 {ok, "hello"} = backwater_client:call(Endpoint, string, to_lower, ["Hello"]).]]>
 </pre>
 
