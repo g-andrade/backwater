@@ -291,28 +291,28 @@ override_hack(Key, Value) ->
 
 -spec location_test() -> ok.
 location_test() ->
-    ?assertEqual("http://example.com/", base_url(<<"http://example.com/">>)),
-    ?assertEqual("https://example.com/", base_url(<<"https://example.com/">>)),
+    ?assertEqual(<<"http://example.com/">>, base_url(<<"http://example.com/">>)),
+    ?assertEqual(<<"https://example.com/">>, base_url(<<"https://example.com/">>)),
 
-    ?assertEqual("http://example.com/", base_url("http://example.com/")),
-    ?assertEqual("https://example.com/", base_url("https://example.com/")),
+    ?assertEqual(<<"http://example.com/">>, base_url("http://example.com/")),
+    ?assertEqual(<<"https://example.com/">>, base_url("https://example.com/")),
 
-    ?assertEqual("http://example.com:8080/", base_url("example.com")),
-    ?assertEqual("http://example.com:8080/", base_url({"example.com",8080})),
-    ?assertEqual("http://example.com:80/", base_url({"example.com",80})),
+    ?assertEqual(<<"http://example.com:8080/">>, base_url("example.com")),
+    ?assertEqual(<<"http://example.com:8080/">>, base_url({"example.com",8080})),
+    ?assertEqual(<<"http://example.com:80/">>, base_url({"example.com",80})),
 
-    ?assertEqual("https://example.com:8443/", base_url({"example.com",8443})),
-    ?assertEqual("https://example.com:443/", base_url({"example.com",443})),
+    ?assertEqual(<<"https://example.com:8443/">>, base_url({"example.com",8443})),
+    ?assertEqual(<<"https://example.com:443/">>, base_url({"example.com",443})),
 
-    ?assertEqual("http://example.com:12345/", base_url({"example.com",12345})),
+    ?assertEqual(<<"http://example.com:12345/">>, base_url({"example.com",12345})),
 
-    ?assertEqual("http://127.0.0.1:8080/", base_url({127,0,0,1})),
-    ?assertEqual("http://127.0.0.1:8080/", base_url({{127,0,0,1},8080})),
-    ?assertEqual("http://127.0.0.1:80/", base_url({{127,0,0,1},80})),
+    ?assertEqual(<<"http://127.0.0.1:8080/">>, base_url({127,0,0,1})),
+    ?assertEqual(<<"http://127.0.0.1:8080/">>, base_url({{127,0,0,1},8080})),
+    ?assertEqual(<<"http://127.0.0.1:80/">>, base_url({{127,0,0,1},80})),
 
-    ?assertEqual("https://127.0.0.1:8443/", base_url({{127,0,0,1},8443})),
-    ?assertEqual("https://127.0.0.1:443/", base_url({{127,0,0,1},443})),
+    ?assertEqual(<<"https://127.0.0.1:8443/">>, base_url({{127,0,0,1},8443})),
+    ?assertEqual(<<"https://127.0.0.1:443/">>, base_url({{127,0,0,1},443})),
 
-    ?assertEqual("http://127.0.0.1:12345/", base_url({{127,0,0,1},12345})).
+    ?assertEqual(<<"http://127.0.0.1:12345/">>, base_url({{127,0,0,1},12345})).
 
 -endif.
