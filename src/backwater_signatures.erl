@@ -18,7 +18,7 @@
 %% FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 %% DEALINGS IN THE SOFTWARE.
 
--module(backwater_http_signatures).
+-module(backwater_signatures).
 
 -include_lib("backwater_common.hrl").
 
@@ -297,7 +297,7 @@ get_request_auth_challenge_headers(RequestMsg) ->
     EncodedHeaderNamesToSign = iolist_to_binary(lists:join(" ", HeaderNamesToSign)),
     Params = #{ <<"realm">> => <<"backwater">>,
                 <<"headers">> => EncodedHeaderNamesToSign },
-    BinParams = backwater_http_header_params:encode(Params),
+    BinParams = backwater_header_params:encode(Params),
     #{ ?OPAQUE_BINARY(<<"www-authenticate">>) => ?OPAQUE_BINARY(<<"Signature ", BinParams/binary>>) }.
 
 %% ------------------------------------------------------------------
@@ -420,7 +420,7 @@ decode_signature_param_value(_Key, Value) ->
 
 -spec decode_signature_auth_params(binary()) -> {ok, params()} | {error, header_params_failure()}.
 decode_signature_auth_params(Encoded) ->
-    case backwater_http_header_params:decode(Encoded) of
+    case backwater_header_params:decode(Encoded) of
         {ok, BinParams} ->
             try
                 Params = maps:map(fun decode_signature_param_value/2, BinParams),
@@ -563,7 +563,7 @@ generate_signature_header_value(Config, Msg, SignedHeaderNames) ->
 -spec encode_signature_auth_params(params()) -> binary().
 encode_signature_auth_params(Params) ->
     BinParams = maps:map(fun encode_signature_param_value/2, Params),
-    backwater_http_header_params:encode(BinParams).
+    backwater_header_params:encode(BinParams).
 
 -spec encode_signature_param_value(binary(), term()) -> binary().
 encode_signature_param_value(<<"headers">>, List) ->

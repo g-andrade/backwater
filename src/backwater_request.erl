@@ -18,12 +18,12 @@
 %% FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 %% DEALINGS IN THE SOFTWARE.
 
--module(backwater_http_request).
+-module(backwater_request).
 
 -include_lib("hackney/include/hackney_lib.hrl").
 -include("backwater_client.hrl").
 -include("backwater_common.hrl").
--include("backwater_http_api.hrl").
+-include("backwater_api.hrl").
 
 %% ------------------------------------------------------------------
 %% API Function Exports
@@ -55,7 +55,7 @@
         #{ compression_threshold => non_neg_integer() }.
 -export_type([options/0]).
 
--type state() :: #{ signed_request_msg := backwater_http_signatures:signed_message() }.
+-type state() :: #{ signed_request_msg := backwater_signatures:signed_message() }.
 -export_type([state/0]).
 
 -type t() ::
@@ -197,13 +197,13 @@ maybe_compress(#{ body := Body } = HttpParams, Secret, _CompressionThreshold) ->
 authenticate(HttpParams, Secret) ->
     #{ method := Method, path := Path, headers := Headers, body := Body } = HttpParams,
     EncodedPath = hackney_url:pathencode(Path),
-    SignaturesConfig = backwater_http_signatures:config(Secret),
-    RequestMsg = backwater_http_signatures:new_request_msg(Method, EncodedPath, Headers),
+    SignaturesConfig = backwater_signatures:config(Secret),
+    RequestMsg = backwater_signatures:new_request_msg(Method, EncodedPath, Headers),
     RequestId = base64:encode( crypto:strong_rand_bytes(?REQUEST_ID_SIZE) ),
-    SignedRequestMsg = backwater_http_signatures:sign_request(SignaturesConfig, RequestMsg, Body, RequestId),
+    SignedRequestMsg = backwater_signatures:sign_request(SignaturesConfig, RequestMsg, Body, RequestId),
     UpdatedHeaders =
         ?OVERRIDE_HACK({update_headers_with, final},
-                       backwater_http_signatures:list_real_msg_headers(SignedRequestMsg)),
+                       backwater_signatures:list_real_msg_headers(SignedRequestMsg)),
     UpdatedBody =
         ?OVERRIDE_HACK({update_body_with, final}, Body),
     UpdatedHttpParams = HttpParams#{ headers := UpdatedHeaders, body := UpdatedBody },

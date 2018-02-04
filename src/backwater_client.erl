@@ -79,7 +79,7 @@
 -type hackney_option() :: proplists:property().
 -export_type([hackney_option/0]).
 
--type result() :: backwater_http_response:t(hackney_error() | not_started).
+-type result() :: backwater_response:t(hackney_error() | not_started).
 -export_type([result/0]).
 
 %% ------------------------------------------------------------------
@@ -157,16 +157,16 @@ call_(error, _Module, _Function, _Args) ->
     {error, not_started}.
 
 -spec encode_request(config(), module(), atom(), [term()])
-        -> backwater_http_response:t(Error) when Error :: {hackney, term()}.
+        -> backwater_response:t(Error) when Error :: {hackney, term()}.
 encode_request(Config, Module, Function, Args) ->
     #{ endpoint := Endpoint, secret := Secret } = Config,
     Options = maps:with(?HTTP_REQUEST_ENCODING_OPTION_NAMES, Config),
     {Request, State} =
-        backwater_http_request:encode(Endpoint, Module, Function, Args, Secret, Options),
+        backwater_request:encode(Endpoint, Module, Function, Args, Secret, Options),
     call_hackney(Config, State, Request).
 
--spec call_hackney(config(), backwater_http_request:state(), backwater_http_request:t())
-        -> backwater_http_response:t(Error) when Error :: {hackney, term()}.
+-spec call_hackney(config(), backwater_request:state(), backwater_request:t())
+        -> backwater_response:t(Error) when Error :: {hackney, term()}.
 call_hackney(Config, RequestState, Request) ->
     #{ http_params := HttpParams, full_url := FullUrl } = Request,
     #{ method := Method, headers := Headers, body := Body } = HttpParams,
@@ -180,7 +180,7 @@ call_hackney(Config, RequestState, Request) ->
 
 handle_hackney_result(Config, RequestState, {ok, StatusCode, Headers, Body}) ->
     Options = maps:with(?HTTP_RESPONSE_DECODING_OPTION_NAMES, Config),
-    backwater_http_response:decode(StatusCode, Headers, Body, RequestState, Options);
+    backwater_response:decode(StatusCode, Headers, Body, RequestState, Options);
 handle_hackney_result(_Config, _RequestState, {error, Error}) ->
     {error, {hackney, Error}}.
 
@@ -206,7 +206,7 @@ default_hackney_opts(Config) ->
     #{ endpoint := Endpoint, secret := Secret } = Config,
     RequestEncodingOverride = maps:get(request, Override, #{}),
     PrevDictionaryKeyValue = put(override, RequestEncodingOverride),
-    {Request, State} = backwater_http_request:encode(Endpoint, Module, Function, Args, Secret),
+    {Request, State} = backwater_request:encode(Endpoint, Module, Function, Args, Secret),
     try
         call_hackney(Config, State, Request)
     after

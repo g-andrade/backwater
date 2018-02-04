@@ -61,7 +61,7 @@
            bin_function => binary(),
            arity => arity(),
 
-           signed_request_msg => backwater_http_signatures:signed_message(),
+           signed_request_msg => backwater_signatures:signed_message(),
 
            function_properties => backwater_module_info:fun_properties(),
            args_content_type => content_type(),
@@ -189,19 +189,19 @@ execute_pipeline([], State) ->
 
 -spec check_authentication(state()) -> {continue | stop, state()}.
 check_authentication(#{ req := Req, config := #{ secret := Secret } } = State) ->
-    SignaturesConfig = backwater_http_signatures:config(Secret),
+    SignaturesConfig = backwater_signatures:config(Secret),
     Method = cowboy_req:method(Req),
     EncodedPathWithQs = req_encoded_path_with_qs(Req),
     Headers = cowboy_req:headers(Req),
     RequestMsg =
-        backwater_http_signatures:new_request_msg(Method, EncodedPathWithQs, {ci_headers, Headers}),
+        backwater_signatures:new_request_msg(Method, EncodedPathWithQs, {ci_headers, Headers}),
 
-    case backwater_http_signatures:validate_request_signature(SignaturesConfig, RequestMsg) of
+    case backwater_signatures:validate_request_signature(SignaturesConfig, RequestMsg) of
         {ok, SignedRequestMsg} ->
             {continue, State#{ signed_request_msg => SignedRequestMsg }};
         {error, Reason} ->
             AuthChallengeHeaders =
-                backwater_http_signatures:get_request_auth_challenge_headers(RequestMsg),
+                backwater_signatures:get_request_auth_challenge_headers(RequestMsg),
             {stop, set_error_response(401, AuthChallengeHeaders, Reason, State)}
     end.
 
@@ -237,7 +237,7 @@ safe_req_parse_header(CiName, #{ req := Req } = State, Undefined, Default) ->
 
 -spec assert_header_safety(binary(), state()) -> true | no_return().
 assert_header_safety(CiName, #{ signed_request_msg := SignedRequestMsg }) ->
-    backwater_http_signatures:is_header_signed_in_signed_msg(CiName, SignedRequestMsg)
+    backwater_signatures:is_header_signed_in_signed_msg(CiName, SignedRequestMsg)
     orelse error({using_unsafe_header, CiName}).
 
 %% ------------------------------------------------------------------
@@ -549,12 +549,12 @@ read_and_decode_args(BodySize, _MaxEncodedArgsSize, State) ->
 -spec validate_args_digest(binary(), state()) -> {continue | stop, state()}.
 validate_args_digest(Data, State) ->
     #{ signed_request_msg := SignedRequestMsg } = State,
-    case backwater_http_signatures:validate_signed_msg_body(SignedRequestMsg, Data) of
+    case backwater_signatures:validate_signed_msg_body(SignedRequestMsg, Data) of
         true ->
             decode_args_content_encoding(Data, State);
         false ->
             AuthChallengeHeaders =
-                backwater_http_signatures:get_request_auth_challenge_headers(SignedRequestMsg),
+                backwater_signatures:get_request_auth_challenge_headers(SignedRequestMsg),
             {stop, set_error_response(401, AuthChallengeHeaders, wrong_arguments_digest, State)}
     end.
 
@@ -697,12 +697,12 @@ send_response(#{ signed_request_msg := SignedRequestMsg } = State1) ->
     #{ config := #{ secret := Secret } } = State1,
     ResponseHeaders2 =
         ResponseHeaders1#{ <<"content-length">> => integer_to_binary( byte_size(ResponseBody) ) },
-    SignaturesConfig = backwater_http_signatures:config(Secret),
+    SignaturesConfig = backwater_signatures:config(Secret),
     ResponseMsg =
-        backwater_http_signatures:new_response_msg(ResponseStatusCode, {ci_headers, ResponseHeaders2}),
+        backwater_signatures:new_response_msg(ResponseStatusCode, {ci_headers, ResponseHeaders2}),
     SignedResponseMsg =
-        backwater_http_signatures:sign_response(SignaturesConfig, ResponseMsg, ResponseBody, SignedRequestMsg),
-    ResponseHeaders3 = backwater_http_signatures:get_real_msg_headers(SignedResponseMsg),
+        backwater_signatures:sign_response(SignaturesConfig, ResponseMsg, ResponseBody, SignedRequestMsg),
+    ResponseHeaders3 = backwater_signatures:get_real_msg_headers(SignedResponseMsg),
 
     Req2 = cowboy_req:reply(ResponseStatusCode, ResponseHeaders3, ResponseBody, Req1),
     State1#{ req := Req2 };

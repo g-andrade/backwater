@@ -28,7 +28,7 @@
 -module(backwater_server).
 
 -include("backwater_common.hrl").
--include("backwater_http_api.hrl").
+-include("backwater_api.hrl").
 
 %% ------------------------------------------------------------------
 %% API Function Exports

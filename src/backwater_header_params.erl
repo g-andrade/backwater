@@ -19,7 +19,7 @@
 %% DEALINGS IN THE SOFTWARE.
 
 %% @private
--module(backwater_http_header_params).
+-module(backwater_header_params).
 
 %% ------------------------------------------------------------------
 %% API Function Exports
