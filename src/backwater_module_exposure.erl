@@ -89,7 +89,7 @@ interpret_list(ExposedModules) ->
 
 -spec metadata_export_list() -> [{atom(), arity()}].
 metadata_export_list() ->
-    [{backwater_export,0}, % faux backwater export attribute in Elixir modules
+    [{backwater_export,0}, % faux backwater export attribute in Elixir modules (legacy)
      {behaviour_info,1},   % callbacks
      {module_info,0},      % Erlang module info
      {module_info,1},      % Erlang module info

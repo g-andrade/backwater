@@ -55,7 +55,7 @@
 -spec latin1_binary_to_lower(binary()) -> binary().
 %% @private
 latin1_binary_to_lower(Bin) ->
-    list_to_binary( string:to_lower( binary_to_list(Bin) ) ).
+    <<<<(string:to_lower(C))>> || <<C>> <= Bin>>.
 
 -spec latin1_binary_trim_whitespaces(binary()) -> binary().
 %% @private

@@ -1,6 +1,6 @@
 # Migration Plan
 
-## From [2.x] to UNRELEASED
+## From [2.x] to [3.x]
 ### Update
 - your declaration of the rebar3 plugin import (if using), like this:
 ```
