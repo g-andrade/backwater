@@ -14,7 +14,7 @@
 
 
 <pre><code>
-config_validation_error() = {invalid_config_parameter, {Key::term(), Value::term()}} | {missing_mandatory_config_parameters, [Key::term(), ...]} | config_not_a_map
+config_validation_error() = {invalid_config_parameter, {Key::term(), Value::term()}} | {missing_mandatory_config_parameters, [Key::term(), ...]} | options_not_a_map
 </code></pre>
 
 

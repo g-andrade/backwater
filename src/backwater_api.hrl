@@ -1,0 +1,2 @@
+-define(DEFAULT_CLEAR_PORT, 8080).
+-define(DEFAULT_TLS_PORT, 8443).

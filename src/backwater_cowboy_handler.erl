@@ -1,4 +1,4 @@
-%% Copyright (c) 2017 Guilherme Andrade <backwater@gandrade.net>
+%% Copyright (c) 2017-2018 Guilherme Andrade <backwater@gandrade.net>
 %%
 %% Permission is hereby granted, free of charge, to any person obtaining a
 %% copy  of this software and associated documentation files (the "Software"),
@@ -22,12 +22,13 @@
 -behaviour(cowboy_handler).
 
 -include("backwater_common.hrl").
+-include("backwater_default_tweaks.hrl").
 
 %% ------------------------------------------------------------------
 %% API Function Exports
 %% ------------------------------------------------------------------
 
--export([initial_state/1]).
+-export([initial_state/3]).
 
 %% ------------------------------------------------------------------
 %% cowboy_http_handler Function Exports
@@ -43,27 +44,23 @@
 -define(CACHED_FUNCTION_PROPERTIES_TTL, (timer:seconds(5))).
 -define(KNOWN_CONTENT_ENCODINGS, [<<"gzip">>, <<"identity">>]).
 
--define(DEFAULT_OPT_COMPRESSION_THRESHOLD, 300). % in bytes
--define(DEFAULT_OPT_DECODE_UNSAFE_TERMS, false).
--define(DEFAULT_OPT_MAX_ENCODED_ARGS_SIZE, (8 * (1 bsl 20))). % in bytes
--define(DEFAULT_OPT_RECV_TIMEOUT, 5000). % in milliseconds
--define(DEFAULT_OPT_RETURN_EXCEPTION_STACKTRACES, true).
-
 %% ------------------------------------------------------------------
 %% Type Definitions
 %% ------------------------------------------------------------------
 
 -opaque state() ::
-        #{ config := config(),
+        #{ secret := binary(),
+           exposed_modules := [backwater_module_exposure:t()],
+           options := backwater_opts(),
 
            req => req(),
            bin_module => binary(),
            bin_function => binary(),
            arity => arity(),
 
-           signed_request_msg => backwater_http_signatures:signed_message(),
+           signed_request_msg => backwater_signatures:signed_message(),
 
-           function_properties => backwater_module_info:fun_properties(),
+           function_properties => backwater_module_exposure:fun_properties(),
            args_content_type => content_type(),
            args_content_encoding => binary(),
            args => [term()],
@@ -74,16 +71,20 @@
            result_content_encoding => binary() }.
 -export_type([state/0]).
 
--type config() ::
-        #{ secret := binary(),
-           exposed_modules := [backwater_module_info:exposed_module()],
+-type opts(TransportOpts, HttpOpts) ::
+        #{ transport => TransportOpts,
+           http => HttpOpts,
+           backwater => backwater_opts()
+         }.
+-export_type([opts/2]).
 
-           compression_threshold => non_neg_integer(),
+-type backwater_opts() ::
+        #{ compression_threshold => non_neg_integer(),
            decode_unsafe_terms => boolean(),
            max_encoded_args_size => non_neg_integer(),
            recv_timeout => timeout(),
            return_exception_stacktraces => boolean() }.
--export_type([config/0]).
+-export_type([backwater_opts/0]).
 
 -type accepted_content_type() :: {content_type(), Quality :: 0..1000, accepted_ext()}.
 
@@ -116,14 +117,25 @@
 %% API Function Definitions
 %% ------------------------------------------------------------------
 
--spec initial_state(config()) -> {ok, state()} | {error, backwater_util:config_validation_error()}.
+-spec initial_state(binary(), [backwater_module_exposure:t()],
+                    opts(term(), term()))
+        -> {ok, state()} |
+           {error, invalid_secret} |
+           {error, invalid_module_exposure} |
+           {error, backwater_util:config_validation_error()}.
 %% @private
-initial_state(Config) ->
-    ValidationResult = backwater_util:validate_config_map(Config, [secret, exposed_modules],
-                                                          fun validate_config_pair/1),
-    case ValidationResult of
-        {ok, ValidatedConfig} ->
-            {ok, #{ config => ValidatedConfig }};
+initial_state(Secret, _ExposedModules, _Options) when not is_binary(Secret) ->
+    {error, invalid_secret};
+initial_state(_Secret, ExposedModules, _Options) when not is_list(ExposedModules) ->
+    {error, invalid_exposed_modules};
+initial_state(Secret, ExposedModules, Options) ->
+    BackwaterOptions = maps:get(backwater, Options, #{}),
+    case backwater_util:validate_config_map(BackwaterOptions, [], fun validate_option/1)
+    of
+        {ok, ValidatedBackwaterOptions} ->
+            {ok, #{ secret => Secret,
+                    exposed_modules => ExposedModules,
+                    options => ValidatedBackwaterOptions }};
         {error, Error} ->
             {error, Error}
     end.
@@ -188,20 +200,20 @@ execute_pipeline([], State) ->
 %% ------------------------------------------------------------------
 
 -spec check_authentication(state()) -> {continue | stop, state()}.
-check_authentication(#{ req := Req, config := #{ secret := Secret } } = State) ->
-    SignaturesConfig = backwater_http_signatures:config(Secret),
+check_authentication(#{ req := Req, secret := Secret  } = State) ->
+    SignaturesConfig = backwater_signatures:config(Secret),
     Method = cowboy_req:method(Req),
     EncodedPathWithQs = req_encoded_path_with_qs(Req),
     Headers = cowboy_req:headers(Req),
     RequestMsg =
-        backwater_http_signatures:new_request_msg(Method, EncodedPathWithQs, {ci_headers, Headers}),
+        backwater_signatures:new_request_msg(Method, EncodedPathWithQs, {ci_headers, Headers}),
 
-    case backwater_http_signatures:validate_request_signature(SignaturesConfig, RequestMsg) of
+    case backwater_signatures:validate_request_signature(SignaturesConfig, RequestMsg) of
         {ok, SignedRequestMsg} ->
             {continue, State#{ signed_request_msg => SignedRequestMsg }};
         {error, Reason} ->
             AuthChallengeHeaders =
-                backwater_http_signatures:get_request_auth_challenge_headers(RequestMsg),
+                backwater_signatures:get_request_auth_challenge_headers(RequestMsg),
             {stop, set_error_response(401, AuthChallengeHeaders, Reason, State)}
     end.
 
@@ -237,7 +249,7 @@ safe_req_parse_header(CiName, #{ req := Req } = State, Undefined, Default) ->
 
 -spec assert_header_safety(binary(), state()) -> true | no_return().
 assert_header_safety(CiName, #{ signed_request_msg := SignedRequestMsg }) ->
-    backwater_http_signatures:is_header_signed_in_signed_msg(CiName, SignedRequestMsg)
+    backwater_signatures:is_header_signed_in_signed_msg(CiName, SignedRequestMsg)
     orelse error({using_unsafe_header, CiName}).
 
 %% ------------------------------------------------------------------
@@ -297,12 +309,12 @@ arity_from_binary(BinArity) ->
 -spec check_authorization(state()) -> {continue | stop, state()}.
 check_authorization(State) ->
     #{ bin_module := BinModule,
-       config := #{ exposed_modules := ExposedModules } } = State,
+       exposed_modules := ExposedModules } = State,
 
     SearchResult =
         lists:any(
           fun (ExposedModule) ->
-                  ModuleName = backwater_module_info:exposed_module_name(ExposedModule),
+                  ModuleName = backwater_module_exposure:module_name(ExposedModule),
                   BinModule =:= atom_to_binary(ModuleName, utf8)
           end,
           ExposedModules),
@@ -326,7 +338,7 @@ check_existence(State) ->
     end.
 
 -spec find_function_properties(state())
-        -> {found, backwater_module_info:fun_properties()} | Error
+        -> {found, backwater_module_exposure:fun_properties()} | Error
              when Error :: (function_not_found |
                             module_not_found).
 find_function_properties(State) ->
@@ -334,21 +346,21 @@ find_function_properties(State) ->
     CachedFunctionPropertiesLookup = backwater_cache:find(CacheKey),
     handle_cached_function_properties_lookup(CachedFunctionPropertiesLookup, State).
 
--spec handle_cached_function_properties_lookup({ok, backwater_module_info:fun_properties()} | error, state())
-        -> {found, backwater_module_info:fun_properties()} |
+-spec handle_cached_function_properties_lookup({ok, backwater_module_exposure:fun_properties()} | error, state())
+        -> {found, backwater_module_exposure:fun_properties()} |
            module_not_found |
            function_not_found.
 handle_cached_function_properties_lookup({ok, FunctionProperties}, _State) ->
     {found, FunctionProperties};
 handle_cached_function_properties_lookup(error, State) ->
     #{ bin_module := BinModule,
-       config := #{ exposed_modules := ExposedModules  } } = State,
-    InfoPerExposedModule = backwater_module_info:generate(ExposedModules),
+       exposed_modules := ExposedModules } = State,
+    InfoPerExposedModule = backwater_module_exposure:interpret_list(ExposedModules),
     InfoLookup = maps:find(BinModule, InfoPerExposedModule),
     handle_module_info_lookup(InfoLookup, State).
 
--spec handle_module_info_lookup({ok, backwater_module_info:module_info()}, state())
-        -> {found, backwater_module_info:fun_properties()} |
+-spec handle_module_info_lookup({ok, backwater_module_exposure:module_info()}, state())
+        -> {found, backwater_module_exposure:fun_properties()} |
            module_not_found |
            function_not_found.
 handle_module_info_lookup({ok, Info}, State) ->
@@ -359,8 +371,8 @@ handle_module_info_lookup({ok, Info}, State) ->
 handle_module_info_lookup(error, _State) ->
     module_not_found.
 
--spec handle_function_properties_lookup({ok, backwater_module_info:fun_properties()} | error, state())
-        -> {found, backwater_module_info:fun_properties()} |
+-spec handle_function_properties_lookup({ok, backwater_module_exposure:fun_properties()} | error, state())
+        -> {found, backwater_module_exposure:fun_properties()} |
            function_not_found.
 handle_function_properties_lookup({ok, FunctionProperties}, State) ->
     % let's only fill successful lookups so that we don't risk
@@ -549,12 +561,12 @@ read_and_decode_args(BodySize, _MaxEncodedArgsSize, State) ->
 -spec validate_args_digest(binary(), state()) -> {continue | stop, state()}.
 validate_args_digest(Data, State) ->
     #{ signed_request_msg := SignedRequestMsg } = State,
-    case backwater_http_signatures:validate_signed_msg_body(SignedRequestMsg, Data) of
+    case backwater_signatures:validate_signed_msg_body(SignedRequestMsg, Data) of
         true ->
             decode_args_content_encoding(Data, State);
         false ->
             AuthChallengeHeaders =
-                backwater_http_signatures:get_request_auth_challenge_headers(SignedRequestMsg),
+                backwater_signatures:get_request_auth_challenge_headers(SignedRequestMsg),
             {stop, set_error_response(401, AuthChallengeHeaders, wrong_arguments_digest, State)}
     end.
 
@@ -694,15 +706,15 @@ send_response(#{ signed_request_msg := SignedRequestMsg } = State1) ->
     #{ req := Req1, response := Response } = State1,
     #{ status_code := ResponseStatusCode, headers := ResponseHeaders1, body := ResponseBody } = Response,
 
-    #{ config := #{ secret := Secret } } = State1,
+    #{ secret := Secret } = State1,
     ResponseHeaders2 =
         ResponseHeaders1#{ <<"content-length">> => integer_to_binary( byte_size(ResponseBody) ) },
-    SignaturesConfig = backwater_http_signatures:config(Secret),
+    SignaturesConfig = backwater_signatures:config(Secret),
     ResponseMsg =
-        backwater_http_signatures:new_response_msg(ResponseStatusCode, {ci_headers, ResponseHeaders2}),
+        backwater_signatures:new_response_msg(ResponseStatusCode, {ci_headers, ResponseHeaders2}),
     SignedResponseMsg =
-        backwater_http_signatures:sign_response(SignaturesConfig, ResponseMsg, ResponseBody, SignedRequestMsg),
-    ResponseHeaders3 = backwater_http_signatures:get_real_msg_headers(SignedResponseMsg),
+        backwater_signatures:sign_response(SignaturesConfig, ResponseMsg, ResponseBody, SignedRequestMsg),
+    ResponseHeaders3 = backwater_signatures:get_real_msg_headers(SignedResponseMsg),
 
     Req2 = cowboy_req:reply(ResponseStatusCode, ResponseHeaders3, ResponseBody, Req1),
     State1#{ req := Req2 };
@@ -798,25 +810,20 @@ opt_compression_threshold(State) ->
 %% Internal Function Definitions
 %% ------------------------------------------------------------------
 
--spec validate_config_pair({term(), term()}) -> boolean().
-validate_config_pair({secret, Secret}) ->
-    is_binary(Secret);
-validate_config_pair({exposed_modules, ExposedModules}) ->
-    % TODO validate deeper
-    is_list(ExposedModules);
-validate_config_pair({compression_threshold, CompressionThreshold}) ->
+-spec validate_option({term(), term()}) -> boolean().
+validate_option({compression_threshold, CompressionThreshold}) ->
     ?is_non_neg_integer(CompressionThreshold);
-validate_config_pair({decode_unsafe_terms, DecodeUnsafeTerms}) ->
+validate_option({decode_unsafe_terms, DecodeUnsafeTerms}) ->
     is_boolean(DecodeUnsafeTerms);
-validate_config_pair({max_encoded_args_size, MaxEncodedArgsSize}) ->
+validate_option({max_encoded_args_size, MaxEncodedArgsSize}) ->
     ?is_non_neg_integer(MaxEncodedArgsSize);
-validate_config_pair({recv_timeout, RecvTimeout}) ->
+validate_option({recv_timeout, RecvTimeout}) ->
     ?is_timeout(RecvTimeout);
-validate_config_pair({return_exception_stacktraces, ReturnExceptionStacktraces}) ->
+validate_option({return_exception_stacktraces, ReturnExceptionStacktraces}) ->
     is_boolean(ReturnExceptionStacktraces);
-validate_config_pair({_Key, _Value}) ->
+validate_option({_Key, _Value}) ->
     false.
 
 config_opt(Key, State, Default) ->
-    #{ config := Config } = State,
-    maps:get(Key, Config, Default).
+    #{ options := Options } = State,
+    maps:get(Key, Options, Default).

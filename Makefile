@@ -12,7 +12,7 @@ endif
 
 TEST_PROFILE ?= test
 
-.PHONY: all build clean check dialyzer xref run test cover travis doc publish
+.PHONY: all build clean check dialyzer xref run test cover console travis doc publish
 
 all: build
 
@@ -37,12 +37,15 @@ xref:
 test:
 	@$(REBAR3) as $(TEST_PROFILE) eunit, ct
 	@if [ "$(TEST_PROFILE)" != "travis_test" ]; then \
-		make -C elixir_tests; \
+		make -C test.elixir; \
 		rm -rf ebin; \
 	fi
 
 cover: test
 	@$(REBAR3) as test cover
+
+console:
+	@$(REBAR3) as development shell --apps backwater
 
 travis: TEST_PROFILE = travis_test
 travis: test
