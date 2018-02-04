@@ -8,13 +8,12 @@
 
 ### <a name="Backwater_-_Intercluster_RPC_for_Erlang_and_Elixir">Backwater - Intercluster RPC for Erlang and Elixir</a> ###
 
-`backwater` is a library for Erlang/OTP and Elixir that allows you to
-call remote modules without depending on the Erlang distribution.
+`backwater` allows you to call remote modules without depending on the Erlang distribution protocol.
 
-It's targeted at scenarios where Erlang nodes in one datacenter need to call machines
+It's targeted at scenarios where nodes in one datacenter need to call nodes
 in another datacenter, over unsecure or unstable networks.
 
-The [rebar3 plugin](https://github.com/g-andrade/rebar3_backwater) can be used
+The [rebar3 plugin](https://github.com/g-andrade/rebar3_backwater) can be leveraged
 to automate the creation of boilerplate client code.
 
 
@@ -90,16 +89,16 @@ is used for all function arguments and return values.
 Because trust is assumed unless declared otherwise (like in regular Erlang clusters),
 unsafe terms are decoded by default.
 
-For function arguments, this behaviour can be tweaked thorugh the 'decode_unsafe_terms'
+For function arguments, this behaviour can be tweaked thorugh the `decode_unsafe_terms`
 setting in backwater options when running `:start_clear_server` or `:start_tls_server`.
 
-For return values, this behaviour can be tweaked thorugh the 'decode_unsafe_terms'
+For return values, this behaviour can be tweaked thorugh the `decode_unsafe_terms`
 setting in `:call/5` options.
 
 <h5><a name="Compression">Compression</a></h5>
 
 By default, both serialised function arguments and serialised return values
-larger than 300 bytes are subject to attempted compression using `gzip`.
+larger than 300 bytes are subject to attempted compression using gzip.
 The actual compression result is only used if it is indeed smaller than
 the original payload.
 
@@ -120,7 +119,7 @@ For function arguments, this limit (in bytes) can be adjusted using the
 `:start_clear_server` or `:start_tls_server`.
 
 For return values, this limit (in bytes) can be adjusted using
-the `max_encoded_args_size` setting, in bytes, in `:call/5` options.
+the `max_encoded_result_size` setting in `:call/5` options.
 
 <h5><a name="Timeouts_and_ports">Timeouts and ports</a></h5>
 
