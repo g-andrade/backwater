@@ -76,10 +76,10 @@ By default, remote exceptions are returned as errors on the caller's side.
 This behaviour can be tweaked using the `rethrow_remote_exceptions` flag in
 `:call/5` options.
 
-Remote stack traces are returned are also returned by default. Because these
-are computationally expensive to generate, this behaviour can be can be changed
-using the `return_exception_stacktraces` flag in `:start_clear_server` /
-`:start_tls_server` backwater options.
+Remote stack traces are returned by default. Because they are computationally
+expensive to generate, this behaviour can be can be changed using the
+`return_exception_stacktraces` flag in `:start_clear_server` / `:start_tls_server`
+backwater options.
 
 <h5><a name="Serialisation">Serialisation</a></h5>
 
@@ -110,7 +110,7 @@ setting in backwater options when running `:start_clear_server` or `:start_tls_s
 
 <h5><a name="Payload_limits">Payload limits</a></h5>
 
-Be default, both serialised function arguments and serialised return values
+By default, both serialised function arguments and serialised return values
 larger than 8 MiB are rejected (independently of whether they're transmitted
 in compressed form or not.)
 
@@ -127,7 +127,8 @@ The default listen port for HTTP is 8080; for HTTPS, it's 8443. This can be adju
 on server using the `http` options, and on clients by specifying it in `Endpoint`.
 
 The client enforces a default connection timeout of 8s, and a receive timeout of 5s.
-Both can be adjusted by tweaking the appropriate [hackney](https://github.com/benoitc/hackney) options.
+Either can be adjusted using either `connect_timeout` or `recv_timeout`, respectively,
+in `:call/5` options.
 
 The server enforces a default receive timeout of 5s. This can be adjusted using the
 `recv_timeout` setting in backwater options, when running `:start_clear_server` or
