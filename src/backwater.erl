@@ -144,9 +144,7 @@
 -type tls_opts() :: [tls_opt()].
 -export_type([tls_opts/0]).
 
--type http_opts() ::
-        cowboy_http:opts() |
-        [{atom(), term()}]. % for (reasonable) retro-compatibility with cowboy 1.x
+-type http_opts() :: cowboy_http:opts().
 -export_type([http_opts/0]).
 
 -type route_path() :: {nonempty_string(), [],
