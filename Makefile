@@ -37,7 +37,7 @@ xref:
 test:
 	@$(REBAR3) as $(TEST_PROFILE) eunit, ct
 	@if [ "$(TEST_PROFILE)" != "travis_test" ]; then \
-		make -C elixir_tests; \
+		make -C test.elixir; \
 		rm -rf ebin; \
 	fi
 
