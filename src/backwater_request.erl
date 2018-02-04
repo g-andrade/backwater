@@ -129,7 +129,7 @@ encode(Endpoint, Module, Function, Args, Options) ->
            backwater_media_etf:encode(Args)),
     Arity = ?OVERRIDE_HACK(update_arity_with, length(Args)),
     CompressionThreshold =
-        maps:get(compression_threshold, Options, ?DEFAULT_OPT_COMPRESSION_THRESHOLD),
+        maps:get(compression_threshold, Options, ?DEFAULT_CLIENT_OPT_COMPRESSION_THRESHOLD),
 
     Request = base_request(Location, Method, Module, Function, Arity, Headers, Body),
     HttpParams = maps:get(http_params, Request),

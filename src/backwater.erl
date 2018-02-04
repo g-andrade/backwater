@@ -109,7 +109,7 @@
 %% Type Definitions (caller)
 %% ------------------------------------------------------------------
 
--type options() ::
+-type call_opts() ::
     #{ hackney_opts => [hackney_option()],
        compression_threshold => non_neg_integer(),
        connect_timeout => timeout(),
@@ -118,7 +118,7 @@
        recv_timeout => timeout(),
        rethrow_remote_exceptions => boolean()
      }.
--export_type([options/0]).
+-export_type([call_opts/0]).
 
 -type hackney_error() :: {hackney, term()}.
 -export_type([hackney_error/0]).
@@ -126,8 +126,8 @@
 -type hackney_option() :: proplists:property().
 -export_type([hackney_option/0]).
 
--type result() :: backwater_response:t(hackney_error() | not_started).
--export_type([result/0]).
+-type call_result() :: backwater_response:t(hackney_error()).
+-export_type([call_result/0]).
 
 %% ------------------------------------------------------------------
 %% Type Definitions (listener)
@@ -164,7 +164,7 @@
              Module :: module(),
              Function :: atom(),
              Args :: [term()],
-             Result :: result().
+             Result :: call_result().
 
 call(Endpoint, Module, Function, Args) ->
     call(Endpoint, Module, Function, Args, #{}).
@@ -174,8 +174,8 @@ call(Endpoint, Module, Function, Args) ->
              Module :: module(),
              Function :: atom(),
              Args :: [term()],
-             Options :: options(),
-             Result :: result().
+             Options :: call_opts(),
+             Result :: call_result().
 
 call(Endpoint, Module, Function, Args, Options) ->
     encode_request(Endpoint, Module, Function, Args, Options).
@@ -235,7 +235,7 @@ base_cowboy_route_parts() ->
 %% Internal Function Definitions (caller)
 %% ------------------------------------------------------------------
 
--spec encode_request(backwater_request:endpoint(), module(), atom(), [term()], options())
+-spec encode_request(backwater_request:endpoint(), module(), atom(), [term()], call_opts())
         -> backwater_response:t(Error) when Error :: {hackney, term()}.
 encode_request(Endpoint, Module, Function, Args, Options) ->
     RequestOptions = maps:with(?HTTP_REQUEST_ENCODING_OPTION_NAMES, Options),
@@ -243,7 +243,7 @@ encode_request(Endpoint, Module, Function, Args, Options) ->
         backwater_request:encode(Endpoint, Module, Function, Args, RequestOptions),
     call_hackney(Request, State, Options).
 
--spec call_hackney(backwater_request:t(), backwater_request:state(), options())
+-spec call_hackney(backwater_request:t(), backwater_request:state(), call_opts())
         -> backwater_response:t(Error) when Error :: {hackney, term()}.
 call_hackney(Request, RequestState, Options) ->
     #{ http_params := HttpParams, full_url := FullUrl } = Request,
@@ -263,9 +263,9 @@ handle_hackney_result({error, Error}, _RequestState, _Options) ->
     {error, {hackney, Error}}.
 
 default_hackney_opts(Options) ->
-    ConnectTimeout = maps:get(connect_timeout, Options, ?DEFAULT_OPT_CONNECT_TIMEOUT),
-    RecvTimeout = maps:get(recv_timeout, Options, ?DEFAULT_OPT_RECV_TIMEOUT),
-    MaxEncodedResultSize = maps:get(max_encoded_result_size, Options, ?DEFAULT_OPT_MAX_ENCODED_RESULT_SIZE),
+    ConnectTimeout = maps:get(connect_timeout, Options, ?DEFAULT_CLIENT_OPT_CONNECT_TIMEOUT),
+    RecvTimeout = maps:get(recv_timeout, Options, ?DEFAULT_CLIENT_OPT_RECV_TIMEOUT),
+    MaxEncodedResultSize = maps:get(max_encoded_result_size, Options, ?DEFAULT_CLIENT_OPT_MAX_ENCODED_RESULT_SIZE),
     [{pool, backwater_client},
      {connect_timeout, ConnectTimeout},
      {recv_timeout, RecvTimeout},
