@@ -46,8 +46,7 @@
 %% ------------------------------------------------------------------
 
 -type children_spec() ::
-        [backwater_cache:child_spec(cache) |
-         backwater_client_instances:child_spec(client_instances),
+        [backwater_cache:child_spec(cache),
          ...].
 -export_type([children_spec/0]).
 
@@ -65,7 +64,5 @@ start_link() ->
 
 -spec init([]) -> {ok, {#{}, children_spec()}}.
 init([]) ->
-    Children =
-        [backwater_cache:child_spec(cache),
-         backwater_client_instances:child_spec(client_instances)],
+    Children = [backwater_cache:child_spec(cache)],
     {ok, {#{}, Children}}.

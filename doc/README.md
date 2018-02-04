@@ -42,24 +42,13 @@ Secret = crypto:strong_rand_bytes(32).
 
 ```
 
-<h5><a name="3._Start_the_client">3. Start the client</a></h5>
+<h5><a name="3._Execute_a_remote_call">3. Execute a remote call</a></h5>
 
 ```erlang
 
 
-ok = backwater_client:start(
-        example,
-        #{ endpoint => <<"http://127.0.0.1:8080/">>,
-           secret => Secret }).
-
-```
-
-<h5><a name="4._Execute_a_remote_call">4. Execute a remote call</a></h5>
-
-```erlang
-
-
-{ok, "hello"} = backwater_client:call(example, string, to_lower, ["Hello"]).
+Endpoint = {<<"http://127.0.0.1:8080/">>, Secret},
+{ok, "hello"} = backwater_client:call(Endpoint, string, to_lower, ["Hello"]).
 
 ```
 

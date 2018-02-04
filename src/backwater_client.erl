@@ -32,15 +32,14 @@
 %% ------------------------------------------------------------------
 
 -export([call/4]).                               -ignore_xref({call,4}).
--export([start/2]).                              -ignore_xref({start,2}).
--export([stop/1]).                               -ignore_xref({stop,1}).
+-export([call/5]).                               -ignore_xref({call,5}).
 
 %% ------------------------------------------------------------------
 %% Common Test Helper Exports
 %% ------------------------------------------------------------------
 
 -ifdef(TEST).
--export(['_call'/5]).
+-export(['_call'/6]).
 -endif.
 
 %% ------------------------------------------------------------------
@@ -59,11 +58,8 @@
 %% Type Definitions
 %% ------------------------------------------------------------------
 
--type config() ::
-    #{ endpoint := nonempty_binary(),
-       secret := binary(),
-       hackney_opts => [hackney_option()],
-
+-type options() ::
+    #{ hackney_opts => [hackney_option()],
        compression_threshold => non_neg_integer(),
        connect_timeout => timeout(),
        decode_unsafe_terms => boolean(),
@@ -71,7 +67,7 @@
        recv_timeout => timeout(),
        rethrow_remote_exceptions => boolean()
      }.
--export_type([config/0]).
+-export_type([options/0]).
 
 -type hackney_error() :: {hackney, term()}.
 -export_type([hackney_error/0]).
@@ -86,114 +82,68 @@
 %% API Function Definitions
 %% ------------------------------------------------------------------
 
--spec call(Ref, Module, Function, Args) -> Result | no_return()
-        when Ref :: term(),
+-spec call(Endpoint, Module, Function, Args) -> Result | no_return()
+        when Endpoint :: backwater_request:endpoint(),
              Module :: module(),
              Function :: atom(),
              Args :: [term()],
              Result :: result().
 
-call(Ref, Module, Function, Args) ->
-    ConfigLookup = backwater_client_instances:find_client_config(Ref),
-    call_(ConfigLookup, Module, Function, Args).
+call(Endpoint, Module, Function, Args) ->
+    call(Endpoint, Module, Function, Args, #{}).
 
 
--spec start(Ref, Config) -> ok | {error, Error}
-        when Ref :: term(),
-             Config :: config(),
-             Error :: already_started | backwater_util:config_validation_error().
+-spec call(Endpoint, Module, Function, Args, Options) -> Result | no_return()
+        when Endpoint :: backwater_request:endpoint(),
+             Module :: module(),
+             Function :: atom(),
+             Args :: [term()],
+             Options :: options(),
+             Result :: result().
 
-start(Ref, Config) ->
-    case validate_config(Config) of
-        {ok, ValidatedConfig} ->
-            backwater_client_instances:start_client(Ref, ValidatedConfig);
-        {error, Error} ->
-            {error, Error}
-    end.
-
-
--spec stop(Ref) -> ok | {error, not_found}
-        when Ref :: term().
-
-stop(Ref) ->
-    backwater_client_instances:stop_client(Ref).
+call(Endpoint, Module, Function, Args, Options) ->
+    encode_request(Endpoint, Module, Function, Args, Options).
 
 %% ------------------------------------------------------------------
 %% Internal Function Definitions
 %% ------------------------------------------------------------------
 
--spec validate_config(term()) -> {ok, config()} | {error, backwater_util:config_validation_error()}.
-validate_config(Config) ->
-    backwater_util:validate_config_map(Config, [endpoint, secret], fun validate_config_pair/1).
-
--spec validate_config_pair({term(), term()}) -> boolean().
-validate_config_pair({endpoint, Endpoint}) ->
-    is_binary(Endpoint) andalso byte_size(Endpoint) > 0;
-validate_config_pair({secret, Secret}) ->
-    is_binary(Secret);
-validate_config_pair({hackney_opts, HackneyOpts}) ->
-    % TODO deeper validation
-    is_list(HackneyOpts);
-validate_config_pair({compression_threshold, CompressionThreshold}) ->
-    ?is_non_neg_integer(CompressionThreshold);
-validate_config_pair({connect_timeout, ConnectTimeout}) ->
-    ?is_timeout(ConnectTimeout);
-validate_config_pair({decode_unsafe_terms, DecodeUnsafeTerms}) ->
-    is_boolean(DecodeUnsafeTerms);
-validate_config_pair({max_encoded_result_size, MaxEncodedResultSize}) ->
-    ?is_non_neg_integer(MaxEncodedResultSize);
-validate_config_pair({recv_timeout, RecvTimeout}) ->
-    ?is_timeout(RecvTimeout);
-validate_config_pair({rethrow_remote_exceptions, RethrowRemoteExceptions}) ->
-    is_boolean(RethrowRemoteExceptions);
-validate_config_pair({_K, _V}) ->
-    false.
-
--spec call_({ok, config()} | error, module(), atom(), [term()])
-        -> result().
-call_({ok, Config}, Module, Function, Args) ->
-    encode_request(Config, Module, Function, Args);
-call_(error, _Module, _Function, _Args) ->
-    {error, not_started}.
-
--spec encode_request(config(), module(), atom(), [term()])
+-spec encode_request(backwater_request:endpoint(), module(), atom(), [term()], options())
         -> backwater_response:t(Error) when Error :: {hackney, term()}.
-encode_request(Config, Module, Function, Args) ->
-    #{ endpoint := Endpoint, secret := Secret } = Config,
-    Options = maps:with(?HTTP_REQUEST_ENCODING_OPTION_NAMES, Config),
+encode_request(Endpoint, Module, Function, Args, Options) ->
+    RequestOptions = maps:with(?HTTP_REQUEST_ENCODING_OPTION_NAMES, Options),
     {Request, State} =
-        backwater_request:encode(Endpoint, Module, Function, Args, Secret, Options),
-    call_hackney(Config, State, Request).
+        backwater_request:encode(Endpoint, Module, Function, Args, RequestOptions),
+    call_hackney(Request, State, Options).
 
--spec call_hackney(config(), backwater_request:state(), backwater_request:t())
+-spec call_hackney(backwater_request:t(), backwater_request:state(), options())
         -> backwater_response:t(Error) when Error :: {hackney, term()}.
-call_hackney(Config, RequestState, Request) ->
+call_hackney(Request, RequestState, Options) ->
     #{ http_params := HttpParams, full_url := FullUrl } = Request,
     #{ method := Method, headers := Headers, body := Body } = HttpParams,
-    DefaultHackneyOpts = default_hackney_opts(Config),
-    ConfigHackneyOpts = maps:get(hackney_opts, Config, []),
+    DefaultHackneyOpts = default_hackney_opts(Options),
+    ExplicitHackneyOpts = maps:get(hackney_opts, Options, []),
     MandatoryHackneyOpts = [with_body],
-    HackneyOpts = backwater_util:proplists_sort_and_merge([DefaultHackneyOpts, ConfigHackneyOpts,
-                                                           MandatoryHackneyOpts]),
+    HackneyOpts = backwater_util:proplists_sort_and_merge(
+                    [DefaultHackneyOpts, ExplicitHackneyOpts, MandatoryHackneyOpts]),
     Result = hackney:request(Method, FullUrl, Headers, Body, HackneyOpts),
-    handle_hackney_result(Config, RequestState, Result).
+    handle_hackney_result(Result, RequestState, Options).
 
-handle_hackney_result(Config, RequestState, {ok, StatusCode, Headers, Body}) ->
-    Options = maps:with(?HTTP_RESPONSE_DECODING_OPTION_NAMES, Config),
-    backwater_response:decode(StatusCode, Headers, Body, RequestState, Options);
-handle_hackney_result(_Config, _RequestState, {error, Error}) ->
+handle_hackney_result({ok, StatusCode, Headers, Body}, RequestState, Options) ->
+    ResponseOptions = maps:with(?HTTP_RESPONSE_DECODING_OPTION_NAMES, Options),
+    backwater_response:decode(StatusCode, Headers, Body, RequestState, ResponseOptions);
+handle_hackney_result({error, Error}, _RequestState, _Options) ->
     {error, {hackney, Error}}.
 
-default_hackney_opts(Config) ->
-    ConnectTimeout = maps:get(connect_timeout, Config, ?DEFAULT_OPT_CONNECT_TIMEOUT),
-    RecvTimeout = maps:get(recv_timeout, Config, ?DEFAULT_OPT_RECV_TIMEOUT),
-    MaxEncodedResultSize = maps:get(max_encoded_result_size, Config, ?DEFAULT_OPT_MAX_ENCODED_RESULT_SIZE),
+default_hackney_opts(Options) ->
+    ConnectTimeout = maps:get(connect_timeout, Options, ?DEFAULT_OPT_CONNECT_TIMEOUT),
+    RecvTimeout = maps:get(recv_timeout, Options, ?DEFAULT_OPT_RECV_TIMEOUT),
+    MaxEncodedResultSize = maps:get(max_encoded_result_size, Options, ?DEFAULT_OPT_MAX_ENCODED_RESULT_SIZE),
     [{pool, backwater_client},
      {connect_timeout, ConnectTimeout},
      {recv_timeout, RecvTimeout},
      {max_body, MaxEncodedResultSize}
     ].
-
 
 %% ------------------------------------------------------------------
 %% Common Test Helper Definitions
@@ -201,14 +151,12 @@ default_hackney_opts(Config) ->
 
 -ifdef(TEST).
 %% @private
-'_call'(Ref, Module, Function, Args, Override) ->
-    {ok, Config} = backwater_client_instances:find_client_config(Ref),
-    #{ endpoint := Endpoint, secret := Secret } = Config,
+'_call'(Endpoint, Module, Function, Args, Options, Override) ->
     RequestEncodingOverride = maps:get(request, Override, #{}),
     PrevDictionaryKeyValue = put(override, RequestEncodingOverride),
-    {Request, State} = backwater_request:encode(Endpoint, Module, Function, Args, Secret),
+    {Request, RequestState} = backwater_request:encode(Endpoint, Module, Function, Args, Options),
     try
-        call_hackney(Config, State, Request)
+        call_hackney(Request, RequestState, Options)
     after
         put(override, PrevDictionaryKeyValue)
     end.

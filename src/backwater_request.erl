@@ -29,8 +29,8 @@
 %% API Function Exports
 %% ------------------------------------------------------------------
 
--export([encode/5]).                            -ignore_xref({encode,5}).
--export([encode/6]).
+-export([encode/4]).                            -ignore_xref({encode,4}).
+-export([encode/5]).
 
 %% ------------------------------------------------------------------
 %% Macro Definitions
@@ -50,6 +50,15 @@
 
 -type nonempty_headers() :: [{nonempty_binary(), binary()}, ...].
 -export_type([nonempty_headers/0]).
+
+-type endpoint() :: {location(), secret()}.
+-export_type([endpoint/0]).
+
+-type location() :: nonempty_binary().
+-export_type([location/0]).
+
+-type secret() :: binary().
+-export_type([secret/0]).
 
 -type options() ::
         #{ compression_threshold => non_neg_integer() }.
@@ -84,30 +93,29 @@
 %% API Function Definitions
 %% ------------------------------------------------------------------
 
--spec encode(Endpoint, Module, Function, Args, Secret) -> {Request, RequestState}
-            when Endpoint :: nonempty_binary(),
+-spec encode(Endpoint, Module, Function, Args) -> {Request, RequestState}
+            when Endpoint :: endpoint(),
                  Module :: module(),
                  Function :: atom(),
                  Args :: [term()],
-                 Secret :: binary(),
                  Request :: t(),
                  RequestState :: state().
 
-encode(Endpoint, Module, Function, Args, Secret) ->
-    encode(Endpoint, Module, Function, Args, Secret, #{}).
+encode(Endpoint, Module, Function, Args) ->
+    encode(Endpoint, Module, Function, Args, #{}).
 
 
--spec encode(Endpoint, Module, Function, Args, Secret, Options) -> {Request, RequestState}
-            when Endpoint :: nonempty_binary(),
+-spec encode(Endpoint, Module, Function, Args, Options) -> {Request, RequestState}
+            when Endpoint :: endpoint(),
                  Module :: module(),
                  Function :: atom(),
                  Args :: [term()],
-                 Secret :: binary(),
                  Options :: options(),
                  Request :: t(),
                  RequestState :: state().
 
-encode(Endpoint, Module, Function, Args, Secret, Options) ->
+encode(Endpoint, Module, Function, Args, Options) ->
+    {Location, Secret} = Endpoint,
     Method = ?OVERRIDE_HACK(update_method_with, ?OPAQUE_BINARY(<<"POST">>)),
     MediaType = ?OPAQUE_BINARY(<<"application/x-erlang-etf">>),
     Headers =
@@ -124,7 +132,7 @@ encode(Endpoint, Module, Function, Args, Secret, Options) ->
     CompressionThreshold =
         maps:get(compression_threshold, Options, ?DEFAULT_OPT_COMPRESSION_THRESHOLD),
 
-    Request = base_request(Endpoint, Method, Module, Function, Arity, Headers, Body),
+    Request = base_request(Location, Method, Module, Function, Arity, Headers, Body),
     HttpParams = maps:get(http_params, Request),
     {UpdatedHttpParams, State} = maybe_compress(HttpParams, Secret, CompressionThreshold),
     UpdatedRequest = Request#{ http_params := UpdatedHttpParams },
@@ -134,11 +142,12 @@ encode(Endpoint, Module, Function, Args, Secret, Options) ->
 %% Internal Function Definitions
 %% ------------------------------------------------------------------
 
--spec base_request(nonempty_binary(), nonempty_binary(), module(), atom(), arity(),
+-spec base_request(location(), nonempty_binary(), module(), atom(), arity(),
                    nonempty_headers(), nonempty_binary())
         -> t().
-base_request(Endpoint, Method, Module, Function, Arity, Headers, Body) ->
+base_request(Location, Method, Module, Function, Arity, Headers, Body) ->
     % encode full URL
+    BaseURL = base_url(Location),
     AllPathComponents =
         [iolist_to_binary(?BACKWATER_HTTP_API_BASE_ENDPOINT),
          iolist_to_binary(?BACKWATER_HTTP_API_VERSION),
@@ -148,7 +157,7 @@ base_request(Endpoint, Method, Module, Function, Arity, Headers, Body) ->
     QueryString = <<>>,
     FullUrl =
         ?OVERRIDE_HACK(update_url_with,
-                       hackney_url:make_url(Endpoint, AllPathComponents, QueryString)),
+                       hackney_url:make_url(BaseURL, AllPathComponents, QueryString)),
 
     % decode full URL back into its components
     HackneyUrl = hackney_url:parse_url(FullUrl),
@@ -166,6 +175,11 @@ base_request(Endpoint, Method, Module, Function, Arity, Headers, Body) ->
     #{ conn_params => ConnParams,
        http_params => HttpParams,
        full_url => FullUrl }.
+
+-spec base_url(location()) -> nonempty_binary().
+base_url(<<BaseURL/binary>>) ->
+    % TODO more formats
+    BaseURL.
 
 -spec maybe_compress(http_params(), binary(), non_neg_integer())
         -> {http_params(), state()}.
