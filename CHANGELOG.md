@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `backwater_server:start_clear/4` is now `backwater:start_clear_server/6` (see migration guide)
 - `backwater_server:start_tls/4` is now `backwater:start_tls_server/6` (see migration guide)
 - `backwater_server:stop_listener/1` is now `backwater:stop_server/1` (see migration guide)
+- unsafe arguments and return values are now decoded by default (trust is assumed)
 - the default exposure policy, per module, from `use_backwater_attributes` to `all` (see migration guide)
 ### Removed
 - rebar3 plugin (it has its own project now - rebar3_backwater; see migration guide)

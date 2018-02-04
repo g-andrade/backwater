@@ -1,6 +1,6 @@
 -define(DEFAULT_OPT_COMPRESSION_THRESHOLD, 300). % in bytes
 -define(DEFAULT_OPT_CONNECT_TIMEOUT, (timer:seconds(8))).
--define(DEFAULT_OPT_DECODE_UNSAFE_TERMS, false).
+-define(DEFAULT_OPT_DECODE_UNSAFE_TERMS, true).
 -define(DEFAULT_OPT_MAX_ENCODED_ARGS_SIZE, (8 * (1 bsl 20))). % in bytes
 -define(DEFAULT_OPT_MAX_ENCODED_RESULT_SIZE, (8 * (1 bsl 20))). % in bytes
 -define(DEFAULT_OPT_RECV_TIMEOUT, (timer:seconds(5))).
