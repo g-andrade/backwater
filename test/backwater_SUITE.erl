@@ -42,10 +42,9 @@ init_per_group(Name, Config) ->
     ServerConfig =
         #{ secret => Secret,
            exposed_modules =>
-                [{erlang, [{exports, all}]},
+                [erlang,
                  {string, [{exports, [{copies,2}]}]},
-                 non_existing_module,
-                 module_with_backwater_attributes],
+                 non_existing_module],
            decode_unsafe_terms => DecodeUnsafeTerms,
            return_exception_stacktraces => ReturnExceptionStacktraces
          },
@@ -578,49 +577,6 @@ unsafe_argument_grouptest(Config) ->
         false ->
             ?assertMatch({error, {remote, {bad_request, _Headers, _Body}}}, Result)
     end.
-
-backwater_attributes_exported_grouptest(Config) ->
-    {client_endpoint, Endpoint} = lists:keyfind(client_endpoint, 1, Config),
-    {client_options, Options} = lists:keyfind(client_options, 1, Config),
-
-    % exported both regularly and through backwater attribute
-    ?assertEqual(
-       {ok, {foobar}},
-       backwater:call(Endpoint, module_with_backwater_attributes, 'exported_functionA',
-                      [], Options)),
-
-    % exported only regularly
-    ArgB = rand:uniform(1000),
-    ?assertMatch(
-       {error, {remote, {not_found, _Headers, _Body}}},
-       backwater:call(Endpoint, module_with_backwater_attributes, 'exported_functionB',
-                      [ArgB], Options)),
-
-    % exported both regularly and through backwater attribute
-    ?assertEqual(
-       {ok, {barfoo}},
-       backwater:call(Endpoint, module_with_backwater_attributes, 'exported_functionC',
-                      [], Options)),
-
-    % exported both regularly and through backwater attribute
-    ArgD = rand:uniform(1000),
-    ?assertEqual(
-       {ok, {ArgD}},
-       backwater:call(Endpoint, module_with_backwater_attributes, 'exported_functionD',
-                      [ArgD], Options)),
-
-    % exported only through backwater attribute
-    ?assertMatch(
-       {error, {remote, {not_found, _Headers, _Body}}},
-       backwater:call(Endpoint, module_with_backwater_attributes, 'exported_functionE',
-                      [], Options)),
-
-    ArgInternal = rand:uniform(1000),
-    % existing internal function
-    ?assertMatch(
-       {error, {remote, {not_found, _Headers, _Body}}},
-       backwater:call(Endpoint, module_with_backwater_attributes, 'internal_function',
-                      [ArgInternal], Options)).
 
 %%%
 all_group_tests() ->

@@ -36,7 +36,7 @@
 %% Macro Definitions
 %% ------------------------------------------------------------------
 
--define(DEFAULT_MODULE_EXPORTS, use_backwater_attributes).
+-define(DEFAULT_MODULE_EXPORTS, all).
 
 %% ------------------------------------------------------------------
 %% Type Definitions
@@ -51,7 +51,7 @@
 -type exposed_module() :: module() | {module(), [exposed_module_opt()]}.
 -export_type([exposed_module/0]).
 
--type exposed_module_opt() :: {exports, all | use_backwater_attributes | [atom()]}.
+-type exposed_module_opt() :: {exports, all | [atom()]}.
 -export_type([exposed_module_opt/0]).
 
 -type fun_arity_pair() :: {binary(), arity()}.
@@ -69,7 +69,6 @@
 -export_type([module_info/0]).
 
 -type raw_module_info() :: [{atom(), term()}].
--type raw_module_attributes() :: [{atom(), term()}].
 
 %% ------------------------------------------------------------------
 %% API Function Definitions
@@ -137,59 +136,16 @@ find_module_info(Module) ->
 determine_module_exports(ExposedModule, RawModuleInfo) ->
     Module = exposed_module_name(ExposedModule),
     Opts = exposed_module_opts(ExposedModule),
-    {attributes, ModuleAttributes} = lists:keyfind(attributes, 1, RawModuleInfo),
     {exports, AtomKeyedExports} = lists:keyfind(exports, 1, RawModuleInfo),
 
     case proplists:get_value(exports, Opts, ?DEFAULT_MODULE_EXPORTS) of
         all ->
             maps:from_list([backwater_export_entry_pair(Module, Pair) || Pair <- AtomKeyedExports]);
-        use_backwater_attributes ->
-            Exports = [{atom_to_binary(K, utf8), V} || {K, V} <- AtomKeyedExports],
-            BackwaterExports = module_info_get_backwater_exports(Module, ModuleAttributes, AtomKeyedExports),
-            maps:with(Exports, BackwaterExports);
         List when is_list(List) ->
             maps:from_list(
               [backwater_export_entry_pair(Module, Pair) || Pair <- AtomKeyedExports,
                lists:member(Pair, List)])
     end.
-
--spec module_info_get_backwater_exports(module(), raw_module_attributes(), [{atom(),arity()}])
-        -> exports().
-module_info_get_backwater_exports(Module, ModuleAttributes, AtomKeyedExports) ->
-    ModuleStr = atom_to_list(Module),
-    IsLikelyElixirModule =
-        lists:prefix("Elixir.", ModuleStr) andalso lists:member({'__info__',1}, AtomKeyedExports),
-    UseExportFunction =
-        IsLikelyElixirModule andalso lists:member({backwater_export,0}, AtomKeyedExports),
-
-    case UseExportFunction of
-        false ->
-            module_attributes_get_backwater_exports(Module, ModuleAttributes);
-        true ->
-            case Module:backwater_export() of
-                Tuple when is_tuple(Tuple) ->
-                    {FA, Properties} = backwater_export_entry_pair(Module, Tuple),
-                    #{ FA => Properties };
-                List when is_list(List) ->
-                    EntryPairs = [backwater_export_entry_pair(Module, Tuple) || Tuple <- List],
-                    maps:from_list(EntryPairs)
-            end
-    end.
-
--spec module_attributes_get_backwater_exports(module(), raw_module_attributes()) -> exports().
-module_attributes_get_backwater_exports(Module, ModuleAttributes) ->
-    lists:foldl(
-      fun ({backwater_export, Tuple}, Acc) when is_tuple(Tuple) ->
-              {FA, Properties} = backwater_export_entry_pair(Module, Tuple),
-              maps:put(FA, Properties, Acc);
-          ({backwater_export, List}, Acc) when is_list(List) ->
-              EntryPairs = [backwater_export_entry_pair(Module, Tuple) || Tuple <- List],
-              maps:merge(Acc, maps:from_list(EntryPairs));
-          (_Other, Acc) ->
-              Acc
-      end,
-      #{},
-      ModuleAttributes).
 
 -spec backwater_export_entry_pair(module(), {atom(), arity()})
         -> {fun_arity_pair(), fun_properties()}.

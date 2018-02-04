@@ -46,7 +46,7 @@ exposed_module() = module() | {module(), [<a href="#type-exposed_module_opt">exp
 
 
 <pre><code>
-exposed_module_opt() = {exports, all | use_backwater_attributes | [atom()]}
+exposed_module_opt() = {exports, all | [atom()]}
 </code></pre>
 
 
