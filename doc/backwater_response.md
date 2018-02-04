@@ -16,7 +16,7 @@
 
 
 <pre><code>
-error() = {exception, {Class::error | exit | throw, Reason::term(), <a href="erlang.md#type-raise_stacktrace">erlang:raise_stacktrace()</a>}} | {<a href="#type-failure">failure()</a>, <a href="#type-raw_response">raw_response()</a>}
+error() = {exception, {Class::error | exit | throw, Reason::term(), [<a href="erlang.md#type-stack_item">erlang:stack_item()</a>]}} | {<a href="#type-failure">failure()</a>, <a href="#type-raw_response">raw_response()</a>}
 </code></pre>
 
 
