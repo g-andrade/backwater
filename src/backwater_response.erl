@@ -40,7 +40,7 @@
 %% ------------------------------------------------------------------
 
 -type error() ::
-        {exception, {Class :: error | exit | throw, Reason :: term(), erlang:raise_stacktrace()}} |
+        {exception, {Class :: error | exit | throw, Reason :: term(), [erlang:stack_item()]}} |
         {failure(), raw_response()}.
 -export_type([error/0]).
 
