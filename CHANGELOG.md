@@ -16,8 +16,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `backwater_server:start_clear` is now `backwater:start_clear_server`
 - `backwater_server:start_tls` is now `backwater:start_tls_server`
 - `backwater_server:stop_listener` is now `backwater:stop_server`
+- the default exposure policy, per module, from `use_backwater_attributes` to `all`
 ### Removed
 - rebar3 plugin (it has its own project now - rebar3_backwater)
+- support for defining module exposure through custom `backwater_export` attributes and functions
 
 ## [2.0.2] - 2018-02-03
 ### Fixed

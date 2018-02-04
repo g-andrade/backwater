@@ -41,9 +41,30 @@
     % into this
     backwater_request:encode({Location, Secret}, Module, Function, Args, Options)
 ```
+- use of custom `backwater_export` attributes (Erlang), like this:
+```
+    % remove this from your Erlang module
+    -module(foo)
+    -backwater_export({bar,3}).
+
+    % and declare it upon server start instead
+    backwater:start_clear_server(#{ ... exposed_modules := [{foo, [{exports,[{bar,3}]}]}] }).
+```
+- use of custom `backwater_export` functions (Elixir), like this:
+```
+    % remove this from your Elixir module
+    defmodule Foo do
+        def backwater_export do
+            [{:bar,3}]
+        end
+
+    % and declare it upon server start instead
+    :backwater.start_clear_server(%{ ... exposed_modules => [{Foo, [{:exports,[{:bar,3}]}]}] }).
+```
 ### Delete
 - Calls to `backwater_client:start/2`
 - Calls to `backwater_client:stop/1`
+- Custom `backwater_export` module attributes
 
 ## From [1.x] to [2.x]
 ### Update
