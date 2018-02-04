@@ -12,10 +12,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - the `backwater_http_response` module was renamed to `backwater_response`
 - the `backwater_http_signatures` module was renamed to `backwater_signatures`
 - `backwater_client:call` no longer takes a `Ref` - it now receives endpoint, secret and options explicitly.
+- `backwater_client:call` is now `backwater:call`
+- `backwater_server:start_clear` is now `backwater:start_clear_server`
+- `backwater_server:start_tls` is now `backwater:start_tls_server`
+- `backwater_server:stop_listener` is now `backwater:stop_server`
 ### Removed
 - rebar3 plugin (it has its own project now - rebar3_backwater)
-- `backwater_client:start/2`
-- `backwater_client:stop/1`
 
 ## [2.0.2] - 2018-02-03
 ### Fixed

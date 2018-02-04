@@ -47,26 +47,26 @@
    ]).
 
 %% ------------------------------------------------------------------
-%% API Function Exports (listener)
+%% API Function Exports (server)
 %% ------------------------------------------------------------------
 
 -export(
-   [start_clear_listener/1,
-    start_clear_listener/4,
-    start_tls_listener/2,
-    start_tls_listener/4,
-    stop_listener/0,
-    stop_listener/1,
+   [start_clear_server/1,
+    start_clear_server/4,
+    start_tls_server/2,
+    start_tls_server/4,
+    stop_server/0,
+    stop_server/1,
     base_cowboy_route_parts/0 % internal
    ]).
 
 -ignore_xref(
-   [start_clear_listener/1,
-    start_clear_listener/4,
-    start_tls_listener/2,
-    start_tls_listener/4,
-    stop_listener/0,
-    stop_listener/1
+   [start_clear_server/1,
+    start_clear_server/4,
+    start_tls_server/2,
+    start_tls_server/4,
+    stop_server/0,
+    stop_server/1
    ]).
 
 -dialyzer(
@@ -95,7 +95,7 @@
          rethrow_remote_exceptions]).
 
 %% ------------------------------------------------------------------
-%% Macro Definitions (listener)
+%% Macro Definitions (server)
 %% ------------------------------------------------------------------
 
 -define(DEFAULT_NB_ACCEPTORS, 20).
@@ -129,7 +129,7 @@
 -export_type([call_result/0]).
 
 %% ------------------------------------------------------------------
-%% Type Definitions (listener)
+%% Type Definitions (server)
 %% ------------------------------------------------------------------
 
 -type clear_opt() :: ranch:opt() | ranch_tcp:opt().
@@ -180,49 +180,49 @@ call(Endpoint, Module, Function, Args, Options) ->
     encode_request(Endpoint, Module, Function, Args, Options).
 
 %% ------------------------------------------------------------------
-%% API Function Definitions (listener)
+%% API Function Definitions (server)
 %% ------------------------------------------------------------------
 
--spec start_clear_listener(Config)  -> {ok, pid()} | {error, term()}
+-spec start_clear_server(Config)  -> {ok, pid()} | {error, term()}
             when Config :: backwater_cowboy_handler:config().
-start_clear_listener(Config) ->
-    start_clear_listener(default, Config, [], #{}).
+start_clear_server(Config) ->
+    start_clear_server(default, Config, [], #{}).
 
--spec start_clear_listener(Ref, Config, TransportOpts, ProtoOpts)  -> {ok, pid()} | {error, term()}
+-spec start_clear_server(Ref, Config, TransportOpts, ProtoOpts)  -> {ok, pid()} | {error, term()}
             when Ref :: term(),
                  Config :: backwater_cowboy_handler:config(),
                  TransportOpts :: clear_opts(),
                  ProtoOpts :: proto_opts().
-start_clear_listener(Ref, Config, TransportOpts0, ProtoOpts) ->
+start_clear_server(Ref, Config, TransportOpts0, ProtoOpts) ->
     DefaultTransportOpts = default_transport_options(?DEFAULT_CLEAR_PORT),
     TransportOpts = backwater_util:proplists_sort_and_merge(DefaultTransportOpts, TransportOpts0),
     start_cowboy(start_clear, Ref, Config, TransportOpts, ProtoOpts).
 
 
--spec start_tls_listener(Config, TransportOpts) -> {ok, pid()} | {error, term()}
+-spec start_tls_server(Config, TransportOpts) -> {ok, pid()} | {error, term()}
             when Config :: backwater_cowboy_handler:config(),
                  TransportOpts :: tls_opts().
-start_tls_listener(Config, TransportOpts) ->
-    start_tls_listener(default, Config, TransportOpts, #{}).
+start_tls_server(Config, TransportOpts) ->
+    start_tls_server(default, Config, TransportOpts, #{}).
 
 
--spec start_tls_listener(Ref, Config, TransportOpts, ProtoOpts) -> {ok, pid()} | {error, term()}
+-spec start_tls_server(Ref, Config, TransportOpts, ProtoOpts) -> {ok, pid()} | {error, term()}
             when Ref :: term(),
                  Config :: backwater_cowboy_handler:config(),
                  TransportOpts :: tls_opts(),
                  ProtoOpts :: proto_opts().
-start_tls_listener(Ref, Config, TransportOpts0, ProtoOpts) ->
+start_tls_server(Ref, Config, TransportOpts0, ProtoOpts) ->
     DefaultTransportOpts = default_transport_options(?DEFAULT_TLS_PORT),
     TransportOpts = backwater_util:proplists_sort_and_merge(DefaultTransportOpts, TransportOpts0),
     start_cowboy(start_tls, Ref, Config, TransportOpts, ProtoOpts).
 
--spec stop_listener() -> ok | {error, not_found}.
-stop_listener() ->
-    stop_listener(default).
+-spec stop_server() -> ok | {error, not_found}.
+stop_server() ->
+    stop_server(default).
 
--spec stop_listener(Ref) -> ok | {error, not_found}
+-spec stop_server(Ref) -> ok | {error, not_found}
             when Ref :: term().
-stop_listener(Ref) ->
+stop_server(Ref) ->
     cowboy:stop_listener(ref(Ref)).
 
 -spec base_cowboy_route_parts() -> [nonempty_string()].
@@ -272,7 +272,7 @@ default_hackney_opts(Options) ->
     ].
 
 %% ------------------------------------------------------------------
-%% Internal Function Definitions (listener)
+%% Internal Function Definitions (server)
 %% ------------------------------------------------------------------
 
 default_transport_options(Port) ->

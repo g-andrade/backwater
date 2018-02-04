@@ -62,7 +62,7 @@ init_per_group(Name, Config) ->
 end_per_group(_Name, Config1) ->
     {value, {ref, Ref}, Config2} = lists:keytake(ref, 1, Config1),
     Config3 = lists_keywithout([server_start_fun, name], 1, Config2),
-    ok = backwater:stop_listener(Ref),
+    ok = backwater:stop_server(Ref),
     _ = application:stop(backwater),
     _ = application:stop(cowboy),
     Config3.
@@ -150,7 +150,7 @@ server_start_ref_clash_grouptest(Config, Name, _Protocol) ->
        WrappedStartFun(#{ secret => <<>>, exposed_modules => [] })),
     ?assertEqual(
        ok,
-       backwater:stop_listener(Ref)).
+       backwater:stop_server(Ref)).
 
 escaped_function_name_grouptest(Config) ->
     {client_endpoint, Endpoint} = lists:keyfind(client_endpoint, 1, Config),
@@ -679,7 +679,7 @@ get_starting_params_(http) ->
     Endpoint = <<"http://127.0.0.1:", (integer_to_binary(Port))/binary>>,
     TransportOpts = [{port, Port}],
     HackneyOpts = [],
-    {Endpoint, start_clear_listener, TransportOpts, HackneyOpts};
+    {Endpoint, start_clear_server, TransportOpts, HackneyOpts};
 get_starting_params_(https) ->
     Port = ?TLS_PORT,
     Endpoint = <<"https://127.0.0.1:", (integer_to_binary(Port))/binary>>,
@@ -690,7 +690,7 @@ get_starting_params_(https) ->
     HackneyOpts =
         [insecure,
          {ssl_options, [{server_name_indication, disable}]}],
-    {Endpoint, start_tls_listener, TransportOpts, HackneyOpts}.
+    {Endpoint, start_tls_server, TransportOpts, HackneyOpts}.
 
 ssl_certificate_path() ->
     Path = filename:join([source_directory(), "data", "ssl"]),

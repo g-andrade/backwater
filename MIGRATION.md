@@ -10,9 +10,9 @@
     % into this
     {plugins, [{rebar3_backwater, "1.0.0"}]}.
 ```
-- calls to `backwater_server:start_clear/4` to `backwater:start_clear_listener/4`
-- calls to `backwater_server:start_tls/4` to `backwater:start_tls_listener/4`
-- calls to `backwater_server:stop_listener/1` to `backwater:stop_listener/1`
+- calls to `backwater_server:start_clear/4` to `backwater:start_clear_server/4`
+- calls to `backwater_server:start_tls/4` to `backwater:start_tls_server/4`
+- calls to `backwater_server:stop_listener/1` to `backwater:stop_server/1`
 - calls to `backwater_client:call/4`, like this:
 ```
     % change these

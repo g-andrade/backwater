@@ -43,18 +43,18 @@ defmodule BasicFuncionalityTest do
     # start server
     secret = :crypto.strong_rand_bytes(32)
     {:ok, _pid} =
-      :backwater.start_clear_listener(ref,
-                                      %{:secret => secret,
-                                        :exposed_modules => exposed_modules,
-                                        :decode_unsafe_terms => true },
-                                      [{:port, 8080}],
-                                      [])
+      :backwater.start_clear_server(ref,
+                                    %{:secret => secret,
+                                      :exposed_modules => exposed_modules,
+                                      :decode_unsafe_terms => true },
+                                    [{:port, 8080}],
+                                    [])
     endpoint = {"http://127.0.0.1:8080", secret}
     {ref, endpoint}
   end
 
   def stop_backwater(ref) do
-    :ok = :backwater.stop_listener(ref)
+    :ok = :backwater.stop_server(ref)
     :timer.sleep(100)
   end
 

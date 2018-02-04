@@ -35,7 +35,7 @@ Secret = crypto:strong_rand_bytes(32).
 
 
 {ok, _ServerPid} =
-    backwater:start_clear_listener(
+    backwater:start_clear_server(
         #{ secret => Secret,
            exposed_modules => [{string, [{exports,all}]}]
          }).
