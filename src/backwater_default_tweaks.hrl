@@ -6,3 +6,6 @@
 -define(DEFAULT_OPT_RECV_TIMEOUT, (timer:seconds(5))).
 -define(DEFAULT_OPT_RETHROW_REMOTE_EXCEPTIONS, false).
 -define(DEFAULT_OPT_RETURN_EXCEPTION_STACKTRACES, true).
+
+-define(DEFAULT_SERVER_NB_ACCEPTORS, 20).
+-define(DEFAULT_SERVER_MAX_KEEPALIVE, 200). % max. nr of requests before closing a keep-alive connection

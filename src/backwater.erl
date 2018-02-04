@@ -98,9 +98,6 @@
 %% Macro Definitions (server)
 %% ------------------------------------------------------------------
 
--define(DEFAULT_NB_ACCEPTORS, 20).
--define(DEFAULT_MAX_KEEPALIVE, 200). % max. nr of requests before closing a keep-alive connection
-
 -define(HTTP_API_API_BASE_ENDPOINT, "/backwater"). % we could make this configurable
 -define(HTTP_API_API_VERSION, "1").
 
@@ -334,7 +331,7 @@ ensure_num_acceptors_in_transport_opts(TransportOpts) ->
       fun ({num_acceptors, NbAcceptors}) when ?is_non_neg_integer(NbAcceptors) ->
               {num_acceptors, NbAcceptors}
       end,
-      {num_acceptors, ?DEFAULT_NB_ACCEPTORS},
+      {num_acceptors, ?DEFAULT_SERVER_NB_ACCEPTORS},
       TransportOpts).
 
 -spec inject_backwater_dispatch_in_map_http_opts(
@@ -351,7 +348,7 @@ inject_backwater_dispatch_in_map_http_opts(BackwaterDispatch, ProtoOpts) ->
 -spec ensure_max_keepalive_in_map_http_opts(cowboy_http:opts()) -> cowboy_http:opts().
 ensure_max_keepalive_in_map_http_opts(ProtoOpts) ->
     maps:merge(
-      #{ max_keepalive => ?DEFAULT_MAX_KEEPALIVE },
+      #{ max_keepalive => ?DEFAULT_SERVER_MAX_KEEPALIVE },
       ProtoOpts).
 
 -spec ref(term()) -> {backwater, term()}.
