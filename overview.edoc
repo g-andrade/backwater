@@ -80,10 +80,10 @@ is used for all function arguments and return values.
 Because trust is assumed unless declared otherwise (like in regular Erlang clusters),
 unsafe terms are decoded by default.
 
-For function arguments, this behaviour can be tweaked thorugh the `decode_unsafe_terms'
+For function arguments, this behaviour can be tweaked through the `decode_unsafe_terms'
 setting in backwater options when running `:start_clear_server' or `:start_tls_server'.
 
-For return values, this behaviour can be tweaked thorugh the `decode_unsafe_terms'
+For return values, this behaviour can be tweaked through the `decode_unsafe_terms'
 setting in `:call/5' options.
 
 ==== Compression ====
