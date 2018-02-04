@@ -21,8 +21,8 @@
 -module(backwater_response).
 
 -include_lib("hackney/include/hackney_lib.hrl").
--include("backwater_client.hrl").
 -include("backwater_common.hrl").
+-include("backwater_default_tweaks.hrl").
 
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
@@ -275,15 +275,15 @@ assert_header_safety(CiName, SignedResponseMsg) ->
 
 -spec opt_decode_unsafe_terms(options()) -> boolean().
 opt_decode_unsafe_terms(Options) ->
-    maps:get(decode_unsafe_terms, Options, ?DEFAULT_CLIENT_OPT_DECODE_UNSAFE_TERMS).
+    maps:get(decode_unsafe_terms, Options, ?DEFAULT_OPT_DECODE_UNSAFE_TERMS).
 
 -spec opt_max_encoded_result_size(options()) -> non_neg_integer().
 opt_max_encoded_result_size(Options) ->
-    maps:get(max_encoded_result_size, Options, ?DEFAULT_CLIENT_OPT_MAX_ENCODED_RESULT_SIZE).
+    maps:get(max_encoded_result_size, Options, ?DEFAULT_OPT_MAX_ENCODED_RESULT_SIZE).
 
 -spec opt_rethrow_remote_exceptions(options()) -> boolean().
 opt_rethrow_remote_exceptions(Options) ->
-    maps:get(rethrow_remote_exceptions, Options, ?DEFAULT_CLIENT_OPT_RETHROW_REMOTE_EXCEPTIONS).
+    maps:get(rethrow_remote_exceptions, Options, ?DEFAULT_OPT_RETHROW_REMOTE_EXCEPTIONS).
 
 -spec failure_error(failure(), status_code(), headers(), binary())
         -> {error, {failure(), raw_response()}}.

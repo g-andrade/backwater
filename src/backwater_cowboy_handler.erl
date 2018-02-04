@@ -22,6 +22,7 @@
 -behaviour(cowboy_handler).
 
 -include("backwater_common.hrl").
+-include("backwater_default_tweaks.hrl").
 
 %% ------------------------------------------------------------------
 %% API Function Exports
@@ -42,12 +43,6 @@
 
 -define(CACHED_FUNCTION_PROPERTIES_TTL, (timer:seconds(5))).
 -define(KNOWN_CONTENT_ENCODINGS, [<<"gzip">>, <<"identity">>]).
-
--define(DEFAULT_OPT_COMPRESSION_THRESHOLD, 300). % in bytes
--define(DEFAULT_OPT_DECODE_UNSAFE_TERMS, false).
--define(DEFAULT_OPT_MAX_ENCODED_ARGS_SIZE, (8 * (1 bsl 20))). % in bytes
--define(DEFAULT_OPT_RECV_TIMEOUT, 5000). % in milliseconds
--define(DEFAULT_OPT_RETURN_EXCEPTION_STACKTRACES, true).
 
 %% ------------------------------------------------------------------
 %% Type Definitions

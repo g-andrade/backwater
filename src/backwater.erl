@@ -29,8 +29,8 @@
 -module(backwater).
 
 -include("backwater_api.hrl").
--include("backwater_client.hrl").
 -include("backwater_common.hrl").
+-include("backwater_default_tweaks.hrl").
 
 %% ------------------------------------------------------------------
 %% API Function Exports (caller)
@@ -310,9 +310,10 @@ handle_hackney_result({error, Error}, _RequestState, _Options) ->
     {error, {hackney, Error}}.
 
 default_hackney_opts(Options) ->
-    ConnectTimeout = maps:get(connect_timeout, Options, ?DEFAULT_CLIENT_OPT_CONNECT_TIMEOUT),
-    RecvTimeout = maps:get(recv_timeout, Options, ?DEFAULT_CLIENT_OPT_RECV_TIMEOUT),
-    MaxEncodedResultSize = maps:get(max_encoded_result_size, Options, ?DEFAULT_CLIENT_OPT_MAX_ENCODED_RESULT_SIZE),
+    ConnectTimeout = maps:get(connect_timeout, Options, ?DEFAULT_OPT_CONNECT_TIMEOUT),
+    RecvTimeout = maps:get(recv_timeout, Options, ?DEFAULT_OPT_RECV_TIMEOUT),
+    MaxEncodedResultSize =
+        maps:get(max_encoded_result_size, Options, ?DEFAULT_OPT_MAX_ENCODED_RESULT_SIZE),
     [{pool, backwater_client},
      {connect_timeout, ConnectTimeout},
      {recv_timeout, RecvTimeout},

@@ -22,8 +22,8 @@
 
 -include_lib("hackney/include/hackney_lib.hrl").
 -include("backwater_api.hrl").
--include("backwater_client.hrl").
 -include("backwater_common.hrl").
+-include("backwater_default_tweaks.hrl").
 
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
@@ -136,7 +136,7 @@ encode(Endpoint, Module, Function, Args, Options) ->
            backwater_media_etf:encode(Args)),
     Arity = ?OVERRIDE_HACK(update_arity_with, length(Args)),
     CompressionThreshold =
-        maps:get(compression_threshold, Options, ?DEFAULT_CLIENT_OPT_COMPRESSION_THRESHOLD),
+        maps:get(compression_threshold, Options, ?DEFAULT_OPT_COMPRESSION_THRESHOLD),
 
     Request = base_request(Location, Method, Module, Function, Arity, Headers, Body),
     HttpParams = maps:get(http_params, Request),
