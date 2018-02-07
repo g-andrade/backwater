@@ -83,7 +83,7 @@ backwater options.
 
 <h5><a name="Serialisation">Serialisation</a></h5>
 
-The [external term format](http://erlang.org/doc/apps/erts/erl_ext_dist.md)
+The [external term format](http://erlang.org/doc/apps/erts/erl_ext_dist)
 is used for all function arguments and return values.
 
 Because trust is assumed unless declared otherwise (like in regular Erlang clusters),

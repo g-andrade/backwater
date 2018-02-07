@@ -74,7 +74,7 @@ backwater options.
 
 ==== Serialisation ====
 
-The <a href="http://erlang.org/doc/apps/erts/erl_ext_dist.html">external term format</a>
+The <a href="http://erlang.org/doc/apps/erts/erl_ext_dist">external term format</a>
 is used for all function arguments and return values.
 
 Because trust is assumed unless declared otherwise (like in regular Erlang clusters),
