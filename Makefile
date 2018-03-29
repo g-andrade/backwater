@@ -50,8 +50,17 @@ console:
 travis: TEST_PROFILE = travis_test
 travis: test
 
-doc: build
-	./scripts/hackish_make_docs.sh
+doc:
+	@$(REBAR3) edoc
+
+README.md: doc
+	# non-portable dirty hack follows (pandoc 2.1.1 used)
+	# gfm: "github-flavoured markdown"
+	@pandoc --from html --to gfm doc/overview-summary.html -o README.md
+	@tail -n +11 <"README.md"   >"README.md_"
+	@head -n -12 <"README.md_"  >"README.md"
+	@tail -n  2  <"README.md_" >>"README.md"
+	@rm "README.md_"
 
 publish:
 	@$(REBAR3) as publication hex publish
