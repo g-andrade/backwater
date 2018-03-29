@@ -54,4 +54,4 @@ doc: build
 	./scripts/hackish_make_docs.sh
 
 publish:
-	@$(REBAR3) as publication hex publish
+	@$(REBAR3) hex publish
