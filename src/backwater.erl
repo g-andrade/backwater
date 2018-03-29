@@ -154,8 +154,10 @@
 %% @doc Performs remote call on `Endpoint'.
 %%
 %% Returns:
-%% - `{ok, ReturnValue}' in case of success
-%% - `{error, term()}' otherwise.
+%% <ul>
+%% <li>`{ok, ReturnValue}' in case of success</li>
+%% <li>`{error, term()}' otherwise.</li>
+%% </ul>
 %% @see call/5
 -spec call(Endpoint, Module, Function, Args) -> Result | no_return()
         when Endpoint :: backwater_request:endpoint(),
@@ -169,8 +171,10 @@ call(Endpoint, Module, Function, Args) ->
 %% @doc Performs remote call on `Endpoint'.
 %%
 %% Returns:
-%% - `{ok, ReturnValue}' in case of success
-%% - `{error, term()}' otherwise.
+%% <ul>
+%% <li>`{ok, ReturnValue}' in case of success</li>
+%% <li>`{error, term()}' otherwise.</li>
+%% </ul>
 %% @see call/4
 -spec call(Endpoint, Module, Function, Args, Options) -> Result | no_return()
         when Endpoint :: backwater_request:endpoint(),
@@ -189,8 +193,10 @@ call(Endpoint, Module, Function, Args, Options) ->
 %% @doc Starts a cleartext cowboy listener that can handle remote calls.
 %%
 %% Returns:
-%% - `{ok, ServerPid}' in case of success
-%% - `{error, term()}' otherwise.
+%% <ul>
+%% <li>`{ok, ServerPid}' in case of success</li>
+%% <li>`{error, term()}' otherwise.</li>
+%% </ul>
 %% @see start_clear_server/4
 -spec start_clear_server(Secret, ExposedModules)
     -> {ok, pid()} | {error, term()}
@@ -202,8 +208,10 @@ start_clear_server(Secret, ExposedModules) ->
 %% @doc Like `:start_clear_server/2' but one can specify the listener name  and tune settings.
 %%
 %% Returns:
-%% - `{ok, ServerPid}' in case of success
-%% - `{error, term()}' otherwise.
+%% <ul>
+%% <li>`{ok, ServerPid}' in case of success</li>
+%% <li>`{error, term()}' otherwise.</li>
+%% </ul>
 %% @see start_clear_server/2
 -spec start_clear_server(Ref, Secret, ExposedModules, Opts)
     -> {ok, pid()} | {error, term()}
@@ -217,8 +225,10 @@ start_clear_server(Ref, Secret, ExposedModules, Opts) ->
 %% @doc Starts a TLS cowboy listener that can handle remote calls.
 %%
 %% Returns:
-%% - `{ok, ServerPid}' in case of success
-%% - `{error, term()}' otherwise.
+%% <ul>
+%% <li>`{ok, ServerPid}' in case of success</li>
+%% <li>`{error, term()}' otherwise.</li>
+%% </ul>
 %% @see start_tls_server/4
 -spec start_tls_server(Secret, ExposedModules, TLSOpts)
     -> {ok, pid()} | {error, term()}
@@ -232,8 +242,10 @@ start_tls_server(Secret, ExposedModules, TLSOpts) ->
 %% @doc Like `:start_tls_server/3' but one can specify the listener name and tune (more) settings.
 %%
 %% Returns:
-%% - `{ok, ServerPid}' in case of success
-%% - `{error, term()}' otherwise.
+%% <ul>
+%% <li>`{ok, ServerPid}' in case of success</li>
+%% <li>`{error, term()}' otherwise.</li>
+%% </ul>
 %% @see start_tls_server/3
 -spec start_tls_server(Ref, Secret, ExposedModules, Opts)
     -> {ok, pid()} | {error, term()}
