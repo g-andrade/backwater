@@ -1,9 +1,10 @@
-<!-- vim: set spell spelllang=en_gb: -->
 @title backwater
 @doc
 
-[![Build Status](https://travis-ci.org/g-andrade/backwater.png?branch=master)](https://travis-ci.org/g-andrade/backwater)
-[![Hex pm](http://img.shields.io/hexpm/v/backwater.svg?style=flat)](https://hex.pm/packages/backwater)
+<a target="_parent" href="https://hex.pm/packages/backwater" alt="Hex.pm Package">
+    <img src="https://img.shields.io/hexpm/v/backwater.svg?style=flat"/></a>
+<a target="_parent" href="https://travis-ci.org/g-andrade/backwater" alt="Build Status">
+    <img src="https://travis-ci.org/g-andrade/backwater.png?branch=master"/></a>
 
 == Backwater - Intercluster RPC for Erlang and Elixir ==
 
@@ -12,7 +13,7 @@
 It's targeted at scenarios where nodes in one datacenter need to call nodes
 in another datacenter, over unsecure or unstable networks.
 
-The <a href="https://github.com/g-andrade/rebar3_backwater">rebar3 plugin</a> can be leveraged
+The <a target="_parent" href="https://github.com/g-andrade/rebar3_backwater">rebar3 plugin</a> can be leveraged
 to automate the creation of boilerplate client code.
 
 === Usage ===
@@ -22,20 +23,20 @@ We're going to expose the `string' module and call it remotely.
 
 ==== 1. Generate a secret ====
 
-<pre lang="erlang">
+<pre lang="erlang" class="erlang">
 Secret = crypto:strong_rand_bytes(32).
 </pre>
 
 ==== 2. Start the server ====
 
-<pre lang="erlang">
+<pre lang="erlang" class="erlang">
 backwater:start_clear_server(Secret, [string]).
 % {ok, _ServerPid}
 </pre>
 
 ==== 3. Execute a remote call ====
 
-<pre lang="erlang">
+<pre lang="erlang" class="erlang">
 backwater:call({"127.0.0.1", Secret}, string, to_upper, ["hello"]).
 % {ok, "HELLO"}
 </pre>
@@ -44,20 +45,26 @@ Check the <a href="#modules">function reference</a> for an overview on everythin
 
 === Details ===
 
-`backwater' is built on top of <a href="https://github.com/ninenines/cowboy">cowboy</a> and
-<a href="https://github.com/benoitc/hackney">hackney</a>.
+`backwater' is built on top of <a target="_parent" href="https://github.com/ninenines/cowboy">cowboy</a> and
+<a target="_parent" href="https://github.com/benoitc/hackney">hackney</a>.
 
 ==== Requirements ====
 
-* Erlang/OTP 19 or higher
-* rebar3
+<ul>
+<li>Erlang/OTP 19 or higher</li>
+<li>rebar3</li>
+</ul>
 
 For Erlang/OTP 18 support, check the 1.1.x support versions.
+
+==== Documentation ====
+
+Documentation is hosted on <a target="_parent" href="https://hexdocs.pm/backwater/">HexDocs</a>.
 
 ==== Authentication and integrity ====
 
 All requests and responses are authenticated and signed using a modified
-version of <a href="https://tools.ietf.org/id/draft-cavage-http-signatures-07.txt">HTTP signatures</a>;
+version of <a target="_parent" href="https://tools.ietf.org/id/draft-cavage-http-signatures-07.txt">HTTP signatures</a>;
 nevertheless, it's <b>strongly</b> recommended to use HTTPS, as HTTP signatures offer no protection
 against replay attacks - besides risking exposure of sensitive data.
 
@@ -74,7 +81,11 @@ backwater options.
 
 ==== Serialisation ====
 
+<<<<<<< HEAD:overview.edoc
 The <a href="http://erlang.org/doc/apps/erts/erl_ext_dist">external term format</a>
+=======
+The <a target="_parent" href="http://erlang.org/doc/apps/erts/erl_ext_dist">external term format</a>
+>>>>>>> develop:doc/overview.edoc
 is used for all function arguments and return values.
 
 Because trust is assumed unless declared otherwise (like in regular Erlang clusters),
