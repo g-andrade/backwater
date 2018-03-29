@@ -21,7 +21,7 @@
 %% @reference <a target="_parent" href="https://ninenines.eu/docs/en/ranch/1.4/manual/ranch/#_opt">ranch:opt()</a> documentation
 %% @reference <a target="_parent" href="https://ninenines.eu/docs/en/ranch/1.4/manual/ranch_tcp/#_opt">ranch_tcp:opt()</a> documentation
 %% @reference <a target="_parent" href="https://ninenines.eu/docs/en/ranch/1.4/manual/ranch_ssl/#_opt_ranch_tcp_opt_ssl_opt">ranch_ssl:opt()</a> documentation
-%% @reference <a target="_parent" href="https://ninenines.eu/docs/en/cowboy/2.0/manual/cowboy_http/#_options">cowboy_http:opts()</a> documentation
+%% @reference <a target="_parent" href="https://ninenines.eu/docs/en/cowboy/2.2/manual/cowboy_http/#_options">cowboy_http:opts()</a> documentation
 %% @reference hackney request options listed <a target="_parent" href="https://github.com/benoitc/hackney/blob/master/doc/hackney.md">here</a>
 
 -module(backwater).
