@@ -41,8 +41,6 @@ backwater:call({"127.0.0.1", Secret}, string, to_upper, ["hello"]).
 % {ok, "HELLO"}
 </pre>
 
-Check the <a href="#modules">function reference</a> for an overview on everything you can do.
-
 === Details ===
 
 `backwater' is built on top of <a target="_parent" href="https://github.com/ninenines/cowboy">cowboy</a> and
