@@ -81,11 +81,7 @@ backwater options.
 
 ==== Serialisation ====
 
-<<<<<<< HEAD:overview.edoc
-The <a href="http://erlang.org/doc/apps/erts/erl_ext_dist">external term format</a>
-=======
 The <a target="_parent" href="http://erlang.org/doc/apps/erts/erl_ext_dist">external term format</a>
->>>>>>> develop:doc/overview.edoc
 is used for all function arguments and return values.
 
 Because trust is assumed unless declared otherwise (like in regular Erlang clusters),
