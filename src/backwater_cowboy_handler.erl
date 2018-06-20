@@ -643,22 +643,47 @@ execute_call(State) ->
 call_function(State) ->
     #{ function_properties := FunctionProperties, args := FunctionArgs } = State,
     #{ function_ref := FunctionRef } = FunctionProperties,
+    call_function(FunctionRef, FunctionArgs, State).
+
+-spec call_function(fun(), list(), state()) -> {ok, call_result()} | {error, undefined_module_or_function}.
+-ifdef(POST_OTP_20).
+call_function(FunctionRef, FunctionArgs, State) ->
+    ReturnExceptionStacktrace = opt_return_exception_stack_traces(State),
     try
         {ok, {return, apply(FunctionRef, FunctionArgs)}}
     catch
-        Class:Exception ->
-            handle_possibly_undef_call_exception(Class, Exception, State, FunctionRef)
+        error:undef:Stacktrace ->
+            handle_undef_call_exception(FunctionRef, Stacktrace, State);
+        Class:Exception when not ReturnExceptionStacktrace ->
+            return_call_exception(Class, Exception, []);
+        Class:Exception:Stacktrace ->
+            return_call_exception(Class, Exception, Stacktrace)
     end.
+-else.
+call_function(FunctionRef, FunctionArgs, State) ->
+    ReturnExceptionStacktrace = opt_return_exception_stack_traces(State),
+    try
+        {ok, {return, apply(FunctionRef, FunctionArgs)}}
+    catch
+        error:undef ->
+            Stacktrace = erlang:get_stacktrace(),
+            handle_undef_call_exception(FunctionRef, Stacktrace, State);
+        Class:Exception when not ReturnExceptionStacktrace ->
+            return_call_exception(Class, Exception, []);
+        Class:Exception ->
+            Stacktrace = erlang:get_stacktrace(),
+            return_call_exception(Class, Exception, Stacktrace)
+    end.
+-endif.
 
--spec handle_possibly_undef_call_exception(raisable_class(), term(), state(), fun())
+-spec handle_undef_call_exception(fun(), [erlang:stack_item()], state())
         -> {ok, call_exception()} | {error, undefined_module_or_function}.
-handle_possibly_undef_call_exception(Class, Exception, State, FunctionRef)
-  when Class =:= error, Exception =:= undef ->
+handle_undef_call_exception(FunctionRef, Stacktrace, State) ->
     ReturnExceptionStacktraces = opt_return_exception_stack_traces(State),
     {module, Module} = erlang:fun_info(FunctionRef, module),
     {name, Name} = erlang:fun_info(FunctionRef, name),
     {arity, Arity} = erlang:fun_info(FunctionRef, arity),
-    case erlang:get_stacktrace() of
+    case Stacktrace of
         [{Module, Name, Args, _Location} | _] when is_list(Args), length(Args) =:= Arity ->
             % It looks like our target function or module has disappeared in the mean time,
             % either due to a stale cache or because the module has been (un/re)loaded.
@@ -668,28 +693,16 @@ handle_possibly_undef_call_exception(Class, Exception, State, FunctionRef)
             % Don't bother clearing the cache as the TTL is low in any case.
             {error, undefined_module_or_function};
         Stacktrace when ReturnExceptionStacktraces ->
-            return_call_exception(Class, Exception, Stacktrace);
+            return_call_exception(error, undef, Stacktrace);
         _Stacktrace when not ReturnExceptionStacktraces ->
-            return_call_exception(Class, Exception, [])
-    end;
-handle_possibly_undef_call_exception(Class, Exception, State, _FunctionRef) ->
-    handle_call_exception(Class, Exception, State).
-
--spec handle_call_exception(raisable_class(), term(), state()) -> {ok, call_exception()}.
-handle_call_exception(Class, Exception, State) ->
-    case opt_return_exception_stack_traces(State) of
-        false ->
-            return_call_exception(Class, Exception, []);
-        true ->
-            Stacktrace = erlang:get_stacktrace(),
-            return_call_exception(Class, Exception, Stacktrace)
+            return_call_exception(error, undef, [])
     end.
 
 -spec return_call_exception(raisable_class(), term(), [erlang:stack_item()]) -> {ok, call_exception()}.
 return_call_exception(Class, Exception, Stacktrace) ->
     % Hide all calls previous to the one made to the target function (cowboy stuff, etc.)
     % This works under the assumption that *no sensible call* would ever go through 'call_function/1' again.
-    PurgedStacktrace = backwater_util:purge_stacktrace_below({?MODULE,call_function,1}, Stacktrace),
+    PurgedStacktrace = backwater_util:purge_stacktrace_below({?MODULE,call_function,3}, Stacktrace),
     {ok, {exception, {Class, Exception, PurgedStacktrace}}}.
 
 -spec opt_return_exception_stack_traces(state()) -> boolean().
