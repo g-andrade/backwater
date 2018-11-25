@@ -7,5 +7,5 @@ all: deps test
 deps:
 	$(MIX) deps.get
 
-test:
+test: deps
 	$(MIX) test

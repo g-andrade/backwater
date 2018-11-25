@@ -25,34 +25,34 @@ $(REBAR3):
 	wget $(REBAR3_URL) || curl -Lo rebar3 $(REBAR3_URL)
 	@chmod a+x rebar3
 
-clean:
+clean: $(REBAR3)
 	@$(REBAR3) clean
 
 check: dialyzer xref
 
-dialyzer:
+dialyzer: $(REBAR3)
 	@$(REBAR3) as development dialyzer
 
-xref:
+xref: $(REBAR3)
 	@$(REBAR3) as development xref
 
-test:
+test: $(REBAR3)
 	@$(REBAR3) as $(TEST_PROFILE) eunit, ct
 	@if [ "$(TEST_PROFILE)" != "travis_test" ]; then \
 		make -C test.elixir; \
 		rm -rf ebin; \
 	fi
 
-cover: test
+cover: $(REBAR3) test
 	@$(REBAR3) as test cover
 
-console:
+console: $(REBAR3)
 	@$(REBAR3) as development shell --apps backwater
 
 travis: TEST_PROFILE = travis_test
 travis: test
 
-doc:
+doc: $(REBAR3)
 	@$(REBAR3) edoc
 
 README.md: doc
@@ -64,6 +64,6 @@ README.md: doc
 	@tail -n  2  <"README.md_" >>"README.md"
 	@rm "README.md_"
 
-publish:
+publish: $(REBAR3)
 	@$(REBAR3) hex publish
 	@$(REBAR3) hex docs
