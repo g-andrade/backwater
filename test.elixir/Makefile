@@ -4,6 +4,9 @@ MIX = mix
 
 all: deps test
 
+clean:
+	rm -rf _build deps
+
 deps:
 	$(MIX) deps.get
 

@@ -27,6 +27,7 @@ $(REBAR3):
 
 clean: $(REBAR3)
 	@$(REBAR3) clean
+	make -C test.elixir
 
 check: dialyzer xref
 
