@@ -4,7 +4,11 @@ ifeq ($(wildcard rebar3),rebar3)
 	REBAR3 = $(CURDIR)/rebar3
 endif
 
+ifdef RUNNING_ON_TRAVIS
+REBAR3 = ./rebar3
+else
 REBAR3 ?= $(shell test -e `which rebar3` 2>/dev/null && which rebar3 || echo "./rebar3")
+endif
 
 ifeq ($(REBAR3),)
 	REBAR3 = $(CURDIR)/rebar3
@@ -12,7 +16,7 @@ endif
 
 TEST_PROFILE ?= test
 
-.PHONY: all build clean check dialyzer xref run test cover console travis doc publish
+.PHONY: all build clean check dialyzer xref run test cover console travis_test doc publish
 
 .NOTPARALLEL: check test
 
@@ -50,8 +54,8 @@ cover: $(REBAR3) test
 console: $(REBAR3)
 	@$(REBAR3) as development shell --apps backwater
 
-travis: TEST_PROFILE = travis_test
-travis: test
+travis_test: TEST_PROFILE = travis_test
+travis_test: test
 
 doc: $(REBAR3)
 	@$(REBAR3) edoc
