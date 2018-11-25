@@ -14,6 +14,8 @@ TEST_PROFILE ?= test
 
 .PHONY: all build clean check dialyzer xref run test cover console travis doc publish
 
+.NOTPARALLEL: check test
+
 all: build
 
 build: $(REBAR3)
