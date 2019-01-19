@@ -16,5 +16,6 @@
   {modules, []},
 
   {licenses, ["MIT"]},
-  {links, [{"Github", "https://github.com/g-andrade/backwater"}]}
+  {links, [{"GitHub", "https://github.com/g-andrade/backwater"},
+           {"GitLab", "https://github.com/g-andrade/backwater"}]}
  ]}.
