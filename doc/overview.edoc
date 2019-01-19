@@ -13,9 +13,6 @@
 It's targeted at scenarios where nodes in one datacenter need to call nodes
 in another datacenter, over unsecure or unstable networks.
 
-The <a target="_parent" href="https://github.com/g-andrade/rebar3_backwater">rebar3 plugin</a> can be leveraged
-to automate the creation of boilerplate client code.
-
 === Usage ===
 
 Run `make console' to bring up a shell.
