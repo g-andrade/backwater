@@ -5,9 +5,9 @@ MIX = mix
 all: deps test
 
 clean:
-	rm -rf _build deps
+	rm -rf _build deps mix.lock
 
-deps:
+deps: mix.exs ../rebar.config
 	$(MIX) deps.get
 
 test: deps
