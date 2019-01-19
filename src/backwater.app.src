@@ -1,6 +1,6 @@
 {application, backwater,
  [{description, "Intercluster RPC independent of distribution protocol"},
-  {vsn, git},
+  {vsn, "git"},
   {registered, []},
   {mod, {backwater_app, []}},
   {applications,
@@ -15,7 +15,6 @@
   {env,[]},
   {modules, []},
 
-  {maintainers, ["Guilherme Andrade"]},
   {licenses, ["MIT"]},
   {links, [{"Github", "https://github.com/g-andrade/backwater"}]}
  ]}.
