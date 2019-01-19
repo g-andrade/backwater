@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ## UNRELEASED
 ### Changed
 - cowboy was upgraded from 2.2.2 to 2.6.1
+- hackney was upgraded from 1.11.0 to 1.15.0
 
 ## [3.0.3] - 2019-01-19
 ### Removed
