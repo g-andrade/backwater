@@ -115,8 +115,8 @@ proplists_sort_and_merge(List1, List2) ->
     SortedList2 = lists:usort(fun proplists_element_cmp/2, lists:reverse(List2)),
     lists:umerge(fun proplists_element_cmp/2, SortedList2, SortedList1).
 
--spec purge_stacktrace_below({module(),atom(),arity()}, [erlang:stack_item()])
-        -> [erlang:stack_item()].
+-spec purge_stacktrace_below({module(),atom(),arity()}, [backwater:stack_item()])
+        -> [backwater:stack_item()].
 %% @private
 purge_stacktrace_below(MarkerMFA, Stacktrace) ->
     lists:takewhile(

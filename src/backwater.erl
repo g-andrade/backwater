@@ -123,6 +123,16 @@
 -type call_result() :: backwater_response:t(hackney_error()).
 -export_type([call_result/0]).
 
+% not exported from erlang.erl
+-type stack_item() ::
+    {Module :: module(),
+     Function :: atom(),
+     Arity :: arity() | (Args :: [term()]),
+     Location ::
+     [{file, Filename :: string()} |
+      {line, Line :: pos_integer()}]}.
+-export_type([stack_item/0]).
+
 %% ------------------------------------------------------------------
 %% Type Definitions (server)
 %% ------------------------------------------------------------------

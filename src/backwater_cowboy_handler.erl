@@ -94,7 +94,7 @@
 
 -type call_result() :: {return, term()} | call_exception().
 
--type call_exception() :: {exception, {raisable_class(), Exception :: term(), [erlang:stack_item()]}}.
+-type call_exception() :: {exception, {raisable_class(), Exception :: term(), [backwater:stack_item()]}}.
 
 -type content_type() :: {Type :: binary(), SubType :: binary(), content_type_params()}.
 
@@ -676,7 +676,7 @@ call_function(FunctionRef, FunctionArgs, State) ->
     end.
 -endif.
 
--spec handle_undef_call_exception(fun(), [erlang:stack_item()], state())
+-spec handle_undef_call_exception(fun(), [backwater:stack_item()], state())
         -> {ok, call_exception()} | {error, undefined_module_or_function}.
 handle_undef_call_exception(FunctionRef, Stacktrace, State) ->
     ReturnExceptionStacktraces = opt_return_exception_stack_traces(State),
@@ -698,7 +698,7 @@ handle_undef_call_exception(FunctionRef, Stacktrace, State) ->
             return_call_exception(error, undef, [])
     end.
 
--spec return_call_exception(raisable_class(), term(), [erlang:stack_item()]) -> {ok, call_exception()}.
+-spec return_call_exception(raisable_class(), term(), [backwater:stack_item()]) -> {ok, call_exception()}.
 return_call_exception(Class, Exception, Stacktrace) ->
     % Hide all calls previous to the one made to the target function (cowboy stuff, etc.)
     % This works under the assumption that *no sensible call* would ever go through 'call_function/1' again.
