@@ -51,8 +51,7 @@ For Erlang/OTP 18 support, check the 1.1.x support versions.
 
 ##### <span id="Documentation">Documentation</span>
 
-Documentation is hosted on
-[HexDocs](https://hexdocs.pm/backwater/).
+Documentation is hosted on [HexDocs](https://hexdocs.pm/backwater/).
 
 ##### <span id="Authentication_and_integrity">Authentication and integrity</span>
 
@@ -128,8 +127,7 @@ timeout of 5s. Either can be adjusted using either `connect_timeout` or
 
 The server enforces a default receive timeout of 5s. This can be
 adjusted using the `recv_timeout` setting in backwater options, when
-running `:start_clear_server` or
-`:start_tls_server`.
+running `:start_clear_server` or `:start_tls_server`.
 
 ##### <span id="On_using_alternative_HTTP_clients">On using alternative HTTP clients</span>
 
@@ -160,8 +158,7 @@ MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
 IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
 CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
 TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
-SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 -----
 
