@@ -20,7 +20,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Removed
 - outdated mention of boilerplate generator plugin which was never finished
 ### Fixed
-- unwarranted import of rebar3_hex plugin in library consumers
+- unwarranted import of `rebar3_hex` plugin in library consumers
 
 ## [3.0.2] - 2018-06-20
 ### Fixed
@@ -44,7 +44,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - cowboy was upgraded from 2.1.0 to 2.2.2
 - hackney was upgraded from 1.10.1 to 1.11.0
 ### Removed
-- rebar3 plugin (it has its own project now - rebar3_backwater; see migration guide)
+- rebar3 plugin (it has its own project now - `rebar3_backwater`; see migration guide)
 - support for defining module exposure through custom `backwater_export` attributes and functions (see migration guide)
 - support for defining proto / HTTP options as a proplist
 
