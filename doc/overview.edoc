@@ -5,6 +5,8 @@
     <img src="https://img.shields.io/hexpm/v/backwater.svg?style=flat"/></a>
 <a target="_parent" href="https://travis-ci.org/g-andrade/backwater" alt="Build Status">
     <img src="https://travis-ci.org/g-andrade/backwater.png?branch=master"/></a>
+<a target="_parent" href="https://circleci.com/gh/g-andrade/backwater/tree/master" alt="Circle CI Build Status">
+    <img src="https://circleci.com/gh/g-andrade/backwater/tree/master.svg?style=svg"/></a>
 
 == Backwater - Intercluster RPC for Erlang and Elixir ==
 
