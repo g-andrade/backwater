@@ -2,7 +2,6 @@
 
 [![](https://img.shields.io/hexpm/v/backwater.svg?style=flat)](https://hex.pm/packages/backwater)
 [![](https://travis-ci.org/g-andrade/backwater.png?branch=master)](https://travis-ci.org/g-andrade/backwater)
-[![](https://circleci.com/gh/g-andrade/backwater/tree/master.svg?style=svg)](https://circleci.com/gh/g-andrade/backwater/tree/master)
 
 ### <span id="Backwater_-_Intercluster_RPC_for_Erlang_and_Elixir">Backwater - Intercluster RPC for Erlang and Elixir</span>
 
