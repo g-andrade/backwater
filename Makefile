@@ -4,7 +4,7 @@ ifeq ($(wildcard rebar3),rebar3)
 	REBAR3 = $(CURDIR)/rebar3
 endif
 
-ifdef RUNNING_ON_TRAVIS
+ifdef RUNNING_ON_CI
 REBAR3 = ./rebar3
 else
 REBAR3 ?= $(shell test -e `which rebar3` 2>/dev/null && which rebar3 || echo "./rebar3")
@@ -16,7 +16,7 @@ endif
 
 TEST_PROFILE ?= test
 
-.PHONY: all build clean check dialyzer xref run test cover console travis_test doc publish
+.PHONY: all build clean check dialyzer xref run test cover console ci_test doc publish
 
 .NOTPARALLEL: check test
 
@@ -43,7 +43,7 @@ xref: $(REBAR3)
 
 test: $(REBAR3)
 	@$(REBAR3) as $(TEST_PROFILE) eunit, ct
-	@if [ "$(TEST_PROFILE)" != "travis_test" ]; then \
+	@if [ "$(TEST_PROFILE)" != "ci_test" ]; then \
 		make -C test.elixir; \
 		rm -rf ebin; \
 	fi
@@ -54,8 +54,8 @@ cover: $(REBAR3) test
 console: $(REBAR3)
 	@$(REBAR3) as development shell --apps backwater
 
-travis_test: TEST_PROFILE = travis_test
-travis_test: test
+ci_test: TEST_PROFILE = ci_test
+ci_test: test
 
 doc: $(REBAR3)
 	@$(REBAR3) edoc
