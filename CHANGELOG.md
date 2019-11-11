@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+### Changed
+- imported `cowboy` version from 2.6.3 to 2.7.0
+### Removed
+- OTP 19 support
+
 ## [3.2.1] - 2019-09-25
 ### Fixed
 - broken HTTPS-transported calls on OTP 22.1
