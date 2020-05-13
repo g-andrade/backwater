@@ -29,6 +29,7 @@
 -export([lists_allmap/2]).
 -export([lists_anymap/2]).
 -export([lists_keyupdate_with/5]).
+-export([sha256_hmac/2]).
 -export([is_iodata/1]).
 -export([proplists_sort_and_merge/1]).
 -export([proplists_sort_and_merge/2]).
@@ -85,6 +86,16 @@ lists_anymap(Fun, [H|T]) ->
 %% @private
 lists_keyupdate_with(Key, N, Fun, Initial, List) when element(N, Initial) =:= Key ->
     lists_keyupdate_with_recur(Key, N, Fun, Initial, List, []).
+
+-spec sha256_hmac(iodata(), iodata()) -> binary().
+%% @private
+-ifdef(POST_OTP_22).
+sha256_hmac(Key, Data) ->
+    crypto:mac(hmac, sha256, Key, Data).
+-else.
+sha256_hmac(Key, Data) ->
+    crypto:hmac(sha256, Key, Data).
+-endif.
 
 -spec is_iodata(term()) -> boolean().
 %% @private

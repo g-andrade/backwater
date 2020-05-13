@@ -523,7 +523,7 @@ validate_signature(Config, #{ <<"headers">> := SignedHeaderNames, <<"signature">
             {error, Reason};
         {ok, IoData} ->
             #{ key := Key } = Config,
-            ExpectedSignature = crypto:hmac(sha256, Key, IoData),
+            ExpectedSignature = backwater_util:sha256_hmac(Key, IoData),
             case ExpectedSignature =:= Signature of
                 false ->
                     {error, invalid_signature};
@@ -552,7 +552,7 @@ generate_authorization_header_value(Config, Msg, SignedHeaderNames) ->
 generate_signature_header_value(Config, Msg, SignedHeaderNames) ->
     #{ key := Key } = Config,
     {ok, SignatureIoData} = build_signature_iodata(SignedHeaderNames, Msg),
-    Signature = crypto:hmac(sha256, Key, SignatureIoData),
+    Signature = backwater_util:sha256_hmac(Key, SignatureIoData),
     SignatureParams =
         #{ ?OPAQUE_BINARY(<<"keyId">>) => ?KEY_ID,
            ?OPAQUE_BINARY(<<"algorithm">>) => ?ALGORITHM,
