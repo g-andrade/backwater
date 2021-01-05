@@ -137,7 +137,7 @@ module and interpret responses using the `backwater_response' module.
 
 MIT License
 
-Copyright (c) 2017-2018 Guilherme Andrade
+Copyright (c) 2017-2021 Guilherme Andrade
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal

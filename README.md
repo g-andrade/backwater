@@ -140,7 +140,7 @@ For now, the best way to achieve this is to build requests using the
 
 MIT License
 
-Copyright (c) 2017-2018 Guilherme Andrade
+Copyright (c) 2017-2021 Guilherme Andrade
 
 Permission is hereby granted, free of charge, to any person obtaining a
 copy of this software and associated documentation files (the
