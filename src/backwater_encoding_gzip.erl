@@ -35,20 +35,6 @@
 % taken from zlib.erl at Erlang/OTP source code
 -define(MAX_WBITS, 15).
 
--ifndef('OTP_20').
-    -ifndef('POST_OTP_20').
-        -define(NO_ZLIB_SAFE_INFLATE, 1).
-    -else.
-        -undef(NO_ZLIB_SAFE_INFLATE).
-    -endif.
--else.
-    -ifdef('OTP_20.0').
-        -define(NO_ZLIB_SAFE_INFLATE, 1).
-    -else.
-        -undef(NO_ZLIB_SAFE_INFLATE).
-    -endif.
--endif.
-
 %% ------------------------------------------------------------------
 %% API Function Definitions
 %% ------------------------------------------------------------------
@@ -58,7 +44,6 @@ encode(Data) ->
     zlib:gzip(Data).
 
 -spec decode(iodata(), non_neg_integer()) -> {ok, binary()} | {error, too_big} | {error, term()}.
--ifndef(NO_ZLIB_SAFE_INFLATE).
 decode(Data, MaxUncompressedSize) ->
     Z = zlib:open(),
     try
@@ -70,34 +55,11 @@ decode(Data, MaxUncompressedSize) ->
     after
         zlib:close(Z)
     end.
--else.
-decode(Data, MaxUncompressedSize) ->
-    Z = zlib:open(),
-    try
-        zlib:inflateInit(Z, 16 + ?MAX_WBITS),
-        zlib:setBufSize(Z, MaxUncompressedSize),
-        case zlib:inflateChunk(Z, Data) of
-            {more, _Chunk} ->
-                {error, too_big};
-            UncompressedIoData ->
-                zlib:inflateEnd(Z),
-                UncompressedData = iolist_to_binary(UncompressedIoData),
-                true = (byte_size(UncompressedData) =< MaxUncompressedSize),
-                {ok, UncompressedData}
-        end
-    catch
-        error:Reason ->
-            {error, Reason}
-    after
-        zlib:close(Z)
-    end.
--endif.
 
 %% ------------------------------------------------------------------
 %% Internal Function Definitions
 %% ------------------------------------------------------------------
 
--ifndef(NO_ZLIB_SAFE_INFLATE).
 decode_recur(Z, {Stage,Chunk}, OutputAcc, OutputSize, MaxUncompressedSize)
   when Stage =:= continue;
        Stage =:= finished ->
@@ -114,4 +76,3 @@ decode_recur(Z, {Stage,Chunk}, OutputAcc, OutputSize, MaxUncompressedSize)
             Output = iolist_to_binary( lists:reverse(UpdatedOutputAcc) ),
             {ok, Output}
     end.
--endif.

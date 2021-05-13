@@ -1,0 +1,27 @@
+---
+name: build
+on:
+  push:
+    branches:
+      - master
+      - develop
+  pull_request:
+    branches:
+      - master
+      - develop
+jobs:
+  ci:
+    name: >
+      Run tests over ${{matrix.otp_vsn}} and ${{matrix.os}}
+    runs-on: ${{matrix.os}}
+    container:
+      image: erlang:${{matrix.otp_vsn}}
+    strategy:
+      matrix:
+        otp_vsn: [22.0, 22.1, 22.2, 22.3,
+                  23.0, 23.1, 23.2, 23.3,
+                  24.0]
+        os: [ubuntu-latest]
+    steps:
+      - uses: actions/checkout@v2
+      - run: RUNNING_ON_CI=yes make test
