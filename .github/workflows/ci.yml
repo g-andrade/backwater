@@ -12,7 +12,7 @@ on:
 jobs:
   ci:
     name: >
-      Run checks and tests over ${{matrix.otp_vsn}} and ${{matrix.os}}
+      Run tests over ${{matrix.otp_vsn}} and ${{matrix.os}}
     runs-on: ${{matrix.os}}
     container:
       image: erlang:${{matrix.otp_vsn}}
@@ -24,4 +24,4 @@ jobs:
         os: [ubuntu-latest]
     steps:
       - uses: actions/checkout@v2
-      - run: RUNNING_ON_CI=yes make test check
+      - run: RUNNING_ON_CI=yes make test
