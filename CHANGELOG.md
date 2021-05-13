@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Changed
 - imported version of `cowboy` from 2.7.0 to 2.9.0
 - imported version of `hackney` from 1.16.0 to 1.17.4
+- CI from Travis to GitHub Actions
 ### Removed
 - support for OTP 20
 - support for OTP 21

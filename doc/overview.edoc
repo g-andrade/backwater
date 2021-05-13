@@ -3,8 +3,8 @@
 
 <a target="_parent" href="https://hex.pm/packages/backwater" alt="Hex.pm Package">
     <img src="https://img.shields.io/hexpm/v/backwater.svg?style=flat"/></a>
-<a target="_parent" href="https://travis-ci.org/g-andrade/backwater" alt="Build Status">
-    <img src="https://travis-ci.org/g-andrade/backwater.png?branch=master"/></a>
+<a target="_parent" href="https://github.com/g-andrade/backwater/actions?query=workflow%3Abuild" alt="CI Build Status">
+    <img src="https://github.com/g-andrade/backwater/workflows/build/badge.svg"/></a>
 
 == Backwater - Intercluster RPC for Erlang and Elixir ==
 
@@ -46,12 +46,13 @@ backwater:call({"127.0.0.1", Secret}, string, to_upper, ["hello"]).
 ==== Requirements ====
 
 <ul>
-<li>Erlang/OTP 20 or higher</li>
+<li>Erlang/OTP 22 or higher</li>
 <li>rebar3</li>
 </ul>
 
 For Erlang/OTP 18 support, check the 1.1.x versions.
 For Erlang/OTP 19 support, check the 2.x, 3.0.x, 3.1.x or 3.2.x versions.
+For Erlang/OTP 20/21 support, check the 3.4.x versions.
 
 ==== Documentation ====
 

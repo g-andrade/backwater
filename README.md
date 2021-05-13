@@ -1,7 +1,7 @@
 # backwater
 
 [![](https://img.shields.io/hexpm/v/backwater.svg?style=flat)](https://hex.pm/packages/backwater)
-[![](https://travis-ci.org/g-andrade/backwater.png?branch=master)](https://travis-ci.org/g-andrade/backwater)
+[![](https://github.com/g-andrade/backwater/workflows/build/badge.svg)](https://github.com/g-andrade/backwater/actions?query=workflow%3Abuild)
 
 ### <span id="Backwater_-_Intercluster_RPC_for_Erlang_and_Elixir">Backwater - Intercluster RPC for Erlang and Elixir</span>
 
@@ -44,11 +44,12 @@ backwater:call({"127.0.0.1", Secret}, string, to_upper, ["hello"]).
 
 ##### <span id="Requirements">Requirements</span>
 
-  - Erlang/OTP 20 or higher
+  - Erlang/OTP 22 or higher
   - rebar3
 
 For Erlang/OTP 18 support, check the 1.1.x versions. For Erlang/OTP 19
-support, check the 2.x, 3.0.x, 3.1.x or 3.2.x versions.
+support, check the 2.x, 3.0.x, 3.1.x or 3.2.x versions. For Erlang/OTP
+20/21 support, check the 3.4.x versions.
 
 ##### <span id="Documentation">Documentation</span>
 
