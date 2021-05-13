@@ -646,7 +646,6 @@ call_function(State) ->
     call_function(FunctionRef, FunctionArgs, State).
 
 -spec call_function(fun(), list(), state()) -> {ok, call_result()} | {error, undefined_module_or_function}.
--ifdef(POST_OTP_20).
 call_function(FunctionRef, FunctionArgs, State) ->
     ReturnExceptionStacktrace = opt_return_exception_stack_traces(State),
     try
@@ -659,22 +658,6 @@ call_function(FunctionRef, FunctionArgs, State) ->
         Class:Exception:Stacktrace ->
             return_call_exception(Class, Exception, Stacktrace)
     end.
--else.
-call_function(FunctionRef, FunctionArgs, State) ->
-    ReturnExceptionStacktrace = opt_return_exception_stack_traces(State),
-    try
-        {ok, {return, apply(FunctionRef, FunctionArgs)}}
-    catch
-        error:undef ->
-            Stacktrace = erlang:get_stacktrace(),
-            handle_undef_call_exception(FunctionRef, Stacktrace, State);
-        Class:Exception when not ReturnExceptionStacktrace ->
-            return_call_exception(Class, Exception, []);
-        Class:Exception ->
-            Stacktrace = erlang:get_stacktrace(),
-            return_call_exception(Class, Exception, Stacktrace)
-    end.
--endif.
 
 -spec handle_undef_call_exception(fun(), [backwater:stack_item()], state())
         -> {ok, call_exception()} | {error, undefined_module_or_function}.
