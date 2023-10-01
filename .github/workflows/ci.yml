@@ -20,7 +20,7 @@ jobs:
         otp_vsn: ['22.3', '23.3', '24.3', '25.3', '26.0', '26.1']
         os: ['ubuntu-20.04']
     concurrency:
-      group: ci-for-${{github.ref_name}}
+      group: ci-for-${{github.ref_name}}-${{matrix.otp_vsn}}-${{matrix.os}}
       cancel-in-progress: true
     steps:
       - name: Checkout
