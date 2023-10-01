@@ -427,7 +427,6 @@ start_cowboy(StartFunction, Ref, Secret, ExposedModules, Opts) ->
 %% ------------------------------------------------------------------
 
 -ifdef(TEST).
-%% @private
 '_call'(Endpoint, Module, Function, Args, Options, Override) ->
     RequestEncodingOverride = maps:get(request, Override, #{}),
     PrevDictionaryKeyValue = put(override, RequestEncodingOverride),

@@ -57,8 +57,8 @@ console: $(REBAR3)
 ci_test: TEST_PROFILE = ci_test
 ci_test: test
 
-doc: $(REBAR3)
-	@$(REBAR3) edoc
+doc:
+	@$(REBAR3) ex_doc
 
 README.md: doc
 	# non-portable dirty hack follows (pandoc 2.1.1 used)
