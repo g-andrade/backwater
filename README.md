@@ -4,7 +4,8 @@
 maintenance yourself, feel free to open an issue requesting access.**
 
 [![](https://img.shields.io/hexpm/v/backwater.svg?style=flat)](https://hex.pm/packages/backwater)
-[![](https://github.com/g-andrade/backwater/workflows/build/badge.svg)](https://github.com/g-andrade/backwater/actions?query=workflow%3Abuild)
+[![](https://github.com/g-andrade/backwater/actions/workflows/ci.yml/badge.svg)](https://github.com/g-andrade/backwater/actions/workflows/ci.yml)
+[![Erlang Versions](https://img.shields.io/badge/Supported%20Erlang%2FOTP-22%20to%2026-blue)](https://www.erlang.org)
 
 ### Backwater - Intercluster RPC for Erlang and Elixir
 
