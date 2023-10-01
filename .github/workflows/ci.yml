@@ -70,7 +70,7 @@ jobs:
         run: make test
 
       - name: Run Tests (ranch 2.x)
-        run: REBAR_TEST_PROFILE=ranch2,test make test
+        run: REBAR_TEST_PROFILE=ranch2,test make erlang-test
 
       - name: Run Checks
         run: make check
