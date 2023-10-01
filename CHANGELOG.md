@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [3.6.0] - 2023-10-01
 
 ### Added
 
@@ -13,8 +13,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Changed
 
-- imported version of `cowboy` to whichever's latest 2.x
-- imported version of `hackney` to whichever's latest 1.x
+- imported version of `cowboy` to "~> 2.9"
+- imported version of `hackney` to "~> 1.17"
 
 ### Fixed
 
