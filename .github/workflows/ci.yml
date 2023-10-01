@@ -29,14 +29,22 @@ jobs:
         with:
           path: ./.github/workflows/otp_version_to_rebar3_version.json
 
+      - id: otp-version-to-elixir-version
+        name: "Read #{OTP version => Elixir version} map"
+        uses: juliangruber/read-file-action@v1
+        with:
+          path: ./.github/workflows/otp_version_to_elixir_version.json
+
       - id: setup-beam
         name: Setup BEAM
         uses: erlef/setup-beam@v1
         with:
           otp-version: ${{matrix.otp_vsn}}
-          # about rebar3-version: https://stackoverflow.com/a/64405821
+          # about rebar3 and elixir versions: https://stackoverflow.com/a/64405821
           rebar3-version: |
             ${{ fromJson(steps.otp-version-to-rebar3-version.outputs.content)[matrix.otp_vsn] }}
+          elixir-version: |
+            ${{ fromJson(steps.otp-version-to-elixir-version.outputs.content)[matrix.otp_vsn] }}
         env:
           GITHUB_TOKEN: ${{ github.token }}
 
