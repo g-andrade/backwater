@@ -28,7 +28,6 @@
 -export([latin1_binary_trim_whitespaces/1]).
 -export([lists_allmap/2]).
 -export([lists_anymap/2]).
--export([lists_keyupdate_with/5]).
 -export([sha256_hmac/2]).
 -export([is_iodata/1]).
 -export([proplists_sort_and_merge/1]).
@@ -80,12 +79,6 @@ lists_anymap(Fun, [H|T]) ->
         true -> {true, H};
         false -> lists_anymap(Fun, T)
     end.
-
--spec lists_keyupdate_with(term(), pos_integer(), fun ((tuple()) -> tuple()), tuple(), [tuple()])
-        -> [tuple(), ...].
-%% @private
-lists_keyupdate_with(Key, N, Fun, Initial, List) when element(N, Initial) =:= Key ->
-    lists_keyupdate_with_recur(Key, N, Fun, Initial, List, []).
 
 -spec sha256_hmac(iodata(), iodata()) -> binary().
 %% @private
@@ -175,24 +168,6 @@ lists_allmap_recur(Fun, [H|T], Acc) ->
         {false, MappedH} -> {false, MappedH};
         false -> {false, H}
     end.
-
--spec lists_keyupdate_with_recur(term(), pos_integer(), fun ((tuple()) -> tuple()), tuple(),
-                                 [tuple()], [tuple()])
-        -> [tuple(), ...].
-lists_keyupdate_with_recur(Key, N, Fun, Initial, [H | T], Acc) ->
-    case element(N, H) =:= Key of
-        true ->
-            % object found; update in place
-            Updated = Fun(H),
-            true = (element(N, Updated) =:= Key),
-            lists:reverse([Updated | Acc], T);
-        false ->
-            % keep walking the list
-            lists_keyupdate_with_recur(Key, N, Fun, Initial, T, [H | Acc])
-    end;
-lists_keyupdate_with_recur(_Key, _N, _Fun, Initial, [], Acc) ->
-    % not found; place initial at end of list
-    lists:reverse(Acc, [Initial]).
 
 -spec proplists_element_cmp(proplists:property(), proplists:property()) -> boolean().
 proplists_element_cmp(A, B) ->

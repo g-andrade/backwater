@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+### Added
+
+- compatibility with ranch 2.x
+
 ### Changed
 
 - imported version of `cowboy` to whichever's latest 2.x
@@ -14,7 +18,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Fixed
 
+- customization of number of acceptors was silently ignored when the input
+  transport options were in list form
 - failing HTTPS tests
+- failing Dialyzer on recent OTP versions
 
 ## [3.5.0] - 2021-05-13
 

@@ -137,16 +137,10 @@
 %% Type Definitions (server)
 %% ------------------------------------------------------------------
 
--type clear_opt() :: ranch:opt() | ranch_tcp:opt().
--export_type([clear_opt/0]).
-
--type clear_opts() :: [clear_opt()] | ranch:opts().
+-type clear_opts() :: ranch:opts() | ranch_tcp:opts().
 -export_type([clear_opts/0]).
 
--type tls_opt() :: ranch:opt() | ranch_ssl:opt().
--export_type([tls_opt/0]).
-
--type tls_opts() :: [tls_opt()] | ranch:opts().
+-type tls_opts() :: ranch:opts() | ranch_ssl:opts().
 -export_type([tls_opts/0]).
 
 -type http_opts() :: cowboy_http:opts().
@@ -349,15 +343,14 @@ cowboy_route_rule(InitialHandlerState) ->
     {Host, [cowboy_route_path(InitialHandlerState)]}.
 
 -spec ensure_num_acceptors_in_transport_opts(boolean(), clear_opts() | tls_opts() | ranch:opts())
-        -> clear_opts() | tls_opts() | ranch:opts().
+        -> #{socket_opts := [atom() | tuple()], _ => _}.
 ensure_num_acceptors_in_transport_opts(true, TransportOpts) ->
-    backwater_util:lists_keyupdate_with(
-      num_acceptors, 1,
-      fun ({num_acceptors, NbAcceptors}) when ?is_non_neg_integer(NbAcceptors) ->
-              {num_acceptors, NbAcceptors}
-      end,
-      {num_acceptors, ?DEFAULT_SERVER_NB_ACCEPTORS},
-      TransportOpts);
+    case lists:keytake(num_acceptors, 1, TransportOpts) of
+         {value, {_, NumAcceptors}, SocketOpts} ->
+            #{ socket_opts => SocketOpts, num_acceptors => NumAcceptors };
+        false ->
+            #{ socket_opts => TransportOpts, num_acceptors => ?DEFAULT_SERVER_NB_ACCEPTORS }
+    end;
 ensure_num_acceptors_in_transport_opts(false, TransportOpts)
   when is_map(TransportOpts) ->
     case maps:find(num_acceptors, TransportOpts) of

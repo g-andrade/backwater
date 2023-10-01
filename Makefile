@@ -36,10 +36,11 @@ clean: $(REBAR3)
 check: dialyzer xref
 
 dialyzer: $(REBAR3)
-	@$(REBAR3) as development dialyzer
+	@$(REBAR3) as ranch2 dialyzer
 
 xref: $(REBAR3)
-	@$(REBAR3) as development xref
+	@$(REBAR3) xref; \
+	$(REBAR3) as ranch2 xref
 
 test: $(REBAR3)
 	@$(REBAR3) as $(TEST_PROFILE) eunit, ct
@@ -51,8 +52,9 @@ test: $(REBAR3)
 cover: $(REBAR3) test
 	@$(REBAR3) as test cover
 
-console: $(REBAR3)
-	@$(REBAR3) as development shell --apps backwater
+shell: export ERL_FLAGS = +pc unicode
+shell:
+	@$(REBAR3) as shell shell
 
 ci_test: TEST_PROFILE = ci_test
 ci_test: test
