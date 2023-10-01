@@ -58,11 +58,11 @@ jobs:
             ${{env.build_cache_prefix_with_hash}}-
             ${{env.build_cache_prefix}}-
 
-      - name: Run Tests (ranch 1.x)
+      - name: Run Tests
         run: make test
 
       - name: Run Tests (ranch 2.x)
-        run: TEST_PROFILE=ranch2,test make test
+        run: REBAR_TEST_PROFILE=ranch2,test make test
 
       - name: Run Checks
         run: make check

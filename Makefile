@@ -1,75 +1,51 @@
-REBAR3_URL=https://s3.amazonaws.com/rebar3/rebar3
-
-ifeq ($(wildcard rebar3),rebar3)
-	REBAR3 = $(CURDIR)/rebar3
-endif
-
-ifdef RUNNING_ON_CI
-REBAR3 = ./rebar3
-else
-REBAR3 ?= $(shell test -e `which rebar3` 2>/dev/null && which rebar3 || echo "./rebar3")
-endif
-
-ifeq ($(REBAR3),)
-	REBAR3 = $(CURDIR)/rebar3
-endif
-
-TEST_PROFILE ?= test
-
-.PHONY: all build clean check dialyzer xref run test cover console ci_test doc publish
-
-.NOTPARALLEL: check test
+REBAR_DIALYZER_PROFILE ?= ranch2
+REBAR_SHELL_PROFILE ?= shell
+REBAR_TEST_PROFILE ?= test
 
 all: build
+.PHONY: all
 
-build: $(REBAR3)
-	@$(REBAR3) compile
+build:
+	@rebar3 compile
+.PHONY: build
 
-$(REBAR3):
-	wget $(REBAR3_URL) || curl -Lo rebar3 $(REBAR3_URL)
-	@chmod a+x rebar3
+clean:
+	@rebar3 clean
+.PHONY: clean
 
-clean: $(REBAR3)
-	@$(REBAR3) clean
+check: xref dialyzer
+.PHONY: check
+.NOTPARALLEL: check
+
+xref:
+	@rebar3 xref
+.PHONY: xref
+
+dialyzer:
+	@rebar3 as $(REBAR_DIALYZER_PROFILE) dialyzer
+.PHONY: dialyzer
+
+test: erlang-test elixir-test
+.PHONY: test
+.NOTPARALLEL: test
+
+erlang-test:
+	@rebar3 as $(REBAR_TEST_PROFILE) eunit, ct, cover
+.PHONY: erlang-test
+
+elixir-test:
 	make -C test.elixir
-
-check: dialyzer xref
-
-dialyzer: $(REBAR3)
-	@$(REBAR3) as ranch2 dialyzer
-
-xref: $(REBAR3)
-	@$(REBAR3) xref; \
-	$(REBAR3) as ranch2 xref
-
-test: $(REBAR3)
-	@$(REBAR3) as $(TEST_PROFILE) eunit, ct
-	@if [ "$(TEST_PROFILE)" != "ci_test" ]; then \
-		make -C test.elixir; \
-		rm -rf ebin; \
-	fi
-
-cover: $(REBAR3) test
-	@$(REBAR3) as test cover
+.PHONY: elixir-test
 
 shell: export ERL_FLAGS = +pc unicode
 shell:
-	@$(REBAR3) as shell shell
-
-ci_test: TEST_PROFILE = ci_test
-ci_test: test
+	@rebar3 as $(REBAR_SHELL_PROFILE) shell
+.PHONY: shell
 
 doc:
-	@$(REBAR3) ex_doc
+	@rebar3 ex_doc
+.PHONY: doc
 
-README.md: doc
-	# non-portable dirty hack follows (pandoc 2.1.1 used)
-	# gfm: "github-flavoured markdown"
-	@pandoc --from html --to gfm doc/overview-summary.html -o README.md
-	@tail -n +11 <"README.md"   >"README.md_"
-	@head -n -12 <"README.md_"  >"README.md"
-	@tail -n  2  <"README.md_" >>"README.md"
-	@rm "README.md_"
-
-publish: $(REBAR3)
-	@$(REBAR3) hex publish
+publish:
+	@rebar3 hex publish
+.PHONY: publish
