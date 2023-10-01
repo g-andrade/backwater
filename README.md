@@ -17,7 +17,7 @@ nodes in another datacenter, over unsecure or unstable networks.
 
 #### Usage
 
-Run `make console` to bring up a shell. We're going to expose the
+Run `make shell` to bring up a shell. We're going to expose the
 `string` module and call it remotely.
 
 ##### 1. Generate a secret
