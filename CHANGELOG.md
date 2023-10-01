@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - imported version of `cowboy` to whichever's latest 2.x
 - imported version of `hackney` to whichever's latest 1.x
 
+### Fixed
+
+- failing HTTPS tests
+
 ## [3.5.0] - 2021-05-13
 ### Changed
 - imported version of `cowboy` from 2.7.0 to 2.9.0
