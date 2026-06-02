@@ -18,8 +18,11 @@
 %% FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 %% DEALINGS IN THE SOFTWARE.
 
-%% @private
 -module(backwater_sup_util).
+
+-ifdef(E48).
+-moduledoc false.
+-endif.
 
 %% ------------------------------------------------------------------
 %% Type Definitions

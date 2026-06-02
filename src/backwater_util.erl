@@ -20,6 +20,10 @@
 
 -module(backwater_util).
 
+-ifdef(E48).
+-moduledoc false.
+-endif.
+
 %% ------------------------------------------------------------------
 %% API Function Exports
 %% ------------------------------------------------------------------
@@ -53,24 +57,20 @@
 %% ------------------------------------------------------------------
 
 -spec latin1_binary_to_lower(binary()) -> binary().
-%% @private
 latin1_binary_to_lower(Bin) ->
     <<<<(string:to_lower(C))>> || <<C>> <= Bin>>.
 
 -spec latin1_binary_trim_whitespaces(binary()) -> binary().
-%% @private
 latin1_binary_trim_whitespaces(Bin) ->
     re:replace(Bin, <<"(^\\s+)|(\\s+$)">>, <<>>, [global, {return, binary}]).
 
 -spec lists_allmap(Fun :: fun((term()) -> {boolean(), term()} | boolean()), [term()])
         -> {true, [term()]} | {false, term()}.
-%% @private
 lists_allmap(Fun, List) ->
     lists_allmap_recur(Fun, List, []).
 
 -spec lists_anymap(Fun :: fun((term()) -> {true, term()} | true | false), [term()])
         -> {true, term()} | false.
-%% @private
 lists_anymap(_Fun, []) ->
     false;
 lists_anymap(Fun, [H|T]) ->
@@ -81,17 +81,10 @@ lists_anymap(Fun, [H|T]) ->
     end.
 
 -spec sha256_hmac(iodata(), iodata()) -> binary().
-%% @private
--ifdef(POST_OTP_22).
 sha256_hmac(Key, Data) ->
     crypto:mac(hmac, sha256, Key, Data).
--else.
-sha256_hmac(Key, Data) ->
-    crypto:hmac(sha256, Key, Data).
--endif.
 
 -spec is_iodata(term()) -> boolean().
-%% @private
 is_iodata(Term) ->
     try
         iolist_size(Term) >= 0
@@ -100,7 +93,6 @@ is_iodata(Term) ->
     end.
 
 -spec proplists_sort_and_merge([proplist()]) -> proplist().
-%% @private
 proplists_sort_and_merge([]) ->
     [];
 proplists_sort_and_merge([H | T]) ->
@@ -113,7 +105,6 @@ proplists_sort_and_merge([H | T]) ->
       SortedH, T).
 
 -spec proplists_sort_and_merge(proplist(), proplist()) -> proplist().
-%% @private
 proplists_sort_and_merge(List1, List2) ->
     SortedList1 = lists:usort(fun proplists_element_cmp/2, lists:reverse(List1)),
     SortedList2 = lists:usort(fun proplists_element_cmp/2, lists:reverse(List2)),
@@ -121,7 +112,6 @@ proplists_sort_and_merge(List1, List2) ->
 
 -spec purge_stacktrace_below({module(),atom(),arity()}, [backwater:stack_item()])
         -> [backwater:stack_item()].
-%% @private
 purge_stacktrace_below(MarkerMFA, Stacktrace) ->
     lists:takewhile(
       fun ({M,F,A,_Location}) -> {M,F,A} =/= MarkerMFA end,
@@ -134,7 +124,6 @@ purge_stacktrace_below(MarkerMFA, Stacktrace) ->
                  MappedValue :: term(),
                  ValidConfig :: map(),
                  Error :: config_validation_error().
-%% @private
 validate_config_map(Config, MandatoryKeys, PairValidationFun) when is_map(Config) ->
     MissingKeys = MandatoryKeys -- maps:keys(Config),
     case MandatoryKeys -- maps:keys(Config) of

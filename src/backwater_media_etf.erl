@@ -18,10 +18,13 @@
 %% FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 %% DEALINGS IN THE SOFTWARE.
 
-%% @private
 -module(backwater_media_etf).
 
-%% @doc Mostly a wrapper around erlang:{term_to_binary,binary_to_term} that:
+-ifdef(E48).
+-moduledoc false.
+-endif.
+
+%% Mostly a wrapper around erlang:{term_to_binary,binary_to_term} that:
 %% - transforms exceptions into errors
 %% - always encodes using a hardcoded format minor version (currently 1)
 %% - refuses to decode compressed payloads as these could be used to

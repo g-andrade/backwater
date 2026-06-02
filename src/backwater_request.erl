@@ -20,6 +20,10 @@
 
 -module(backwater_request).
 
+-ifdef(E48).
+-moduledoc false.
+-endif.
+
 -include_lib("hackney/include/hackney_lib.hrl").
 -include("backwater_api.hrl").
 -include("backwater_common.hrl").

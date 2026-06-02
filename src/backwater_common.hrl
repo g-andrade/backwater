@@ -18,11 +18,6 @@
 %% FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 %% DEALINGS IN THE SOFTWARE.
 
--ifdef(NO_BUILTIN_NONEMPTY_BINARY).
--type nonempty_binary() :: <<_:8,_:_*8>>.
--endif.
--export_type([nonempty_binary/0]).
-
 -define(OPAQUE_BINARY(B), <<(B)/binary>>). % don't let Dialyzer be too smart
 
 -define(is_non_neg_integer(V), (is_integer((V)) andalso (V) >= 0)).

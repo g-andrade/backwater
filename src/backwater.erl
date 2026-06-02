@@ -18,13 +18,27 @@
 %% FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 %% DEALINGS IN THE SOFTWARE.
 
-%% @reference <a target="_parent" href="https://ninenines.eu/docs/en/ranch/1.7/manual/ranch/#_opts">ranch:opts()</a> documentation
-%% @reference <a target="_parent" href="https://ninenines.eu/docs/en/ranch/1.7/manual/ranch_tcp/#_opt">ranch_tcp:opt()</a> documentation
-%% @reference <a target="_parent" href="https://ninenines.eu/docs/en/ranch/1.7/manual/ranch_ssl/#_opt">ranch_ssl:opt()</a> documentation
-%% @reference <a target="_parent" href="https://ninenines.eu/docs/en/cowboy/2.6/manual/cowboy_http/#_options">cowboy_http:opts()</a> documentation
-%% @reference hackney request options listed <a target="_parent" href="https://github.com/benoitc/hackney/blob/1.15.0/doc/hackney.md">here</a>
-
 -module(backwater).
+
+-ifdef(E48).
+-moduledoc """
+Intercluster RPC for Erlang and Elixir.
+
+`backwater` allows you to call remote modules without depending on the Erlang
+distribution protocol. It is targeted at scenarios where nodes in one
+datacenter need to call nodes in another, over unsecure or unstable networks.
+
+See the [README](readme.html) for an overview, configuration and examples.
+
+## References
+
+- Transport options: ranch's `opts`, `ranch_tcp` and `ranch_ssl` option
+  documentation, at <https://ninenines.eu/docs/en/ranch/2.1/manual/>
+- HTTP protocol options: cowboy's `cowboy_http` option documentation, at
+  <https://ninenines.eu/docs/en/cowboy/2.12/manual/cowboy_http/>
+- hackney request options, at <https://github.com/benoitc/hackney>
+""".
+-endif.
 
 -include("backwater_api.hrl").
 -include("backwater_common.hrl").
@@ -155,14 +169,18 @@
 %% API Function Definitions (caller)
 %% ------------------------------------------------------------------
 
-%% @doc Performs remote call on `Endpoint'.
-%%
-%% Returns:
-%% <ul>
-%% <li>`{ok, ReturnValue}' in case of success</li>
-%% <li>`{error, term()}' otherwise.</li>
-%% </ul>
-%% @see call/5
+-ifdef(E48).
+-doc """
+Performs a remote call on `Endpoint`.
+
+Returns:
+
+- `{ok, ReturnValue}` in case of success
+- `{error, term()}` otherwise
+
+See also `call/5`.
+""".
+-endif.
 -spec call(Endpoint, Module, Function, Args) -> Result | no_return()
         when Endpoint :: backwater_request:endpoint(),
              Module :: module(),
@@ -172,14 +190,18 @@
 call(Endpoint, Module, Function, Args) ->
     call(Endpoint, Module, Function, Args, #{}).
 
-%% @doc Performs remote call on `Endpoint'.
-%%
-%% Returns:
-%% <ul>
-%% <li>`{ok, ReturnValue}' in case of success</li>
-%% <li>`{error, term()}' otherwise.</li>
-%% </ul>
-%% @see call/4
+-ifdef(E48).
+-doc """
+Performs a remote call on `Endpoint`, with `Options`.
+
+Returns:
+
+- `{ok, ReturnValue}` in case of success
+- `{error, term()}` otherwise
+
+See also `call/4`.
+""".
+-endif.
 -spec call(Endpoint, Module, Function, Args, Options) -> Result | no_return()
         when Endpoint :: backwater_request:endpoint(),
              Module :: module(),
@@ -194,14 +216,18 @@ call(Endpoint, Module, Function, Args, Options) ->
 %% API Function Definitions (server)
 %% ------------------------------------------------------------------
 
-%% @doc Starts a cleartext cowboy listener that can handle remote calls.
-%%
-%% Returns:
-%% <ul>
-%% <li>`{ok, ServerPid}' in case of success</li>
-%% <li>`{error, term()}' otherwise.</li>
-%% </ul>
-%% @see start_clear_server/4
+-ifdef(E48).
+-doc """
+Starts a cleartext cowboy listener that can handle remote calls.
+
+Returns:
+
+- `{ok, ServerPid}` in case of success
+- `{error, term()}` otherwise
+
+See also `start_clear_server/4`.
+""".
+-endif.
 -spec start_clear_server(Secret, ExposedModules)
     -> {ok, pid()} | {error, term()}
             when Secret :: binary(),
@@ -209,14 +235,19 @@ call(Endpoint, Module, Function, Args, Options) ->
 start_clear_server(Secret, ExposedModules) ->
     start_clear_server(default, Secret, ExposedModules, #{}).
 
-%% @doc Like `:start_clear_server/2' but one can specify the listener name  and tune settings.
-%%
-%% Returns:
-%% <ul>
-%% <li>`{ok, ServerPid}' in case of success</li>
-%% <li>`{error, term()}' otherwise.</li>
-%% </ul>
-%% @see start_clear_server/2
+-ifdef(E48).
+-doc """
+Like `start_clear_server/2` but one can specify the listener name and tune
+settings.
+
+Returns:
+
+- `{ok, ServerPid}` in case of success
+- `{error, term()}` otherwise
+
+See also `start_clear_server/2`.
+""".
+-endif.
 -spec start_clear_server(Ref, Secret, ExposedModules, Opts)
     -> {ok, pid()} | {error, term()}
             when Ref :: term(),
@@ -226,14 +257,18 @@ start_clear_server(Secret, ExposedModules) ->
 start_clear_server(Ref, Secret, ExposedModules, Opts) ->
     start_cowboy(start_clear, Ref, Secret, ExposedModules, Opts).
 
-%% @doc Starts a TLS cowboy listener that can handle remote calls.
-%%
-%% Returns:
-%% <ul>
-%% <li>`{ok, ServerPid}' in case of success</li>
-%% <li>`{error, term()}' otherwise.</li>
-%% </ul>
-%% @see start_tls_server/4
+-ifdef(E48).
+-doc """
+Starts a TLS cowboy listener that can handle remote calls.
+
+Returns:
+
+- `{ok, ServerPid}` in case of success
+- `{error, term()}` otherwise
+
+See also `start_tls_server/4`.
+""".
+-endif.
 -spec start_tls_server(Secret, ExposedModules, TLSOpts)
     -> {ok, pid()} | {error, term()}
             when Secret :: binary(),
@@ -243,14 +278,19 @@ start_tls_server(Secret, ExposedModules, TLSOpts) ->
     Opts = #{ transport => TLSOpts },
     start_tls_server(default, Secret, ExposedModules, Opts).
 
-%% @doc Like `:start_tls_server/3' but one can specify the listener name and tune (more) settings.
-%%
-%% Returns:
-%% <ul>
-%% <li>`{ok, ServerPid}' in case of success</li>
-%% <li>`{error, term()}' otherwise.</li>
-%% </ul>
-%% @see start_tls_server/3
+-ifdef(E48).
+-doc """
+Like `start_tls_server/3` but one can specify the listener name and tune
+(more) settings.
+
+Returns:
+
+- `{ok, ServerPid}` in case of success
+- `{error, term()}` otherwise
+
+See also `start_tls_server/3`.
+""".
+-endif.
 -spec start_tls_server(Ref, Secret, ExposedModules, Opts)
     -> {ok, pid()} | {error, term()}
             when Ref :: term(),
@@ -260,19 +300,25 @@ start_tls_server(Secret, ExposedModules, TLSOpts) ->
 start_tls_server(Ref, Secret, ExposedModules, Opts) ->
     start_cowboy(start_tls, Ref, Secret, ExposedModules, Opts).
 
-%% @doc Stops the cowboy listener under the default name.
+-ifdef(E48).
+-doc "Stops the cowboy listener under the default name.".
+-endif.
 -spec stop_server() -> ok | {error, not_found}.
 stop_server() ->
     stop_server(default).
 
-%% @doc Stops the cowboy listener under a specific name.
+-ifdef(E48).
+-doc "Stops the cowboy listener under a specific name.".
+-endif.
 -spec stop_server(Ref) -> ok | {error, not_found}
             when Ref :: term().
 stop_server(Ref) ->
     cowboy:stop_listener(ref(Ref)).
 
+-ifdef(E48).
+-doc false.
+-endif.
 -spec base_cowboy_route_parts() -> [nonempty_string()].
-%% @private
 base_cowboy_route_parts() ->
     [?HTTP_API_API_BASE_ENDPOINT, ?HTTP_API_API_VERSION].
 

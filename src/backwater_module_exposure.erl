@@ -20,6 +20,10 @@
 
 -module(backwater_module_exposure).
 
+-ifdef(E48).
+-moduledoc false.
+-endif.
+
 -include("backwater_common.hrl").
 
 %% ------------------------------------------------------------------
@@ -75,14 +79,12 @@
 %% ------------------------------------------------------------------
 
 -spec module_name(t()) -> module().
-%% @private
 module_name({Module, _Opts}) ->
     Module;
 module_name(Module) ->
     Module.
 
 -spec interpret_list([t()]) -> #{ BinModule :: nonempty_binary() => module_info() }.
-%% @private
 interpret_list(ExposedModules) ->
     KvList = lists:filtermap(fun find_and_parse_module_info/1, ExposedModules),
     maps:from_list(KvList).

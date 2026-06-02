@@ -6,7 +6,6 @@
   {applications,
    [kernel,
     stdlib,
-    edoc,
     crypto,
     % external dependencies
     cowboy,

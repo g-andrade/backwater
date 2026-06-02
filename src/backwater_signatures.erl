@@ -20,13 +20,17 @@
 
 -module(backwater_signatures).
 
+-ifdef(E48).
+-moduledoc false.
+-endif.
+
 -include_lib("backwater_common.hrl").
 
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
 -endif.
 
-%% @doc The code in this module is based on the "http signatures"[1]
+%% The code in this module is based on the "http signatures"[1]
 %% IETF draft, version nr. 7, by M. Cavage, published on July 17, 2017.
 %%
 %% A few things to point out:
@@ -181,19 +185,16 @@
 %% ------------------------------------------------------------------
 
 -spec config(binary()) -> config().
-%% @private
 config(Secret) ->
     #{ key => Secret }.
 
 -spec new_request_msg(binary(), binary(), maybe_uncanonical_headers()) -> unsigned_message().
-%% @private
 new_request_msg(Method, EncodedPathWithQs, Headers) ->
     PseudoHeaders = #{ ?OPAQUE_BINARY(<<"(request-target)">>) => request_target(Method, EncodedPathWithQs) },
     RealHeaders = canonical_headers(Headers),
     new_unsigned_msg(PseudoHeaders, RealHeaders).
 
 -spec new_response_msg(non_neg_integer(), maybe_uncanonical_headers()) -> unsigned_message().
-%% @private
 new_response_msg(StatusCode, Headers) ->
     PseudoHeaders = #{ ?OPAQUE_BINARY(<<"(response-status)">>) => response_status(StatusCode) },
     RealHeaders = canonical_headers(Headers),
@@ -202,7 +203,6 @@ new_response_msg(StatusCode, Headers) ->
 -spec validate_request_signature(config(), message())
         -> message_validation_success() |
            {error, Reason :: request_validation_failure()}.
-%% @private
 validate_request_signature(Config, RequestMsg) ->
     AuthorizationHeaderLookup = find_real_msg_header(<<"authorization">>, RequestMsg),
     case parse_authorization_header(AuthorizationHeaderLookup) of
@@ -215,20 +215,17 @@ validate_request_signature(Config, RequestMsg) ->
 -spec validate_response_signature(signed_message(), message())
         -> message_validation_success() |
            {error, Reason :: response_validation_failure()}.
-%% @private
 validate_response_signature(SignedRequestMsg, ResponseMsg) ->
     #{ config := Config, request_id := RequestId } = SignedRequestMsg,
     MsgRequestIdLookup = find_real_msg_header(<<"x-request-id">>, ResponseMsg),
     validate_response_request_id(Config, ResponseMsg, RequestId, MsgRequestIdLookup).
 
 -spec validate_signed_msg_body(signed_message(), binary()) -> boolean().
-%% @private
 validate_signed_msg_body(SignedMsg, Body) ->
     #{ body_digest := BodyDigest } = SignedMsg,
     body_digest(Body) =:= BodyDigest.
 
 -spec sign_request(config(), message(), binary(), binary()) -> signed_message().
-%% @private
 sign_request(Config, RequestMsg1, Body, RequestId) ->
     BodyDigest = body_digest(Body),
     ExtraSignedHeaders =
@@ -247,7 +244,6 @@ sign_request(Config, RequestMsg1, Body, RequestId) ->
       body_digest => BodyDigest }.
 
 -spec sign_response(config(), message(), binary(), signed_message()) -> signed_message().
-%% @private
 sign_response(Config, ResponseMsg1, Body, SignedRequestMsg) ->
     #{ request_id := RequestId } = SignedRequestMsg,
     BodyDigest = body_digest(Body),
@@ -267,24 +263,20 @@ sign_response(Config, ResponseMsg1, Body, SignedRequestMsg) ->
       body_digest => BodyDigest }.
 
 -spec get_real_msg_headers(message()) -> header_map().
-%% @private
 get_real_msg_headers(Msg) ->
     #{ real_headers := Map } = Msg,
     Map.
 
 -spec list_real_msg_headers(message()) -> header_list().
-%% @private
 list_real_msg_headers(Msg) ->
     maps:to_list( get_real_msg_headers(Msg) ).
 
 -spec is_header_signed_in_signed_msg(binary(), signed_message()) -> boolean().
-%% @private
 is_header_signed_in_signed_msg(CiName, SignedMsg) ->
     #{ signed_header_names := SignedHeaderNames } = SignedMsg,
     lists:member(CiName, SignedHeaderNames).
 
 -spec get_request_auth_challenge_headers(message()) -> header_map().
-%% @private
 get_request_auth_challenge_headers(RequestMsg) ->
     PseudoHeaderNamesToSign = list_pseudo_msg_header_names(RequestMsg),
     RealHeaderNames = list_real_msg_header_names(RequestMsg),

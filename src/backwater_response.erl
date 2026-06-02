@@ -20,6 +20,10 @@
 
 -module(backwater_response).
 
+-ifdef(E48).
+-moduledoc false.
+-endif.
+
 -include_lib("hackney/include/hackney_lib.hrl").
 -include("backwater_common.hrl").
 -include("backwater_default_tweaks.hrl").

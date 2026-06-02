@@ -19,6 +19,10 @@
 %% DEALINGS IN THE SOFTWARE.
 
 -module(backwater_cowboy_handler).
+
+-ifdef(E48).
+-moduledoc false.
+-endif.
 -behaviour(cowboy_handler).
 
 -include("backwater_common.hrl").
@@ -123,7 +127,6 @@
            {error, invalid_secret} |
            {error, invalid_module_exposure} |
            {error, backwater_util:config_validation_error()}.
-%% @private
 initial_state(Secret, _ExposedModules, _Options) when not is_binary(Secret) ->
     {error, invalid_secret};
 initial_state(_Secret, ExposedModules, _Options) when not is_list(ExposedModules) ->
@@ -145,7 +148,6 @@ initial_state(Secret, ExposedModules, Options) ->
 %% ------------------------------------------------------------------
 
 -spec init(req(), state()) -> {ok, req(), state()}.
-%% @private
 init(Req1, State1) ->
     State2 = State1#{ req => Req1 },
     State3 =
@@ -171,7 +173,6 @@ init(Req1, State1) ->
     {ok, Req2, State4}.
 
 -spec terminate(term(), req(), state()) -> ok.
-%% @private
 %terminate({crash, Class, Reason}, _Req, _State) ->
 %    Stacktrace = erlang:get_stacktrace(),
 %    io:format("Crash! ~p:~p, ~p~n", [Class, Reason, Stacktrace]),

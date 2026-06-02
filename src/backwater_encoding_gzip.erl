@@ -18,8 +18,11 @@
 %% FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 %% DEALINGS IN THE SOFTWARE.
 
-%% @private
 -module(backwater_encoding_gzip).
+
+-ifdef(E48).
+-moduledoc false.
+-endif.
 
 %% ------------------------------------------------------------------
 %% API Function Exports
