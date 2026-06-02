@@ -1,51 +1,121 @@
-REBAR_DIALYZER_PROFILE ?= ranch2
-REBAR_SHELL_PROFILE ?= shell
-REBAR_TEST_PROFILE ?= test
+SHELL := bash
+.ONESHELL:
+.SHELLFLAGS := -euc
+.DELETE_ON_ERROR:
+MAKEFLAGS += --warn-undefined-variables
+MAKEFLAGS += --no-builtin-rules
 
-all: build
+## General Rules
+
+all: compile
 .PHONY: all
+.NOTPARALLEL: all
 
-build:
+compile:
 	@rebar3 compile
-.PHONY: build
+.PHONY: compile
 
 clean:
-	@rebar3 clean
+	@rebar3 clean -a
 .PHONY: clean
 
-check: xref dialyzer
-.PHONY: check
+check: check-fast check-slow
 .NOTPARALLEL: check
+.PHONY: check
+
+check-fast: check-formatted xref hank-dead-code-cleaner elvis-linter
+.NOTPARALLEL: check-fast
+.PHONY: check-fast
+
+check-slow: dialyzer
+.NOTPARALLEL: check-slow
+.PHONY: check-slow
+
+test: eunit ct
+.NOTPARALLEL: test
+.PHONY: test
+
+format:
+	@rebar3 fmt
+.NOTPARALLEL: format
+.PHONY: format
+
+## Tests
+
+ct:
+	@rebar3 do ct, cover
+.PHONY: ct
+
+eunit:
+	@rebar3 eunit
+.PHONY: eunit
+
+## Checks
+
+check-formatted:
+	@if rebar3 plugins list | grep '^erlfmt\>' >/dev/null; then \
+		rebar3 fmt --check; \
+	else \
+		echo >&2 "WARN: skipping rebar3 erlfmt check"; \
+	fi
+.NOTPARALLEL: check-formatted
+.PHONY: check-formatted
 
 xref:
 	@rebar3 xref
+.NOTPARALLEL: xref
 .PHONY: xref
 
+hank-dead-code-cleaner:
+	@if rebar3 plugins list | grep '^rebar3_hank\>' >/dev/null; then \
+		rebar3 hank; \
+	else \
+		echo >&2 "WARN: skipping rebar3_hank check"; \
+	fi
+.NOTPARALLEL: hank-dead-code-cleaner
+.PHONY: hank-dead-code-cleaner
+
+elvis-linter:
+	@if rebar3 plugins list | grep '^rebar3_lint\>' >/dev/null; then \
+		rebar3 lint; \
+	else \
+		echo >&2 "WARN: skipping rebar3_lint check"; \
+	fi
+.NOTPARALLEL: elvis-linter
+.PHONY: elvis-linter
+
 dialyzer:
-	@rebar3 as $(REBAR_DIALYZER_PROFILE) dialyzer
+	@rebar3 dialyzer
 .PHONY: dialyzer
 
-test: erlang-test elixir-test
-.PHONY: test
-.NOTPARALLEL: test
+## Shell, docs and publication
 
-erlang-test:
-	@rebar3 as $(REBAR_TEST_PROFILE) eunit, ct, cover
-.PHONY: erlang-test
-
-elixir-test:
-	make -C test.elixir
-.PHONY: elixir-test
+publish: doc
+publish:
+	@rebar3 hex publish --doc-dir=doc
+.NOTPARALLEL: publish
 
 shell: export ERL_FLAGS = +pc unicode
 shell:
-	@rebar3 as $(REBAR_SHELL_PROFILE) shell
-.PHONY: shell
+	@rebar3 as shell shell
 
+doc: SOURCE_REF := $(shell git describe --tags --exact-match 2>/dev/null || git rev-parse --short HEAD)
+doc: tmp/ex_doc
 doc:
-	@rebar3 ex_doc
+	rebar3 edoc; \
+		./tmp/ex_doc "backwater" "${SOURCE_REF}" \
+		_build/docs/lib/backwater/ebin \
+		-c ex_doc.config \
+		--source-ref "${SOURCE_REF}";
 .PHONY: doc
 
-publish:
-	@rebar3 hex publish
-.PHONY: publish
+tmp/ex_doc: EX_DOC_VER=0.40.2
+tmp/ex_doc: OTP_VER := $(shell erl -noshell -eval 'io:fwrite("~s", [erlang:system_info(otp_release)]), init:stop().')
+tmp/ex_doc: | tmp
+tmp/ex_doc:
+	curl -fL -o tmp/ex_doc \
+		"https://github.com/elixir-lang/ex_doc/releases/download/v${EX_DOC_VER}/ex_doc_otp_${OTP_VER}"; \
+		chmod a+x tmp/ex_doc
+
+tmp:
+	mkdir tmp
