@@ -15,17 +15,17 @@ make compile         # compile
 make test            # eunit + CT (+ coverage)
 make check           # check-fast + check-slow
 make check-fast      # format check (erlfmt) + xref + dead-code (hank) + lint (elvis)
-make check-slow      # dialyzer (run under the ranch2 profile; see below)
+make check-slow      # dialyzer
 make format          # auto-format source with erlfmt
 make eunit           # unit tests only
 make ct              # common test suites + coverage
-make dialyzer        # type analysis (ranch2 profile)
+make dialyzer        # type analysis
 make doc             # EEP-48 chunks via `rebar3 edoc`, rendered by the ex_doc escript
 make shell           # interactive REPL with the app started
 ```
 
 All checks run sequentially (`.NOTPARALLEL`). CI runs `make check-fast`,
-`make test`, an extra `rebar3 as ranch2 do ct, eunit`, then `make check-slow`,
+`make test`, an extra `rebar3 as ranch1 do ct, eunit`, then `make check-slow`,
 over OTP 24–29 on Linux.
 
 ## Compiler flags
@@ -111,11 +111,12 @@ the public seam for plugging in an alternative HTTP client.
 - `rebar.config.script` drops dev plugins per OTP version: erlfmt + hank + elvis
   on OTP ≤ 25; erlfmt alone on OTP ≤ 26 (its `-doc` triple-quoted strings break
   katana_code there); hank on OTP 29 (katana_code/hank bug).
-- Runtime deps: `cowboy ~> 2.9` (server) and `hackney ~> 1.17` (client). cowboy
-  spans ranch 1.8–3.0; the default build resolves the floor (ranch 1.8) and the
-  `ranch2` profile resolves ranch 2.x. CI tests **both** lines, and dialyzer runs
-  under `ranch2` because ranch 1.8 references `ssl_cipher:erl_cipher_suite/0`, a
-  type removed from modern OTP.
+- Runtime deps: `cowboy` (server) and `hackney ~> 1.17` (client). cowboy spans
+  ranch 1.8–3.0; the default build resolves **ranch 2.x** (current cowboy pulls
+  it in), and the `ranch1` profile pins the still-supported 1.x floor. CI tests
+  **both** lines (the extra `rebar3 as ranch1` step). Dialyzer runs on the
+  default profile — keep it on ranch 2.x, since ranch 1.8 references
+  `ssl_cipher:erl_cipher_suite/0`, a type removed from modern OTP.
 
 ## Releasing
 

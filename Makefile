@@ -84,11 +84,8 @@ elvis-linter:
 .NOTPARALLEL: elvis-linter
 .PHONY: elvis-linter
 
-# Dialyze against ranch 2.x: ranch 1.8 (the cowboy-imposed floor the default
-# build resolves) references ssl_cipher:erl_cipher_suite/0, a type removed from
-# modern OTP, which would surface as a spurious `unknown` warning from the dep.
 dialyzer:
-	@rebar3 as ranch2 dialyzer
+	@rebar3 dialyzer
 .PHONY: dialyzer
 
 ## Shell, docs and publication

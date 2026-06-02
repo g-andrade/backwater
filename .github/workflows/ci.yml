@@ -68,8 +68,8 @@ jobs:
       - name: Run Tests
         run: make test
 
-      - name: Run Tests (ranch 2.x)
-        run: rebar3 as ranch2 do ct, eunit
+      - name: Run Tests (ranch 1.x)
+        run: rebar3 as ranch1 do ct, eunit
 
       - name: Run Slow Checks
         run: make check-slow
