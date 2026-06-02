@@ -35,7 +35,8 @@
 %% API Function Exports
 %% ------------------------------------------------------------------
 
--export([start_link/0]).            -ignore_xref({start_link,0}).
+-export([start_link/0]).
+-ignore_xref({start_link, 0}).
 -export([child_spec/1]).
 -export([find/1]).
 -export([put/3]).
@@ -44,12 +45,14 @@
 %% gen_server Function Exports
 %% ------------------------------------------------------------------
 
--export([init/1,
-         handle_call/3,
-         handle_cast/2,
-         handle_info/2,
-         terminate/2,
-         code_change/3]).
+-export([
+    init/1,
+    handle_call/3,
+    handle_cast/2,
+    handle_info/2,
+    terminate/2,
+    code_change/3
+]).
 
 %% ------------------------------------------------------------------
 %% Macro Definitions
@@ -65,27 +68,31 @@
 %% ------------------------------------------------------------------
 
 -record(cache_entry, {
-          key :: term(),
-          value :: term(),
-          expiry :: integer()
-         }).
+    key :: term(),
+    value :: term(),
+    expiry :: integer()
+}).
 
 %% ------------------------------------------------------------------
 %% Type Definitions
 %% ------------------------------------------------------------------
 
 -type child_spec(Id) ::
-        #{ id := Id,
-           start := {?MODULE, start_link, []},
-           restart := permanent,
-           type := worker,
-           modules := [?MODULE, ...] }.
+    #{
+        id := Id,
+        start := {?MODULE, start_link, []},
+        restart := permanent,
+        type := worker,
+        modules := [?MODULE, ...]
+    }.
 -export_type([child_spec/1]).
 
 -type state() ::
-        #{ table := atom(),
-           purge_interval := pos_integer() % in milliseconds
-         }.
+    #{
+        table := atom(),
+        % in milliseconds
+        purge_interval := pos_integer()
+    }.
 
 %% ------------------------------------------------------------------
 %% API Function Definitions
@@ -97,11 +104,13 @@ start_link() ->
 
 -spec child_spec(term()) -> child_spec(term()).
 child_spec(Id) ->
-    #{ id => Id,
-       start => {?MODULE, start_link, []},
-       restart => permanent,
-       type => worker,
-       modules => [?MODULE] }.
+    #{
+        id => Id,
+        start => {?MODULE, start_link, []},
+        restart => permanent,
+        type => worker,
+        modules => [?MODULE]
+    }.
 
 -spec find(term()) -> {ok, term()} | error.
 find(Key) ->
@@ -119,13 +128,18 @@ put(Key, Value, TTL) ->
 init([Table, PurgeInterval]) ->
     Table =
         ets:new(
-          Table,
-          [named_table, public, {keypos, #cache_entry.key},
-           {read_concurrency, true},
-           {write_concurrency, true}]),
+            Table,
+            [
+                named_table,
+                public,
+                {keypos, #cache_entry.key},
+                {read_concurrency, true},
+                {write_concurrency, true}
+            ]
+        ),
 
     erlang:send_after(PurgeInterval, self(), purge_expired_entries),
-    {ok, #{ table => Table, purge_interval => PurgeInterval }}.
+    {ok, #{table => Table, purge_interval => PurgeInterval}}.
 
 -spec handle_call(term(), {pid(), reference()}, state()) -> {noreply, state()}.
 handle_call(_Request, _From, State) ->
@@ -137,9 +151,9 @@ handle_cast(_Msg, State) ->
 
 -spec handle_info(term(), state()) -> {noreply, state()}.
 handle_info(purge_expired_entries, State) ->
-    #{ table := Table, purge_interval := PurgeInterval } = State,
+    #{table := Table, purge_interval := PurgeInterval} = State,
     Now = now_milliseconds(),
-    MatchSpec = ets:fun2ms(fun (#cache_entry{ expiry = Expiry }) -> Expiry =< Now end),
+    MatchSpec = ets:fun2ms(fun(#cache_entry{expiry = Expiry}) -> Expiry =< Now end),
     ets:select_delete(Table, MatchSpec),
     erlang:send_after(PurgeInterval, self(), purge_expired_entries),
     {noreply, State};
@@ -163,18 +177,19 @@ start_link(Name, Table, PurgeInterval) ->
 
 find(Table, Key) ->
     case ets:lookup(Table, Key) of
-        [#cache_entry{ value = Value }] -> {ok, Value};
+        [#cache_entry{value = Value}] -> {ok, Value};
         [] -> error
     end.
 
 put(Table, Key, Value, TTL) ->
     Expiry = now_milliseconds() + TTL,
-    NewEntry = #cache_entry{ key = Key, value = Value, expiry = Expiry },
+    NewEntry = #cache_entry{key = Key, value = Value, expiry = Expiry},
     ets:insert(Table, NewEntry).
 
 -spec now_milliseconds() -> integer().
 now_milliseconds() ->
-    erlang:monotonic_time(milli_seconds). % from 19.1 and up it can be just 'millisecond'
+    % from 19.1 and up it can be just 'millisecond'
+    erlang:monotonic_time(milli_seconds).
 
 %% ------------------------------------------------------------------
 %% Unit Tests

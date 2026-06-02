@@ -1,11 +1,15 @@
--define(DEFAULT_OPT_COMPRESSION_THRESHOLD, 300). % in bytes
+% in bytes
+-define(DEFAULT_OPT_COMPRESSION_THRESHOLD, 300).
 -define(DEFAULT_OPT_CONNECT_TIMEOUT, (timer:seconds(8))).
 -define(DEFAULT_OPT_DECODE_UNSAFE_TERMS, true).
--define(DEFAULT_OPT_MAX_ENCODED_ARGS_SIZE, (8 * (1 bsl 20))). % in bytes
--define(DEFAULT_OPT_MAX_ENCODED_RESULT_SIZE, (8 * (1 bsl 20))). % in bytes
+% in bytes
+-define(DEFAULT_OPT_MAX_ENCODED_ARGS_SIZE, (8 * (1 bsl 20))).
+% in bytes
+-define(DEFAULT_OPT_MAX_ENCODED_RESULT_SIZE, (8 * (1 bsl 20))).
 -define(DEFAULT_OPT_RECV_TIMEOUT, (timer:seconds(5))).
 -define(DEFAULT_OPT_RETHROW_REMOTE_EXCEPTIONS, false).
 -define(DEFAULT_OPT_RETURN_EXCEPTION_STACKTRACES, true).
 
 -define(DEFAULT_SERVER_NB_ACCEPTORS, 20).
--define(DEFAULT_SERVER_MAX_KEEPALIVE, 200). % max. nr of requests before closing a keep-alive connection
+% max. nr of requests before closing a keep-alive connection
+-define(DEFAULT_SERVER_MAX_KEEPALIVE, 200).

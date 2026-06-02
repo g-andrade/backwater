@@ -49,8 +49,10 @@
 %% ------------------------------------------------------------------
 
 -type children_spec() ::
-        [backwater_cache:child_spec(cache),
-         ...].
+    [
+        backwater_cache:child_spec(cache),
+        ...
+    ].
 -export_type([children_spec/0]).
 
 %% ------------------------------------------------------------------

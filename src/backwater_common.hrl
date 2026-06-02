@@ -18,7 +18,8 @@
 %% FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 %% DEALINGS IN THE SOFTWARE.
 
--define(OPAQUE_BINARY(B), <<(B)/binary>>). % don't let Dialyzer be too smart
+% don't let Dialyzer be too smart
+-define(OPAQUE_BINARY(B), <<(B)/binary>>).
 
 -define(is_non_neg_integer(V), (is_integer((V)) andalso (V) >= 0)).
 -define(is_timeout(V), (?is_non_neg_integer((V)) orelse (V) =:= infinity)).

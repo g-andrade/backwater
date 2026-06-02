@@ -35,14 +35,14 @@
 %% API Function Definitions
 %% ------------------------------------------------------------------
 
--spec encode(#{ binary() => binary() }) -> binary().
+-spec encode(#{binary() => binary()}) -> binary().
 encode(Map) ->
     Pairs = maps:to_list(Map),
     SortedPairs = lists:keysort(1, Pairs),
     EncodedPairs = lists:map(fun encode_pair/1, SortedPairs),
     iolist_to_binary(lists:join(",", EncodedPairs)).
 
--spec decode(binary()) -> {ok, #{ binary() => binary() }} | error.
+-spec decode(binary()) -> {ok, #{binary() => binary()}} | error.
 decode(Encoded) ->
     EncodedPairs = binary:split(Encoded, <<",">>, [global, trim_all]),
     case backwater_util:lists_allmap(fun decode_pair/1, EncodedPairs) of

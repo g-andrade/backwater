@@ -85,15 +85,17 @@
 -define(KEY_ID, <<"default">>).
 -define(ALGORITHM, <<"hmac-sha256">>).
 
--define(VALIDATION_MANDATORILY_SIGNED_HEADER_NAMES,
-        [<<"digest">>,
-         <<"x-request-id">>]).
+-define(VALIDATION_MANDATORILY_SIGNED_HEADER_NAMES, [
+    <<"digest">>,
+    <<"x-request-id">>
+]).
 
--define(VALIDATION_MANDATORILY_SIGNED_HEADER_NAMES_IF_PRESENT,
-        [<<"accept">>,
-         <<"content-type">>,
-         <<"content-encoding">>,
-         <<"content-length">>]).
+-define(VALIDATION_MANDATORILY_SIGNED_HEADER_NAMES_IF_PRESENT, [
+    <<"accept">>,
+    <<"content-type">>,
+    <<"content-encoding">>,
+    <<"content-length">>
+]).
 
 %% ------------------------------------------------------------------
 %% Type Definitions
@@ -103,16 +105,16 @@
 -export_type([algorithm_failure/0]).
 
 -type auth_parse_failure() ::
-        invalid_auth_type | missing_authorization_header | header_params_failure().
+    invalid_auth_type | missing_authorization_header | header_params_failure().
 -export_type([auth_parse_failure/0]).
 
--opaque config() :: #{ key := binary() }.
+-opaque config() :: #{key := binary()}.
 -export_type([config/0]).
 
 -type header_list() :: [{binary(), binary()}].
 -export_type([header_list/0]).
 
--type header_map() :: #{ binary() => binary() }.
+-type header_map() :: #{binary() => binary()}.
 -export_type([header_map/0]).
 
 -type header_params_failure() :: invalid_header_params.
@@ -124,16 +126,18 @@
 -type key_id_failure() :: unknown_key | algorithm_failure().
 -export_type([key_id_failure/0]).
 
--type mandatorily_signed_headers_failure() :: ({missing_mandatorily_signed_header, binary()} |
-                                               signature_failure()).
+-type mandatorily_signed_headers_failure() ::
+    ({missing_mandatorily_signed_header, binary()}
+    | signature_failure()).
 -export_type([mandatorily_signed_headers_failure/0]).
 
--type mandatory_headers_failure() :: ({missing_mandatory_header, binary()} |
-                                      mandatorily_signed_headers_failure()).
+-type mandatory_headers_failure() ::
+    ({missing_mandatory_header, binary()}
+    | mandatorily_signed_headers_failure()).
 -export_type([mandatory_headers_failure/0]).
 
 -type maybe_uncanonical_headers() ::
-        header_list() | header_map() | {headers | ci_headers, header_list() | header_map()}.
+    header_list() | header_map() | {headers | ci_headers, header_list() | header_map()}.
 -export_type([maybe_uncanonical_headers/0]).
 
 -type message() :: unsigned_message() | signed_message().
@@ -146,7 +150,7 @@
 -export_type([response_validation_failure/0]).
 
 -type request_id_validation_failure() ::
-        mismatched_request_id | missing_request_id | sig_parse_failure() | validation_failure().
+    mismatched_request_id | missing_request_id | sig_parse_failure() | validation_failure().
 -export_type([request_id_validation_failure/0]).
 
 -type request_validation_failure() :: auth_parse_failure() | validation_failure().
@@ -156,17 +160,21 @@
 -export_type([sig_parse_failure/0]).
 
 -opaque signed_message() ::
-    #{ pseudo_headers := #{ binary() => binary() },
-       real_headers := #{ binary() => binary() },
-       config := config(),
-       request_id := binary(),
-       signed_header_names := [binary()],
-       body_digest := binary() }.
+    #{
+        pseudo_headers := #{binary() => binary()},
+        real_headers := #{binary() => binary()},
+        config := config(),
+        request_id := binary(),
+        signed_header_names := [binary()],
+        body_digest := binary()
+    }.
 -export_type([signed_message/0]).
 
 -opaque unsigned_message() ::
-    #{ pseudo_headers := #{ binary() => binary() },
-       real_headers := #{ binary() => binary() }  }.
+    #{
+        pseudo_headers := #{binary() => binary()},
+        real_headers := #{binary() => binary()}
+    }.
 -export_type([message/0]).
 
 -type validation_failure() :: key_id_failure().
@@ -178,7 +186,7 @@
 -type signature_string_failure() :: {missing_header, binary()}.
 -export_type([signature_string_failure/0]).
 
--type params() :: #{ binary() => binary() | [binary()] }.
+-type params() :: #{binary() => binary() | [binary()]}.
 
 %% ------------------------------------------------------------------
 %% API Function Definitions
@@ -186,23 +194,25 @@
 
 -spec config(binary()) -> config().
 config(Secret) ->
-    #{ key => Secret }.
+    #{key => Secret}.
 
 -spec new_request_msg(binary(), binary(), maybe_uncanonical_headers()) -> unsigned_message().
 new_request_msg(Method, EncodedPathWithQs, Headers) ->
-    PseudoHeaders = #{ ?OPAQUE_BINARY(<<"(request-target)">>) => request_target(Method, EncodedPathWithQs) },
+    PseudoHeaders = #{
+        ?OPAQUE_BINARY(<<"(request-target)">>) => request_target(Method, EncodedPathWithQs)
+    },
     RealHeaders = canonical_headers(Headers),
     new_unsigned_msg(PseudoHeaders, RealHeaders).
 
 -spec new_response_msg(non_neg_integer(), maybe_uncanonical_headers()) -> unsigned_message().
 new_response_msg(StatusCode, Headers) ->
-    PseudoHeaders = #{ ?OPAQUE_BINARY(<<"(response-status)">>) => response_status(StatusCode) },
+    PseudoHeaders = #{?OPAQUE_BINARY(<<"(response-status)">>) => response_status(StatusCode)},
     RealHeaders = canonical_headers(Headers),
     new_unsigned_msg(PseudoHeaders, RealHeaders).
 
--spec validate_request_signature(config(), message())
-        -> message_validation_success() |
-           {error, Reason :: request_validation_failure()}.
+-spec validate_request_signature(config(), message()) ->
+    message_validation_success()
+    | {error, Reason :: request_validation_failure()}.
 validate_request_signature(Config, RequestMsg) ->
     AuthorizationHeaderLookup = find_real_msg_header(<<"authorization">>, RequestMsg),
     case parse_authorization_header(AuthorizationHeaderLookup) of
@@ -212,68 +222,80 @@ validate_request_signature(Config, RequestMsg) ->
             {error, Reason}
     end.
 
--spec validate_response_signature(signed_message(), message())
-        -> message_validation_success() |
-           {error, Reason :: response_validation_failure()}.
+-spec validate_response_signature(signed_message(), message()) ->
+    message_validation_success()
+    | {error, Reason :: response_validation_failure()}.
 validate_response_signature(SignedRequestMsg, ResponseMsg) ->
-    #{ config := Config, request_id := RequestId } = SignedRequestMsg,
+    #{config := Config, request_id := RequestId} = SignedRequestMsg,
     MsgRequestIdLookup = find_real_msg_header(<<"x-request-id">>, ResponseMsg),
     validate_response_request_id(Config, ResponseMsg, RequestId, MsgRequestIdLookup).
 
 -spec validate_signed_msg_body(signed_message(), binary()) -> boolean().
 validate_signed_msg_body(SignedMsg, Body) ->
-    #{ body_digest := BodyDigest } = SignedMsg,
+    #{body_digest := BodyDigest} = SignedMsg,
     body_digest(Body) =:= BodyDigest.
 
 -spec sign_request(config(), message(), binary(), binary()) -> signed_message().
 sign_request(Config, RequestMsg1, Body, RequestId) ->
     BodyDigest = body_digest(Body),
     ExtraSignedHeaders =
-        #{ <<"digest">> => BodyDigest,
-           <<"x-request-id">> => RequestId },
+        #{
+            <<"digest">> => BodyDigest,
+            <<"x-request-id">> => RequestId
+        },
     RequestMsg2 = remove_real_msg_header(<<"authorization">>, RequestMsg1),
     RequestMsg3 = add_real_msg_headers(ExtraSignedHeaders, RequestMsg2),
     SignedHeaderNames = list_msg_header_names(RequestMsg3),
-    AuthorizationHeaderValue = generate_authorization_header_value(Config, RequestMsg3, SignedHeaderNames),
+    AuthorizationHeaderValue = generate_authorization_header_value(
+        Config, RequestMsg3, SignedHeaderNames
+    ),
     RequestMsg4 =
-        add_real_msg_headers(#{ ?OPAQUE_BINARY(<<"authorization">>) => AuthorizationHeaderValue }, RequestMsg3),
+        add_real_msg_headers(
+            #{?OPAQUE_BINARY(<<"authorization">>) => AuthorizationHeaderValue}, RequestMsg3
+        ),
     RequestMsg4#{
-      config => Config,
-      request_id => RequestId,
-      signed_header_names => SignedHeaderNames,
-      body_digest => BodyDigest }.
+        config => Config,
+        request_id => RequestId,
+        signed_header_names => SignedHeaderNames,
+        body_digest => BodyDigest
+    }.
 
 -spec sign_response(config(), message(), binary(), signed_message()) -> signed_message().
 sign_response(Config, ResponseMsg1, Body, SignedRequestMsg) ->
-    #{ request_id := RequestId } = SignedRequestMsg,
+    #{request_id := RequestId} = SignedRequestMsg,
     BodyDigest = body_digest(Body),
     ExtraSignedHeaders =
-        #{ <<"digest">> => BodyDigest,
-           <<"x-request-id">> => RequestId },
+        #{
+            <<"digest">> => BodyDigest,
+            <<"x-request-id">> => RequestId
+        },
     ResponseMsg2 = remove_real_msg_header(<<"signature">>, ResponseMsg1),
     ResponseMsg3 = add_real_msg_headers(ExtraSignedHeaders, ResponseMsg2),
     SignedHeaderNames = list_msg_header_names(ResponseMsg3),
     SignatureHeaderValue = generate_signature_header_value(Config, ResponseMsg3, SignedHeaderNames),
     ResponseMsg4 =
-        add_real_msg_headers(#{ ?OPAQUE_BINARY(<<"signature">>) => SignatureHeaderValue}, ResponseMsg3),
+        add_real_msg_headers(
+            #{?OPAQUE_BINARY(<<"signature">>) => SignatureHeaderValue}, ResponseMsg3
+        ),
     ResponseMsg4#{
-      config => Config,
-      request_id => RequestId,
-      signed_header_names => SignedHeaderNames,
-      body_digest => BodyDigest }.
+        config => Config,
+        request_id => RequestId,
+        signed_header_names => SignedHeaderNames,
+        body_digest => BodyDigest
+    }.
 
 -spec get_real_msg_headers(message()) -> header_map().
 get_real_msg_headers(Msg) ->
-    #{ real_headers := Map } = Msg,
+    #{real_headers := Map} = Msg,
     Map.
 
 -spec list_real_msg_headers(message()) -> header_list().
 list_real_msg_headers(Msg) ->
-    maps:to_list( get_real_msg_headers(Msg) ).
+    maps:to_list(get_real_msg_headers(Msg)).
 
 -spec is_header_signed_in_signed_msg(binary(), signed_message()) -> boolean().
 is_header_signed_in_signed_msg(CiName, SignedMsg) ->
-    #{ signed_header_names := SignedHeaderNames } = SignedMsg,
+    #{signed_header_names := SignedHeaderNames} = SignedMsg,
     lists:member(CiName, SignedHeaderNames).
 
 -spec get_request_auth_challenge_headers(message()) -> header_map().
@@ -281,16 +303,21 @@ get_request_auth_challenge_headers(RequestMsg) ->
     PseudoHeaderNamesToSign = list_pseudo_msg_header_names(RequestMsg),
     RealHeaderNames = list_real_msg_header_names(RequestMsg),
     RealHeaderNamesToSign =
-            [Name || Name <- RealHeaderNames,
-                     lists:member(Name, ?VALIDATION_MANDATORILY_SIGNED_HEADER_NAMES) orelse
-                     lists:member(Name, ?VALIDATION_MANDATORILY_SIGNED_HEADER_NAMES_IF_PRESENT)],
+        [
+            Name
+         || Name <- RealHeaderNames,
+            lists:member(Name, ?VALIDATION_MANDATORILY_SIGNED_HEADER_NAMES) orelse
+                lists:member(Name, ?VALIDATION_MANDATORILY_SIGNED_HEADER_NAMES_IF_PRESENT)
+        ],
 
     HeaderNamesToSign = lists:usort(PseudoHeaderNamesToSign ++ RealHeaderNamesToSign),
     EncodedHeaderNamesToSign = iolist_to_binary(lists:join(" ", HeaderNamesToSign)),
-    Params = #{ <<"realm">> => <<"backwater">>,
-                <<"headers">> => EncodedHeaderNamesToSign },
+    Params = #{
+        <<"realm">> => <<"backwater">>,
+        <<"headers">> => EncodedHeaderNamesToSign
+    },
     BinParams = backwater_header_params:encode(Params),
-    #{ ?OPAQUE_BINARY(<<"www-authenticate">>) => ?OPAQUE_BINARY(<<"Signature ", BinParams/binary>>) }.
+    #{?OPAQUE_BINARY(<<"www-authenticate">>) => ?OPAQUE_BINARY(<<"Signature ", BinParams/binary>>)}.
 
 %% ------------------------------------------------------------------
 %% Internal Function Definitions - Messages
@@ -307,12 +334,14 @@ response_status(StatusCode) ->
 
 -spec new_unsigned_msg(header_map(), header_map()) -> unsigned_message().
 new_unsigned_msg(PseudoHeaders, RealHeaders) ->
-    #{ pseudo_headers => PseudoHeaders,
-       real_headers => RealHeaders }.
+    #{
+        pseudo_headers => PseudoHeaders,
+        real_headers => RealHeaders
+    }.
 
 -spec find_msg_header(binary(), message()) -> {ok, binary()} | error.
 find_msg_header(CiName, Msg) ->
-    #{ pseudo_headers := Map } = Msg,
+    #{pseudo_headers := Map} = Msg,
     case maps:find(CiName, Map) of
         {ok, Value} -> {ok, Value};
         error -> find_real_msg_header(CiName, Msg)
@@ -320,42 +349,46 @@ find_msg_header(CiName, Msg) ->
 
 -spec find_real_msg_header(binary(), message()) -> {ok, binary()} | error.
 find_real_msg_header(CiName, Msg) ->
-    #{ real_headers := Map } = Msg,
+    #{real_headers := Map} = Msg,
     maps:find(CiName, Map).
 
 -spec remove_real_msg_header(binary(), message()) -> message().
 remove_real_msg_header(CiName, Msg) ->
-    #{ real_headers := Map1 } = Msg,
+    #{real_headers := Map1} = Msg,
     Map2 = maps:remove(CiName, Map1),
-    Msg#{ real_headers := Map2 }.
+    Msg#{real_headers := Map2}.
 
 -spec add_real_msg_headers(header_map(), message()) -> message().
 add_real_msg_headers(ExtraMap, Msg) ->
-    #{ real_headers := Map1 } = Msg,
+    #{real_headers := Map1} = Msg,
     Map2 = maps:merge(Map1, ExtraMap),
-    Msg#{ real_headers := Map2 }.
+    Msg#{real_headers := Map2}.
 
 -spec list_pseudo_msg_header_names(message()) -> [binary()].
 list_pseudo_msg_header_names(Msg) ->
-    #{ pseudo_headers := Map } = Msg,
+    #{pseudo_headers := Map} = Msg,
     maps:keys(Map).
 
 -spec list_real_msg_header_names(message()) -> [binary()].
 list_real_msg_header_names(Msg) ->
-    #{ real_headers := Map } = Msg,
+    #{real_headers := Map} = Msg,
     maps:keys(Map).
 
 -spec list_msg_headers(message()) -> header_list().
 list_msg_headers(Msg) ->
-    #{ pseudo_headers := MapA,
-       real_headers := MapB } = Msg,
+    #{
+        pseudo_headers := MapA,
+        real_headers := MapB
+    } = Msg,
     Merged = maps:merge(MapB, MapA),
     maps:to_list(Merged).
 
 -spec list_msg_header_names(message()) -> [binary()].
 list_msg_header_names(Msg) ->
-    #{ pseudo_headers := MapA,
-       real_headers := MapB } = Msg,
+    #{
+        pseudo_headers := MapA,
+        real_headers := MapB
+    } = Msg,
     lists:usort(maps:keys(MapA) ++ maps:keys(MapB)).
 
 -spec canonical_headers(maybe_uncanonical_headers()) -> header_map().
@@ -382,8 +415,8 @@ ci_headers_list(List) ->
 %% Internal Function Definitions - Validation
 %% ------------------------------------------------------------------
 
--spec parse_authorization_header({ok, binary()} | error)
-        -> {ok, params()} | {error, auth_parse_failure()}.
+-spec parse_authorization_header({ok, binary()} | error) ->
+    {ok, params()} | {error, auth_parse_failure()}.
 parse_authorization_header({ok, <<"Signature ", EncodedParams/binary>>}) ->
     decode_signature_auth_params(EncodedParams);
 parse_authorization_header({ok, _OtherAuth}) ->
@@ -391,8 +424,8 @@ parse_authorization_header({ok, _OtherAuth}) ->
 parse_authorization_header(error) ->
     {error, missing_authorization_header}.
 
--spec parse_signature_header({ok, binary()} | error)
-        -> {ok, params()} | {error, sig_parse_failure()}.
+-spec parse_signature_header({ok, binary()} | error) ->
+    {ok, params()} | {error, sig_parse_failure()}.
 parse_signature_header({ok, EncodedParams}) ->
     decode_signature_auth_params(EncodedParams);
 parse_signature_header(error) ->
@@ -425,9 +458,9 @@ decode_signature_auth_params(Encoded) ->
             {error, invalid_header_params}
     end.
 
--spec validate_response_request_id(config(), message(), binary(), {ok, binary()} | error)
-        -> message_validation_success() |
-           {error, Reason :: response_validation_failure()}.
+-spec validate_response_request_id(config(), message(), binary(), {ok, binary()} | error) ->
+    message_validation_success()
+    | {error, Reason :: response_validation_failure()}.
 validate_response_request_id(Config, Msg, RequestId, {ok, RequestId}) ->
     SignatureHeaderLookup = find_real_msg_header(<<"signature">>, Msg),
     case parse_signature_header(SignatureHeaderLookup) of
@@ -441,43 +474,44 @@ validate_response_request_id(_Config, _Msg, _RequestId, {ok, _WrongRequestId}) -
 validate_response_request_id(_Config, _Msg, _RequestId, error) ->
     {error, missing_request_id}.
 
--spec validate_params(config(), params(), message())
-        -> message_validation_success() | {error, key_id_failure()}.
+-spec validate_params(config(), params(), message()) ->
+    message_validation_success() | {error, key_id_failure()}.
 validate_params(Config, Params, Msg) ->
     validate_key_id(Config, Params, Msg).
 
--spec validate_key_id(config(), params(), message())
-        -> message_validation_success() | {error, key_id_failure()}.
-validate_key_id(Config, #{ <<"keyId">> := ?KEY_ID } = Params, Msg) ->
+-spec validate_key_id(config(), params(), message()) ->
+    message_validation_success() | {error, key_id_failure()}.
+validate_key_id(Config, #{<<"keyId">> := ?KEY_ID} = Params, Msg) ->
     validate_algorithm(Config, Params, Msg);
 validate_key_id(_Config, _Params, _Msg) ->
     {error, unknown_key}.
 
--spec validate_algorithm(config(), params(), message())
-        -> message_validation_success() | {error, algorithm_failure()}.
-validate_algorithm(Config, #{ <<"algorithm">> := ?ALGORITHM } = Params, Msg) ->
+-spec validate_algorithm(config(), params(), message()) ->
+    message_validation_success() | {error, algorithm_failure()}.
+validate_algorithm(Config, #{<<"algorithm">> := ?ALGORITHM} = Params, Msg) ->
     validate_signed_headers(Config, Params, Msg);
 validate_algorithm(_Config, _Params, _Msg) ->
     {error, unknown_algorithm}.
 
--spec validate_signed_headers(config(), params(), message())
-        -> message_validation_success() | {error, headers_failure()}.
-validate_signed_headers(Config, #{ <<"headers">> := _ } = Params, Msg) ->
+-spec validate_signed_headers(config(), params(), message()) ->
+    message_validation_success() | {error, headers_failure()}.
+validate_signed_headers(Config, #{<<"headers">> := _} = Params, Msg) ->
     validate_mandatory_headers(Config, Params, Msg);
 validate_signed_headers(_Config, _Params, _Msg) ->
     {error, missing_signed_header_list}.
 
--spec validate_mandatory_headers(config(), params(), message())
-        -> message_validation_success() | {error, mandatory_headers_failure()}.
-validate_mandatory_headers(Config, #{ <<"headers">> := SignedHeaderNames } = Params, Msg) ->
+-spec validate_mandatory_headers(config(), params(), message()) ->
+    message_validation_success() | {error, mandatory_headers_failure()}.
+validate_mandatory_headers(Config, #{<<"headers">> := SignedHeaderNames} = Params, Msg) ->
     Mandatory = list_pseudo_msg_header_names(Msg) ++ ?VALIDATION_MANDATORILY_SIGNED_HEADER_NAMES,
     MissingMandatory =
         backwater_util:lists_anymap(
-          fun (Name) ->
-                  (not lists:member(Name, SignedHeaderNames))
-                  andalso {true, Name}
-          end,
-          Mandatory),
+            fun(Name) ->
+                (not lists:member(Name, SignedHeaderNames)) andalso
+                    {true, Name}
+            end,
+            Mandatory
+        ),
 
     case MissingMandatory of
         {true, Name} ->
@@ -486,18 +520,19 @@ validate_mandatory_headers(Config, #{ <<"headers">> := SignedHeaderNames } = Par
             validate_mandatorily_signed_headers(Config, Params, Msg)
     end.
 
--spec validate_mandatorily_signed_headers(config(), params(), message())
-        -> message_validation_success() | {error, mandatorily_signed_headers_failure()}.
-validate_mandatorily_signed_headers(Config, #{ <<"headers">> := SignedHeaderNames } = Params, Msg) ->
+-spec validate_mandatorily_signed_headers(config(), params(), message()) ->
+    message_validation_success() | {error, mandatorily_signed_headers_failure()}.
+validate_mandatorily_signed_headers(Config, #{<<"headers">> := SignedHeaderNames} = Params, Msg) ->
     AllHeaders = list_msg_headers(Msg),
     MissingMandatory =
         backwater_util:lists_anymap(
-          fun ({Name, _Value}) ->
-                  lists:member(Name, ?VALIDATION_MANDATORILY_SIGNED_HEADER_NAMES_IF_PRESENT)
-                  andalso not lists:member(Name, SignedHeaderNames)
-                  andalso {true, Name}
-          end,
-          AllHeaders),
+            fun({Name, _Value}) ->
+                lists:member(Name, ?VALIDATION_MANDATORILY_SIGNED_HEADER_NAMES_IF_PRESENT) andalso
+                    not lists:member(Name, SignedHeaderNames) andalso
+                    {true, Name}
+            end,
+            AllHeaders
+        ),
 
     case MissingMandatory of
         {true, Name} ->
@@ -506,15 +541,18 @@ validate_mandatorily_signed_headers(Config, #{ <<"headers">> := SignedHeaderName
             validate_signature(Config, Params, Msg)
     end.
 
--spec validate_signature(config(), params(), message())
-        -> message_validation_success() | {error, signature_failure()}.
-validate_signature(Config, #{ <<"headers">> := SignedHeaderNames, <<"signature">> := Signature },
-                   Msg) ->
+-spec validate_signature(config(), params(), message()) ->
+    message_validation_success() | {error, signature_failure()}.
+validate_signature(
+    Config,
+    #{<<"headers">> := SignedHeaderNames, <<"signature">> := Signature},
+    Msg
+) ->
     case build_signature_iodata(SignedHeaderNames, Msg) of
         {error, Reason} ->
             {error, Reason};
         {ok, IoData} ->
-            #{ key := Key } = Config,
+            #{key := Key} = Config,
             ExpectedSignature = backwater_util:sha256_hmac(Key, IoData),
             case ExpectedSignature =:= Signature of
                 false ->
@@ -523,10 +561,12 @@ validate_signature(Config, #{ <<"headers">> := SignedHeaderNames, <<"signature">
                     {ok, RequestId} = find_real_msg_header(<<"x-request-id">>, Msg),
                     {ok, BodyDigest} = find_real_msg_header(<<"digest">>, Msg),
                     SignedMsg =
-                        Msg#{ config => Config,
-                              request_id => RequestId,
-                              signed_header_names => SignedHeaderNames,
-                              body_digest => BodyDigest },
+                        Msg#{
+                            config => Config,
+                            request_id => RequestId,
+                            signed_header_names => SignedHeaderNames,
+                            body_digest => BodyDigest
+                        },
                     {ok, SignedMsg}
             end
     end.
@@ -542,14 +582,16 @@ generate_authorization_header_value(Config, Msg, SignedHeaderNames) ->
 
 -spec generate_signature_header_value(config(), message(), [binary()]) -> binary().
 generate_signature_header_value(Config, Msg, SignedHeaderNames) ->
-    #{ key := Key } = Config,
+    #{key := Key} = Config,
     {ok, SignatureIoData} = build_signature_iodata(SignedHeaderNames, Msg),
     Signature = backwater_util:sha256_hmac(Key, SignatureIoData),
     SignatureParams =
-        #{ ?OPAQUE_BINARY(<<"keyId">>) => ?KEY_ID,
-           ?OPAQUE_BINARY(<<"algorithm">>) => ?ALGORITHM,
-           ?OPAQUE_BINARY(<<"headers">>) => SignedHeaderNames,
-           ?OPAQUE_BINARY(<<"signature">>) => Signature },
+        #{
+            ?OPAQUE_BINARY(<<"keyId">>) => ?KEY_ID,
+            ?OPAQUE_BINARY(<<"algorithm">>) => ?ALGORITHM,
+            ?OPAQUE_BINARY(<<"headers">>) => SignedHeaderNames,
+            ?OPAQUE_BINARY(<<"signature">>) => Signature
+        },
     encode_signature_auth_params(SignatureParams).
 
 -spec encode_signature_auth_params(params()) -> binary().
@@ -575,23 +617,24 @@ body_digest(Body) ->
 %% Internal Function Definitions - Signature String
 %% ------------------------------------------------------------------
 
--spec build_signature_iodata([binary()], message())
-        -> {ok, iodata()} | {error, signature_string_failure()}.
+-spec build_signature_iodata([binary()], message()) ->
+    {ok, iodata()} | {error, signature_string_failure()}.
 build_signature_iodata(SignedHeaderNames, Msg) ->
     BuildPartsResult =
         backwater_util:lists_allmap(
-          fun (Name) ->
-                  CiName = backwater_util:latin1_binary_to_lower(Name),
-                  case find_msg_header(CiName, Msg) of
-                      {ok, Value} ->
-                          TrimmedValue = backwater_util:latin1_binary_trim_whitespaces(Value),
-                          {true, [CiName, ": ", TrimmedValue]};
-                      error ->
-                          % missing header
-                          {false, Name}
-                  end
-          end,
-          SignedHeaderNames),
+            fun(Name) ->
+                CiName = backwater_util:latin1_binary_to_lower(Name),
+                case find_msg_header(CiName, Msg) of
+                    {ok, Value} ->
+                        TrimmedValue = backwater_util:latin1_binary_trim_whitespaces(Value),
+                        {true, [CiName, ": ", TrimmedValue]};
+                    error ->
+                        % missing header
+                        {false, Name}
+                end
+            end,
+            SignedHeaderNames
+        ),
 
     case BuildPartsResult of
         {false, Name} ->
@@ -624,17 +667,21 @@ valid_response_test() ->
     ResponseMsg = new_response_msg(200, #{}),
     SignedResponseMsg = sign_response(Config, ResponseMsg, <<"response body">>, SignedRequestMsg),
     ?assertMatch(
-       {ok, #{} = _SignedResponseMsg},
-       validate_response_signature(SignedRequestMsg, SignedResponseMsg)).
+        {ok, #{} = _SignedResponseMsg},
+        validate_response_signature(SignedRequestMsg, SignedResponseMsg)
+    ).
 
 mismatched_request_id_test() ->
     {Config, SignedRequestMsg} = test_signed_request_msg(),
-    CorruptSignedRequestMsg = SignedRequestMsg#{ request_id := crypto:strong_rand_bytes(16) },
+    CorruptSignedRequestMsg = SignedRequestMsg#{request_id := crypto:strong_rand_bytes(16)},
     ResponseMsg = new_response_msg(200, #{}),
-    SignedResponseMsg = sign_response(Config, ResponseMsg, <<"response body">>, CorruptSignedRequestMsg),
+    SignedResponseMsg = sign_response(
+        Config, ResponseMsg, <<"response body">>, CorruptSignedRequestMsg
+    ),
     ?assertMatch(
-       {error, mismatched_request_id},
-       validate_response_signature(SignedRequestMsg, SignedResponseMsg)).
+        {error, mismatched_request_id},
+        validate_response_signature(SignedRequestMsg, SignedResponseMsg)
+    ).
 
 missing_request_id_test() ->
     {Config, SignedRequestMsg} = test_signed_request_msg(),
@@ -642,8 +689,9 @@ missing_request_id_test() ->
     SignedResponseMsg = sign_response(Config, ResponseMsg, <<"response body">>, SignedRequestMsg),
     CorruptSignedResponseMsg = remove_real_msg_header(<<"x-request-id">>, SignedResponseMsg),
     ?assertMatch(
-       {error, missing_request_id},
-       validate_response_signature(SignedRequestMsg, CorruptSignedResponseMsg)).
+        {error, missing_request_id},
+        validate_response_signature(SignedRequestMsg, CorruptSignedResponseMsg)
+    ).
 
 missing_signature_header_test() ->
     {Config, SignedRequestMsg} = test_signed_request_msg(),
@@ -651,86 +699,111 @@ missing_signature_header_test() ->
     SignedResponseMsg = sign_response(Config, ResponseMsg, <<"response body">>, SignedRequestMsg),
     CorruptSignedResponseMsg = remove_real_msg_header(<<"signature">>, SignedResponseMsg),
     ?assertMatch(
-       {error, missing_signature_header},
-       validate_response_signature(SignedRequestMsg, CorruptSignedResponseMsg)).
+        {error, missing_signature_header},
+        validate_response_signature(SignedRequestMsg, CorruptSignedResponseMsg)
+    ).
 
 invalid_header_params_test() ->
     {Config, SignedRequestMsg} = test_signed_request_msg(),
     ResponseMsg = new_response_msg(200, #{}),
     SignedResponseMsg = sign_response(Config, ResponseMsg, <<"response body">>, SignedRequestMsg),
     CorruptSignedResponseMsg =
-        add_real_msg_headers(#{ <<"signature">> => <<"bla=ble;;;">> }, SignedResponseMsg),
+        add_real_msg_headers(#{<<"signature">> => <<"bla=ble;;;">>}, SignedResponseMsg),
     ?assertMatch(
-       {error, invalid_header_params},
-       validate_response_signature(SignedRequestMsg, CorruptSignedResponseMsg)).
+        {error, invalid_header_params},
+        validate_response_signature(SignedRequestMsg, CorruptSignedResponseMsg)
+    ).
 
 unknown_key_id_test() ->
     {Config, SignedRequestMsg} = test_signed_request_msg(),
     ResponseMsg = new_response_msg(200, #{}),
     SignedResponseMsg = sign_response(Config, ResponseMsg, <<"response body">>, SignedRequestMsg),
     CorruptSignedResponseMsg =
-        add_real_msg_headers(#{ <<"signature">> => <<"keyId=\"unknown\"">> }, SignedResponseMsg),
+        add_real_msg_headers(#{<<"signature">> => <<"keyId=\"unknown\"">>}, SignedResponseMsg),
     ?assertMatch(
-       {error, unknown_key},
-       validate_response_signature(SignedRequestMsg, CorruptSignedResponseMsg)).
+        {error, unknown_key},
+        validate_response_signature(SignedRequestMsg, CorruptSignedResponseMsg)
+    ).
 
 unknown_algorithm_test() ->
     {Config, SignedRequestMsg} = test_signed_request_msg(),
     ResponseMsg = new_response_msg(200, #{}),
     SignedResponseMsg = sign_response(Config, ResponseMsg, <<"response body">>, SignedRequestMsg),
     CorruptSignedResponseMsg =
-        add_real_msg_headers(#{ <<"signature">> => <<"keyId=\"", ?KEY_ID/binary, "\","
-                                                     "algorithm=\"unknown\"">>
-                              },
-                             SignedResponseMsg),
+        add_real_msg_headers(
+            #{
+                <<"signature">> =>
+                    <<"keyId=\"", ?KEY_ID/binary,
+                        "\","
+                        "algorithm=\"unknown\"">>
+            },
+            SignedResponseMsg
+        ),
     ?assertMatch(
-       {error, unknown_algorithm},
-       validate_response_signature(SignedRequestMsg, CorruptSignedResponseMsg)).
+        {error, unknown_algorithm},
+        validate_response_signature(SignedRequestMsg, CorruptSignedResponseMsg)
+    ).
 
 missing_signed_header_list_test() ->
     {Config, SignedRequestMsg} = test_signed_request_msg(),
     ResponseMsg = new_response_msg(200, #{}),
     SignedResponseMsg = sign_response(Config, ResponseMsg, <<"response body">>, SignedRequestMsg),
     CorruptSignedResponseMsg =
-        add_real_msg_headers(#{ <<"signature">> => <<"keyId=\"", ?KEY_ID/binary, "\","
-                                                     "algorithm=\"", ?ALGORITHM/binary, "\"">>
-                              },
-                             SignedResponseMsg),
+        add_real_msg_headers(
+            #{
+                <<"signature">> =>
+                    <<"keyId=\"", ?KEY_ID/binary,
+                        "\","
+                        "algorithm=\"", ?ALGORITHM/binary, "\"">>
+            },
+            SignedResponseMsg
+        ),
     ?assertMatch(
-       {error, missing_signed_header_list},
-       validate_response_signature(SignedRequestMsg, CorruptSignedResponseMsg)).
+        {error, missing_signed_header_list},
+        validate_response_signature(SignedRequestMsg, CorruptSignedResponseMsg)
+    ).
 
 missing_mandatory_pseudo_header_test() ->
     {Config, SignedRequestMsg} = test_signed_request_msg(),
     ResponseMsg = new_response_msg(200, #{}),
     SignedResponseMsg = sign_response(Config, ResponseMsg, <<"response body">>, SignedRequestMsg),
     CorruptSignedResponseMsg =
-        add_real_msg_headers(#{ <<"signature">> => <<"keyId=\"", ?KEY_ID/binary, "\","
-                                                     "algorithm=\"", ?ALGORITHM/binary, "\",",
-                                                     "headers=\"\"">>
-                              },
-                             SignedResponseMsg),
+        add_real_msg_headers(
+            #{
+                <<"signature">> =>
+                    <<"keyId=\"", ?KEY_ID/binary,
+                        "\","
+                        "algorithm=\"", ?ALGORITHM/binary, "\",", "headers=\"\"">>
+            },
+            SignedResponseMsg
+        ),
 
     MissingHeaderName = <<"(response-status)">>,
     ?assertMatch(
-       {error, {missing_mandatory_header, MissingHeaderName}},
-       validate_response_signature(SignedRequestMsg, CorruptSignedResponseMsg)).
+        {error, {missing_mandatory_header, MissingHeaderName}},
+        validate_response_signature(SignedRequestMsg, CorruptSignedResponseMsg)
+    ).
 
 missing_mandatory_real_header_test() ->
     {Config, SignedRequestMsg} = test_signed_request_msg(),
     ResponseMsg = new_response_msg(200, #{}),
     SignedResponseMsg = sign_response(Config, ResponseMsg, <<"response body">>, SignedRequestMsg),
     CorruptSignedResponseMsg =
-        add_real_msg_headers(#{ <<"signature">> => <<"keyId=\"", ?KEY_ID/binary, "\","
-                                                     "algorithm=\"", ?ALGORITHM/binary, "\",",
-                                                     "headers=\"(response-status)\"">>
-                              },
-                             SignedResponseMsg),
+        add_real_msg_headers(
+            #{
+                <<"signature">> =>
+                    <<"keyId=\"", ?KEY_ID/binary,
+                        "\","
+                        "algorithm=\"", ?ALGORITHM/binary, "\",", "headers=\"(response-status)\"">>
+            },
+            SignedResponseMsg
+        ),
 
     MissingHeaderName = hd(?VALIDATION_MANDATORILY_SIGNED_HEADER_NAMES),
     ?assertMatch(
-       {error, {missing_mandatory_header, MissingHeaderName}},
-       validate_response_signature(SignedRequestMsg, CorruptSignedResponseMsg)).
+        {error, {missing_mandatory_header, MissingHeaderName}},
+        validate_response_signature(SignedRequestMsg, CorruptSignedResponseMsg)
+    ).
 
 missing_mandatorily_signed_headers_test() ->
     {Config, SignedRequestMsg} = test_signed_request_msg(),
@@ -738,37 +811,49 @@ missing_mandatorily_signed_headers_test() ->
     SignedResponseMsg = sign_response(Config, ResponseMsg, <<"response body">>, SignedRequestMsg),
     EncodedSignatureHeaders =
         iolist_to_binary(
-          lists:join(" ", (list_pseudo_msg_header_names(SignedResponseMsg) ++
-                           ?VALIDATION_MANDATORILY_SIGNED_HEADER_NAMES))),
+            lists:join(
+                " ",
+                (list_pseudo_msg_header_names(SignedResponseMsg) ++
+                    ?VALIDATION_MANDATORILY_SIGNED_HEADER_NAMES)
+            )
+        ),
 
     ExtraHeaderName = hd(?VALIDATION_MANDATORILY_SIGNED_HEADER_NAMES_IF_PRESENT),
     CorruptSignedResponseMsg =
-        add_real_msg_headers(#{ <<"signature">> => <<"keyId=\"", ?KEY_ID/binary, "\","
-                                                     "algorithm=\"", ?ALGORITHM/binary, "\",",
-                                                     "headers=\"", EncodedSignatureHeaders/binary, "\"">>,
-                                ExtraHeaderName => <<"blah">>
-                              },
-                             SignedResponseMsg),
+        add_real_msg_headers(
+            #{
+                <<"signature">> =>
+                    <<"keyId=\"", ?KEY_ID/binary,
+                        "\","
+                        "algorithm=\"", ?ALGORITHM/binary, "\",", "headers=\"",
+                        EncodedSignatureHeaders/binary, "\"">>,
+                ExtraHeaderName => <<"blah">>
+            },
+            SignedResponseMsg
+        ),
     ?assertMatch(
-       {error, {missing_mandatorily_signed_header, ExtraHeaderName}},
-       validate_response_signature(SignedRequestMsg, CorruptSignedResponseMsg)).
+        {error, {missing_mandatorily_signed_header, ExtraHeaderName}},
+        validate_response_signature(SignedRequestMsg, CorruptSignedResponseMsg)
+    ).
 
 missing_header_test() ->
     {Config, SignedRequestMsg} = test_signed_request_msg(),
-    ResponseMsg = new_response_msg(200, #{ <<"some_header">> => <<"bla">> }),
+    ResponseMsg = new_response_msg(200, #{<<"some_header">> => <<"bla">>}),
     SignedResponseMsg = sign_response(Config, ResponseMsg, <<"response body">>, SignedRequestMsg),
     CorruptSignedResponseMsg = remove_real_msg_header(<<"some_header">>, SignedResponseMsg),
     ?assertEqual(
-       {error, {missing_header, <<"some_header">>}},
-       validate_response_signature(SignedRequestMsg, CorruptSignedResponseMsg)).
+        {error, {missing_header, <<"some_header">>}},
+        validate_response_signature(SignedRequestMsg, CorruptSignedResponseMsg)
+    ).
 
 invalid_signature_test() ->
     {Config, SignedRequestMsg} = test_signed_request_msg(),
     ResponseMsg = new_response_msg(200, #{}),
     SignedResponseMsg = sign_response(Config, ResponseMsg, <<"response body">>, SignedRequestMsg),
-    CorruptSignedResponseMsg = add_real_msg_headers(#{ <<"digest">> => <<>> }, SignedResponseMsg),
+    CorruptSignedResponseMsg = add_real_msg_headers(#{<<"digest">> => <<>>}, SignedResponseMsg),
     ?assertMatch(
-       {error, invalid_signature},
-       validate_response_signature(SignedRequestMsg, CorruptSignedResponseMsg)).
+        {error, invalid_signature},
+        validate_response_signature(SignedRequestMsg, CorruptSignedResponseMsg)
+    ).
 
 -endif.

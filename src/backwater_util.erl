@@ -47,9 +47,9 @@
 -export_type([proplist/0]).
 
 -type config_validation_error() ::
-    {invalid_config_parameter, {Key :: term(), Value :: term()}} |
-    {missing_mandatory_config_parameters, [Key :: term(), ...]} |
-    options_not_a_map.
+    {invalid_config_parameter, {Key :: term(), Value :: term()}}
+    | {missing_mandatory_config_parameters, [Key :: term(), ...]}
+    | options_not_a_map.
 -export_type([config_validation_error/0]).
 
 %% ------------------------------------------------------------------
@@ -64,16 +64,16 @@ latin1_binary_to_lower(Bin) ->
 latin1_binary_trim_whitespaces(Bin) ->
     re:replace(Bin, <<"(^\\s+)|(\\s+$)">>, <<>>, [global, {return, binary}]).
 
--spec lists_allmap(Fun :: fun((term()) -> {boolean(), term()} | boolean()), [term()])
-        -> {true, [term()]} | {false, term()}.
+-spec lists_allmap(Fun :: fun((term()) -> {boolean(), term()} | boolean()), [term()]) ->
+    {true, [term()]} | {false, term()}.
 lists_allmap(Fun, List) ->
     lists_allmap_recur(Fun, List, []).
 
--spec lists_anymap(Fun :: fun((term()) -> {true, term()} | true | false), [term()])
-        -> {true, term()} | false.
+-spec lists_anymap(Fun :: fun((term()) -> {true, term()} | true | false), [term()]) ->
+    {true, term()} | false.
 lists_anymap(_Fun, []) ->
     false;
-lists_anymap(Fun, [H|T]) ->
+lists_anymap(Fun, [H | T]) ->
     case Fun(H) of
         {true, MappedH} -> {true, MappedH};
         true -> {true, H};
@@ -98,11 +98,13 @@ proplists_sort_and_merge([]) ->
 proplists_sort_and_merge([H | T]) ->
     SortedH = lists:usort(fun proplists_element_cmp/2, lists:reverse(H)),
     lists:foldl(
-      fun (List, Acc) ->
-              SortedList = lists:usort(fun proplists_element_cmp/2, lists:reverse(List)),
-              lists:umerge(fun proplists_element_cmp/2, SortedList, Acc)
-      end,
-      SortedH, T).
+        fun(List, Acc) ->
+            SortedList = lists:usort(fun proplists_element_cmp/2, lists:reverse(List)),
+            lists:umerge(fun proplists_element_cmp/2, SortedList, Acc)
+        end,
+        SortedH,
+        T
+    ).
 
 -spec proplists_sort_and_merge(proplist(), proplist()) -> proplist().
 proplists_sort_and_merge(List1, List2) ->
@@ -110,20 +112,22 @@ proplists_sort_and_merge(List1, List2) ->
     SortedList2 = lists:usort(fun proplists_element_cmp/2, lists:reverse(List2)),
     lists:umerge(fun proplists_element_cmp/2, SortedList2, SortedList1).
 
--spec purge_stacktrace_below({module(),atom(),arity()}, [backwater:stack_item()])
-        -> [backwater:stack_item()].
+-spec purge_stacktrace_below({module(), atom(), arity()}, [backwater:stack_item()]) ->
+    [backwater:stack_item()].
 purge_stacktrace_below(MarkerMFA, Stacktrace) ->
     lists:takewhile(
-      fun ({M,F,A,_Location}) -> {M,F,A} =/= MarkerMFA end,
-      Stacktrace).
+        fun({M, F, A, _Location}) -> {M, F, A} =/= MarkerMFA end,
+        Stacktrace
+    ).
 
--spec validate_config_map(term(), MandatoryKeys, PairValidationFun)
-        -> {ok, ValidConfig} | {error, Error}
-            when MandatoryKeys :: [term()],
-                 PairValidationFun :: fun (({term(), term()}) -> {boolean() | MappedValue} | boolean()),
-                 MappedValue :: term(),
-                 ValidConfig :: map(),
-                 Error :: config_validation_error().
+-spec validate_config_map(term(), MandatoryKeys, PairValidationFun) ->
+    {ok, ValidConfig} | {error, Error}
+when
+    MandatoryKeys :: [term()],
+    PairValidationFun :: fun(({term(), term()}) -> {boolean() | MappedValue} | boolean()),
+    MappedValue :: term(),
+    ValidConfig :: map(),
+    Error :: config_validation_error().
 validate_config_map(Config, MandatoryKeys, PairValidationFun) when is_map(Config) ->
     MissingKeys = MandatoryKeys -- maps:keys(Config),
     case MandatoryKeys -- maps:keys(Config) of
@@ -146,11 +150,11 @@ validate_config_map(_Config, _MandatoryKeys, _PairValidationFun) ->
 %% Internal Function Definitions
 %% ------------------------------------------------------------------
 
--spec lists_allmap_recur(Fun :: fun((term()) -> {boolean(), term()} | boolean()), [term()], [term()])
-        -> {true, [term()]} | {false, term()}.
+-spec lists_allmap_recur(Fun :: fun((term()) -> {boolean(), term()} | boolean()), [term()], [term()]) ->
+    {true, [term()]} | {false, term()}.
 lists_allmap_recur(_Fun, [], Acc) ->
     {true, lists:reverse(Acc)};
-lists_allmap_recur(Fun, [H|T], Acc) ->
+lists_allmap_recur(Fun, [H | T], Acc) ->
     case Fun(H) of
         {true, MappedH} -> lists_allmap_recur(Fun, T, [MappedH | Acc]);
         true -> lists_allmap_recur(Fun, T, [H | Acc]);

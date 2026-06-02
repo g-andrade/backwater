@@ -53,41 +53,46 @@
 %% ------------------------------------------------------------------
 
 -opaque state() ::
-        #{ secret := binary(),
-           exposed_modules := [backwater_module_exposure:t()],
-           options := backwater_opts(),
+    #{
+        secret := binary(),
+        exposed_modules := [backwater_module_exposure:t()],
+        options := backwater_opts(),
 
-           req => req(),
-           bin_module => binary(),
-           bin_function => binary(),
-           arity => arity(),
+        req => req(),
+        bin_module => binary(),
+        bin_function => binary(),
+        arity => arity(),
 
-           signed_request_msg => backwater_signatures:signed_message(),
+        signed_request_msg => backwater_signatures:signed_message(),
 
-           function_properties => backwater_module_exposure:fun_properties(),
-           args_content_type => content_type(),
-           args_content_encoding => binary(),
-           args => [term()],
-           response => response(),
-           accepted_result_content_types => [accepted_content_type()],
-           accepted_result_content_encodings => [accepted_content_encoding()],
-           result_content_type => content_type(),
-           result_content_encoding => binary() }.
+        function_properties => backwater_module_exposure:fun_properties(),
+        args_content_type => content_type(),
+        args_content_encoding => binary(),
+        args => [term()],
+        response => response(),
+        accepted_result_content_types => [accepted_content_type()],
+        accepted_result_content_encodings => [accepted_content_encoding()],
+        result_content_type => content_type(),
+        result_content_encoding => binary()
+    }.
 -export_type([state/0]).
 
 -type opts(TransportOpts, HttpOpts) ::
-        #{ transport => TransportOpts,
-           http => HttpOpts,
-           backwater => backwater_opts()
-         }.
+    #{
+        transport => TransportOpts,
+        http => HttpOpts,
+        backwater => backwater_opts()
+    }.
 -export_type([opts/2]).
 
 -type backwater_opts() ::
-        #{ compression_threshold => non_neg_integer(),
-           decode_unsafe_terms => boolean(),
-           max_encoded_args_size => non_neg_integer(),
-           recv_timeout => timeout(),
-           return_exception_stacktraces => boolean() }.
+    #{
+        compression_threshold => non_neg_integer(),
+        decode_unsafe_terms => boolean(),
+        max_encoded_args_size => non_neg_integer(),
+        recv_timeout => timeout(),
+        return_exception_stacktraces => boolean()
+    }.
 -export_type([backwater_opts/0]).
 
 -type accepted_content_type() :: {content_type(), Quality :: 0..1000, accepted_ext()}.
@@ -98,13 +103,14 @@
 
 -type call_result() :: {return, term()} | call_exception().
 
--type call_exception() :: {exception, {raisable_class(), Exception :: term(), [backwater:stack_item()]}}.
+-type call_exception() ::
+    {exception, {raisable_class(), Exception :: term(), [backwater:stack_item()]}}.
 
 -type content_type() :: {Type :: binary(), SubType :: binary(), content_type_params()}.
 
 -type content_type_params() :: [{binary(), binary()}].
 
--type http_headers() :: #{ binary() => binary() }.
+-type http_headers() :: #{binary() => binary()}.
 
 -type http_status() :: cowboy:http_status().
 
@@ -113,32 +119,38 @@
 -type raisable_class() :: error | exit | throw.
 
 -type response() ::
-        #{ status_code := http_status(),
-           headers := http_headers(),
-           body := iodata() }.
+    #{
+        status_code := http_status(),
+        headers := http_headers(),
+        body := iodata()
+    }.
 
 %% ------------------------------------------------------------------
 %% API Function Definitions
 %% ------------------------------------------------------------------
 
--spec initial_state(binary(), [backwater_module_exposure:t()],
-                    opts(term(), term()))
-        -> {ok, state()} |
-           {error, invalid_secret} |
-           {error, invalid_module_exposure} |
-           {error, backwater_util:config_validation_error()}.
+-spec initial_state(
+    binary(),
+    [backwater_module_exposure:t()],
+    opts(term(), term())
+) ->
+    {ok, state()}
+    | {error, invalid_secret}
+    | {error, invalid_module_exposure}
+    | {error, backwater_util:config_validation_error()}.
 initial_state(Secret, _ExposedModules, _Options) when not is_binary(Secret) ->
     {error, invalid_secret};
 initial_state(_Secret, ExposedModules, _Options) when not is_list(ExposedModules) ->
     {error, invalid_exposed_modules};
 initial_state(Secret, ExposedModules, Options) ->
     BackwaterOptions = maps:get(backwater, Options, #{}),
-    case backwater_util:validate_config_map(BackwaterOptions, [], fun validate_option/1)
-    of
+    case backwater_util:validate_config_map(BackwaterOptions, [], fun validate_option/1) of
         {ok, ValidatedBackwaterOptions} ->
-            {ok, #{ secret => Secret,
-                    exposed_modules => ExposedModules,
-                    options => ValidatedBackwaterOptions }};
+            {ok, #{
+                secret => Secret,
+                exposed_modules => ExposedModules,
+                options => ValidatedBackwaterOptions
+            }};
         {error, Error} ->
             {error, Error}
     end.
@@ -149,25 +161,28 @@ initial_state(Secret, ExposedModules, Options) ->
 
 -spec init(req(), state()) -> {ok, req(), state()}.
 init(Req1, State1) ->
-    State2 = State1#{ req => Req1 },
+    State2 = State1#{req => Req1},
     State3 =
         execute_pipeline(
-          [fun check_authentication/1,
-           fun check_method/1,
-           fun parse_path/1,
-           fun check_authorization/1,
-           fun check_existence/1,
-           fun check_args_content_type/1,
-           fun check_args_content_encoding/1,
-           fun check_accepted_result_content_types/1,
-           fun check_accepted_result_content_encodings/1,
-           fun negotiate_args_content_type/1,
-           fun negotiate_args_content_encoding/1,
-           fun negotiate_result_content_type/1,
-           fun negotiate_result_content_encoding/1,
-           fun read_and_decode_args/1,
-           fun execute_call/1],
-          State2),
+            [
+                fun check_authentication/1,
+                fun check_method/1,
+                fun parse_path/1,
+                fun check_authorization/1,
+                fun check_existence/1,
+                fun check_args_content_type/1,
+                fun check_args_content_encoding/1,
+                fun check_accepted_result_content_types/1,
+                fun check_accepted_result_content_encodings/1,
+                fun negotiate_args_content_type/1,
+                fun negotiate_args_content_encoding/1,
+                fun negotiate_result_content_type/1,
+                fun negotiate_result_content_encoding/1,
+                fun read_and_decode_args/1,
+                fun execute_call/1
+            ],
+            State2
+        ),
 
     {Req2, State4} = maps:take(req, State3),
     {ok, Req2, State4}.
@@ -184,8 +199,8 @@ terminate(_Reason, _Req, _State) ->
 %% Internal Function Definitions - Pipeline
 %% ------------------------------------------------------------------
 
--spec execute_pipeline([fun ((state()) -> {continue | stop, state()}), ...], state())
-        -> state().
+-spec execute_pipeline([fun((state()) -> {continue | stop, state()}), ...], state()) ->
+    state().
 execute_pipeline([Handler | NextHandlers], State1) ->
     case Handler(State1) of
         {continue, State2} ->
@@ -201,7 +216,7 @@ execute_pipeline([], State) ->
 %% ------------------------------------------------------------------
 
 -spec check_authentication(state()) -> {continue | stop, state()}.
-check_authentication(#{ req := Req, secret := Secret  } = State) ->
+check_authentication(#{req := Req, secret := Secret} = State) ->
     SignaturesConfig = backwater_signatures:config(Secret),
     Method = cowboy_req:method(Req),
     EncodedPathWithQs = req_encoded_path_with_qs(Req),
@@ -211,7 +226,7 @@ check_authentication(#{ req := Req, secret := Secret  } = State) ->
 
     case backwater_signatures:validate_request_signature(SignaturesConfig, RequestMsg) of
         {ok, SignedRequestMsg} ->
-            {continue, State#{ signed_request_msg => SignedRequestMsg }};
+            {continue, State#{signed_request_msg => SignedRequestMsg}};
         {error, Reason} ->
             AuthChallengeHeaders =
                 backwater_signatures:get_request_auth_challenge_headers(RequestMsg),
@@ -220,12 +235,12 @@ check_authentication(#{ req := Req, secret := Secret  } = State) ->
 
 -spec req_encoded_path_with_qs(req()) -> binary().
 req_encoded_path_with_qs(Req) ->
-    EncodedPath  = cowboy_req:path(Req),
+    EncodedPath = cowboy_req:path(Req),
     QueryString = cowboy_req:qs(Req),
     <<EncodedPath/binary, QueryString/binary>>.
 
 -spec safe_req_header(binary(), state()) -> undefined | binary() | no_return().
-safe_req_header(CiName, #{ req := Req } = State) ->
+safe_req_header(CiName, #{req := Req} = State) ->
     case cowboy_req:header(CiName, Req) of
         undefined ->
             undefined;
@@ -239,7 +254,7 @@ safe_req_parse_header(CiName, State) ->
     safe_req_parse_header(CiName, State, undefined, undefined).
 
 -spec safe_req_parse_header(binary(), state(), term(), term()) -> term() | no_return().
-safe_req_parse_header(CiName, #{ req := Req } = State, Undefined, Default) ->
+safe_req_parse_header(CiName, #{req := Req} = State, Undefined, Default) ->
     case cowboy_req:parse_header(CiName, Req) of
         Undefined ->
             Default;
@@ -249,16 +264,16 @@ safe_req_parse_header(CiName, #{ req := Req } = State, Undefined, Default) ->
     end.
 
 -spec assert_header_safety(binary(), state()) -> true | no_return().
-assert_header_safety(CiName, #{ signed_request_msg := SignedRequestMsg }) ->
-    backwater_signatures:is_header_signed_in_signed_msg(CiName, SignedRequestMsg)
-    orelse error({using_unsafe_header, CiName}).
+assert_header_safety(CiName, #{signed_request_msg := SignedRequestMsg}) ->
+    backwater_signatures:is_header_signed_in_signed_msg(CiName, SignedRequestMsg) orelse
+        error({using_unsafe_header, CiName}).
 
 %% ------------------------------------------------------------------
 %% Internal Function Definitions - Check Method
 %% ------------------------------------------------------------------
 
 -spec check_method(state()) -> {continue | stop, state()}.
-check_method(#{ req := Req } = State) ->
+check_method(#{req := Req} = State) ->
     case cowboy_req:method(Req) of
         <<"POST">> ->
             {continue, State};
@@ -271,7 +286,7 @@ check_method(#{ req := Req } = State) ->
 %% ------------------------------------------------------------------
 
 -spec parse_path(state()) -> {continue | stop, state()}.
-parse_path(#{ req := Req } = State) ->
+parse_path(#{req := Req} = State) ->
     case cowboy_req:path_info(Req) of
         [BinModule, BinFunction, BinArity] ->
             parse_path(BinModule, BinFunction, BinArity, State);
@@ -279,15 +294,17 @@ parse_path(#{ req := Req } = State) ->
             {stop, set_error_response(400, #{}, invalid_path, State)}
     end.
 
--spec parse_path(binary(), binary(), binary(), state())
-        -> {continue | stop, state()}.
+-spec parse_path(binary(), binary(), binary(), state()) ->
+    {continue | stop, state()}.
 parse_path(BinModule, BinFunction, BinArity, State1) ->
     case arity_from_binary(BinArity) of
         {ok, Arity} ->
             State2 =
-                State1#{ bin_module => BinModule,
-                         bin_function => BinFunction,
-                         arity => Arity },
+                State1#{
+                    bin_module => BinModule,
+                    bin_function => BinFunction,
+                    arity => Arity
+                },
             {continue, State2};
         error ->
             {stop, set_error_response(400, #{}, invalid_arity, State1)}
@@ -309,16 +326,19 @@ arity_from_binary(BinArity) ->
 
 -spec check_authorization(state()) -> {continue | stop, state()}.
 check_authorization(State) ->
-    #{ bin_module := BinModule,
-       exposed_modules := ExposedModules } = State,
+    #{
+        bin_module := BinModule,
+        exposed_modules := ExposedModules
+    } = State,
 
     SearchResult =
         lists:any(
-          fun (ExposedModule) ->
-                  ModuleName = backwater_module_exposure:module_name(ExposedModule),
-                  BinModule =:= atom_to_binary(ModuleName, utf8)
-          end,
-          ExposedModules),
+            fun(ExposedModule) ->
+                ModuleName = backwater_module_exposure:module_name(ExposedModule),
+                BinModule =:= atom_to_binary(ModuleName, utf8)
+            end,
+            ExposedModules
+        ),
 
     case SearchResult of
         true -> {continue, State};
@@ -333,48 +353,56 @@ check_authorization(State) ->
 check_existence(State) ->
     case find_function_properties(State) of
         {found, FunctionProperties} ->
-            {continue, State#{ function_properties => FunctionProperties }};
+            {continue, State#{function_properties => FunctionProperties}};
         Error ->
             {stop, set_error_response(404, #{}, Error, State)}
     end.
 
--spec find_function_properties(state())
-        -> {found, backwater_module_exposure:fun_properties()} | Error
-             when Error :: (function_not_found |
-                            module_not_found).
+-spec find_function_properties(state()) ->
+    {found, backwater_module_exposure:fun_properties()} | Error
+when
+    Error ::
+        (function_not_found
+        | module_not_found).
 find_function_properties(State) ->
     CacheKey = function_properties_cache_key(State),
     CachedFunctionPropertiesLookup = backwater_cache:find(CacheKey),
     handle_cached_function_properties_lookup(CachedFunctionPropertiesLookup, State).
 
--spec handle_cached_function_properties_lookup({ok, backwater_module_exposure:fun_properties()} | error, state())
-        -> {found, backwater_module_exposure:fun_properties()} |
-           module_not_found |
-           function_not_found.
+-spec handle_cached_function_properties_lookup(
+    {ok, backwater_module_exposure:fun_properties()} | error, state()
+) ->
+    {found, backwater_module_exposure:fun_properties()}
+    | module_not_found
+    | function_not_found.
 handle_cached_function_properties_lookup({ok, FunctionProperties}, _State) ->
     {found, FunctionProperties};
 handle_cached_function_properties_lookup(error, State) ->
-    #{ bin_module := BinModule,
-       exposed_modules := ExposedModules } = State,
+    #{
+        bin_module := BinModule,
+        exposed_modules := ExposedModules
+    } = State,
     InfoPerExposedModule = backwater_module_exposure:interpret_list(ExposedModules),
     InfoLookup = maps:find(BinModule, InfoPerExposedModule),
     handle_module_info_lookup(InfoLookup, State).
 
--spec handle_module_info_lookup({ok, backwater_module_exposure:module_info()}, state())
-        -> {found, backwater_module_exposure:fun_properties()} |
-           module_not_found |
-           function_not_found.
+-spec handle_module_info_lookup({ok, backwater_module_exposure:module_info()}, state()) ->
+    {found, backwater_module_exposure:fun_properties()}
+    | module_not_found
+    | function_not_found.
 handle_module_info_lookup({ok, Info}, State) ->
-    #{ exports := Exports } = Info,
-    #{ bin_function := BinFunction, arity := Arity } = State,
+    #{exports := Exports} = Info,
+    #{bin_function := BinFunction, arity := Arity} = State,
     FunctionPropertiesLookup = maps:find({BinFunction, Arity}, Exports),
     handle_function_properties_lookup(FunctionPropertiesLookup, State);
 handle_module_info_lookup(error, _State) ->
     module_not_found.
 
--spec handle_function_properties_lookup({ok, backwater_module_exposure:fun_properties()} | error, state())
-        -> {found, backwater_module_exposure:fun_properties()} |
-           function_not_found.
+-spec handle_function_properties_lookup(
+    {ok, backwater_module_exposure:fun_properties()} | error, state()
+) ->
+    {found, backwater_module_exposure:fun_properties()}
+    | function_not_found.
 handle_function_properties_lookup({ok, FunctionProperties}, State) ->
     % let's only fill successful lookups so that we don't risk
     % overloading the cache if attacked (the trade off is potentially
@@ -385,12 +413,14 @@ handle_function_properties_lookup({ok, FunctionProperties}, State) ->
 handle_function_properties_lookup(error, _State) ->
     function_not_found.
 
--spec function_properties_cache_key(state())
-        -> {exposed_function_properties, binary(), binary(), arity()}.
+-spec function_properties_cache_key(state()) ->
+    {exposed_function_properties, binary(), binary(), arity()}.
 function_properties_cache_key(State) ->
-    #{ bin_module := BinModule,
-       bin_function := BinFunction,
-       arity := Arity } = State,
+    #{
+        bin_module := BinModule,
+        bin_function := BinFunction,
+        arity := Arity
+    } = State,
     {exposed_function_properties, BinModule, BinFunction, Arity}.
 
 %% ------------------------------------------------------------------
@@ -401,7 +431,7 @@ function_properties_cache_key(State) ->
 check_args_content_type(State1) ->
     case safe_req_parse_header(<<"content-type">>, State1) of
         {_, _, _} = ContentType ->
-            State2 = State1#{ args_content_type => ContentType },
+            State2 = State1#{args_content_type => ContentType},
             {continue, State2};
         undefined ->
             {stop, set_error_response(400, #{}, bad_content_type, State1)}
@@ -415,10 +445,10 @@ check_args_content_type(State1) ->
 check_args_content_encoding(State1) ->
     case safe_req_header(<<"content-encoding">>, State1) of
         <<ContentEncoding/binary>> ->
-            State2 = State1#{ args_content_encoding => ContentEncoding },
+            State2 = State1#{args_content_encoding => ContentEncoding},
             {continue, State2};
         undefined ->
-            State2 = State1#{ args_content_encoding => <<"identity">> },
+            State2 = State1#{args_content_encoding => <<"identity">>},
             {continue, State2}
     end.
 
@@ -429,8 +459,8 @@ check_args_content_encoding(State1) ->
 -spec check_accepted_result_content_types(state()) -> {continue, state()}.
 check_accepted_result_content_types(State1) ->
     AcceptedContentTypes = safe_req_parse_header(<<"accept">>, State1, undefined, []),
-    SortedAcceptedContentTypes = lists:reverse( lists:keysort(2, AcceptedContentTypes) ),
-    State2 = State1#{ accepted_result_content_types => SortedAcceptedContentTypes },
+    SortedAcceptedContentTypes = lists:reverse(lists:keysort(2, AcceptedContentTypes)),
+    State2 = State1#{accepted_result_content_types => SortedAcceptedContentTypes},
     {continue, State2}.
 
 %% ------------------------------------------------------------------
@@ -440,8 +470,8 @@ check_accepted_result_content_types(State1) ->
 -spec check_accepted_result_content_encodings(state()) -> {continue, state()}.
 check_accepted_result_content_encodings(State1) ->
     AcceptedContentEncodings = safe_req_parse_header(<<"accept-encoding">>, State1, undefined, []),
-    SortedAcceptedContentEncodings = lists:reverse( lists:keysort(2, AcceptedContentEncodings) ),
-    State2 = State1#{ accepted_result_content_encodings => SortedAcceptedContentEncodings },
+    SortedAcceptedContentEncodings = lists:reverse(lists:keysort(2, AcceptedContentEncodings)),
+    State2 = State1#{accepted_result_content_encodings => SortedAcceptedContentEncodings},
     {continue, State2}.
 
 %% ------------------------------------------------------------------
@@ -450,9 +480,11 @@ check_accepted_result_content_encodings(State1) ->
 
 -spec negotiate_args_content_type(state()) -> {continue | stop, state()}.
 negotiate_args_content_type(State) ->
-    #{ function_properties := FunctionProperties,
-       args_content_type := ArgsContentType } = State,
-    #{ known_content_types := KnownContentTypes } = FunctionProperties,
+    #{
+        function_properties := FunctionProperties,
+        args_content_type := ArgsContentType
+    } = State,
+    #{known_content_types := KnownContentTypes} = FunctionProperties,
 
     {Type, SubType, _ContentTypeParams} = ArgsContentType,
     SearchResult = lists:member({Type, SubType}, KnownContentTypes),
@@ -470,7 +502,7 @@ negotiate_args_content_type(State) ->
 
 -spec negotiate_args_content_encoding(state()) -> {continue | stop, state()}.
 negotiate_args_content_encoding(State) ->
-    #{ args_content_encoding := ArgsContentEncoding } = State,
+    #{args_content_encoding := ArgsContentEncoding} = State,
     case lists:member(ArgsContentEncoding, ?KNOWN_CONTENT_ENCODINGS) of
         true ->
             {continue, State};
@@ -484,21 +516,24 @@ negotiate_args_content_encoding(State) ->
 
 -spec negotiate_result_content_type(state()) -> {continue | stop, state()}.
 negotiate_result_content_type(State) ->
-    #{ function_properties := FunctionProperties,
-       accepted_result_content_types := AcceptedContentTypes } = State,
-    #{ known_content_types := KnownContentTypes } = FunctionProperties,
+    #{
+        function_properties := FunctionProperties,
+        accepted_result_content_types := AcceptedContentTypes
+    } = State,
+    #{known_content_types := KnownContentTypes} = FunctionProperties,
 
     SearchResult =
         backwater_util:lists_anymap(
-          fun ({{Type, SubType, _Params} = ContentType, _Quality, _AcceptExt}) ->
-                  (lists:member({Type, SubType}, KnownContentTypes)
-                   andalso {true, ContentType})
-          end,
-          AcceptedContentTypes),
+            fun({{Type, SubType, _Params} = ContentType, _Quality, _AcceptExt}) ->
+                (lists:member({Type, SubType}, KnownContentTypes) andalso
+                    {true, ContentType})
+            end,
+            AcceptedContentTypes
+        ),
 
     case SearchResult of
         {true, ContentType} ->
-            State2 = State#{ result_content_type => ContentType },
+            State2 = State#{result_content_type => ContentType},
             {continue, State2};
         false ->
             {stop, set_error_response(406, State)}
@@ -510,22 +545,23 @@ negotiate_result_content_type(State) ->
 
 -spec negotiate_result_content_encoding(state()) -> {continue | stop, state()}.
 negotiate_result_content_encoding(State) ->
-    #{ accepted_result_content_encodings := AcceptedContentEncodings } = State,
+    #{accepted_result_content_encodings := AcceptedContentEncodings} = State,
 
     SearchResult =
         backwater_util:lists_anymap(
-          fun ({Encoding, _Params}) ->
-                  (lists:member(Encoding, ?KNOWN_CONTENT_ENCODINGS)
-                   andalso {true, Encoding})
-          end,
-          AcceptedContentEncodings),
+            fun({Encoding, _Params}) ->
+                (lists:member(Encoding, ?KNOWN_CONTENT_ENCODINGS) andalso
+                    {true, Encoding})
+            end,
+            AcceptedContentEncodings
+        ),
 
     case SearchResult of
         {true, ContentEncoding} ->
-            State2 = State#{ result_content_encoding => ContentEncoding },
+            State2 = State#{result_content_encoding => ContentEncoding},
             {continue, State2};
         false ->
-            State2 = State#{ result_content_encoding => <<"identity">> },
+            State2 = State#{result_content_encoding => <<"identity">>},
             {continue, State2}
     end.
 
@@ -539,29 +575,31 @@ read_and_decode_args(State) ->
     MaxEncodedArgsSize = opt_max_encoded_args_size(State),
     read_and_decode_args(BodySize, MaxEncodedArgsSize, State).
 
--spec read_and_decode_args(non_neg_integer(), non_neg_integer(), state())
-        -> {continue | stop, state()}.
+-spec read_and_decode_args(non_neg_integer(), non_neg_integer(), state()) ->
+    {continue | stop, state()}.
 read_and_decode_args(BodySize, MaxEncodedArgsSize, State) when BodySize > MaxEncodedArgsSize ->
     {stop, set_error_response(413, State)};
 read_and_decode_args(BodySize, _MaxEncodedArgsSize, State) ->
-    #{ req := Req } = State,
+    #{req := Req} = State,
     RecvTimeout = opt_recv_timeout(State),
     ReadBodyOpts =
-        #{ length => BodySize,
-           period => RecvTimeout },
+        #{
+            length => BodySize,
+            period => RecvTimeout
+        },
 
     case cowboy_req:read_body(Req, ReadBodyOpts) of
         {ok, Data, Req2} when byte_size(Data) =< BodySize ->
-            State2 = State#{ req := Req2 },
+            State2 = State#{req := Req2},
             validate_args_digest(Data, State2);
         {Status, _Data, Req2} when Status =:= more; Status =:= ok ->
-            State2 = State#{ req := Req2 },
+            State2 = State#{req := Req2},
             {stop, set_error_response(413, State2)}
     end.
 
 -spec validate_args_digest(binary(), state()) -> {continue | stop, state()}.
 validate_args_digest(Data, State) ->
-    #{ signed_request_msg := SignedRequestMsg } = State,
+    #{signed_request_msg := SignedRequestMsg} = State,
     case backwater_signatures:validate_signed_msg_body(SignedRequestMsg, Data) of
         true ->
             decode_args_content_encoding(Data, State);
@@ -572,9 +610,9 @@ validate_args_digest(Data, State) ->
     end.
 
 -spec decode_args_content_encoding(binary(), state()) -> {continue | stop, state()}.
-decode_args_content_encoding(Data, #{ args_content_encoding := <<"identity">> } = State) ->
+decode_args_content_encoding(Data, #{args_content_encoding := <<"identity">>} = State) ->
     decode_args_content_type(Data, State);
-decode_args_content_encoding(Data, #{ args_content_encoding := <<"gzip">> } = State) ->
+decode_args_content_encoding(Data, #{args_content_encoding := <<"gzip">>} = State) ->
     MaxEncodedArgsSize = opt_max_encoded_args_size(State),
     case backwater_encoding_gzip:decode(Data, MaxEncodedArgsSize) of
         {ok, UncompressedData} ->
@@ -587,7 +625,7 @@ decode_args_content_encoding(Data, #{ args_content_encoding := <<"gzip">> } = St
 
 -spec decode_args_content_type(binary(), state()) -> {continue | stop, state()}.
 decode_args_content_type(Data, State) ->
-    #{ args_content_type := ArgsContentType } = State,
+    #{args_content_type := ArgsContentType} = State,
     case ArgsContentType of
         {<<"application">>, <<"x-erlang-etf">>, _Params} ->
             decode_etf_args(Data, State)
@@ -604,14 +642,16 @@ decode_etf_args(Data, State) ->
     end.
 
 -spec validate_args(term(), state()) -> {continue | stop, state()}.
-validate_args(UnvalidatedArgs, State)
-  when not is_list(UnvalidatedArgs) ->
+validate_args(UnvalidatedArgs, State) when
+    not is_list(UnvalidatedArgs)
+->
     {stop, set_error_response(400, #{}, arguments_not_a_list, State)};
-validate_args(UnvalidatedArgs, #{ arity := Arity } = State)
-  when length(UnvalidatedArgs) =/= Arity ->
+validate_args(UnvalidatedArgs, #{arity := Arity} = State) when
+    length(UnvalidatedArgs) =/= Arity
+->
     {stop, set_error_response(400, #{}, inconsistent_arguments_arity, State)};
 validate_args(Args, State) ->
-    {continue, State#{ args => Args }}.
+    {continue, State#{args => Args}}.
 
 -spec opt_decode_unsafe_terms(state()) -> boolean().
 opt_decode_unsafe_terms(State) ->
@@ -642,11 +682,12 @@ execute_call(State) ->
 
 -spec call_function(state()) -> {ok, call_result()} | {error, undefined_module_or_function}.
 call_function(State) ->
-    #{ function_properties := FunctionProperties, args := FunctionArgs } = State,
-    #{ function_ref := FunctionRef } = FunctionProperties,
+    #{function_properties := FunctionProperties, args := FunctionArgs} = State,
+    #{function_ref := FunctionRef} = FunctionProperties,
     call_function(FunctionRef, FunctionArgs, State).
 
--spec call_function(fun(), list(), state()) -> {ok, call_result()} | {error, undefined_module_or_function}.
+-spec call_function(fun(), list(), state()) ->
+    {ok, call_result()} | {error, undefined_module_or_function}.
 call_function(FunctionRef, FunctionArgs, State) ->
     ReturnExceptionStacktrace = opt_return_exception_stack_traces(State),
     try
@@ -660,8 +701,8 @@ call_function(FunctionRef, FunctionArgs, State) ->
             return_call_exception(Class, Exception, Stacktrace)
     end.
 
--spec handle_undef_call_exception(fun(), [backwater:stack_item()], state())
-        -> {ok, call_exception()} | {error, undefined_module_or_function}.
+-spec handle_undef_call_exception(fun(), [backwater:stack_item()], state()) ->
+    {ok, call_exception()} | {error, undefined_module_or_function}.
 handle_undef_call_exception(FunctionRef, Stacktrace, State) ->
     ReturnExceptionStacktraces = opt_return_exception_stack_traces(State),
     {module, Module} = erlang:fun_info(FunctionRef, module),
@@ -682,11 +723,14 @@ handle_undef_call_exception(FunctionRef, Stacktrace, State) ->
             return_call_exception(error, undef, [])
     end.
 
--spec return_call_exception(raisable_class(), term(), [backwater:stack_item()]) -> {ok, call_exception()}.
+-spec return_call_exception(raisable_class(), term(), [backwater:stack_item()]) ->
+    {ok, call_exception()}.
 return_call_exception(Class, Exception, Stacktrace) ->
     % Hide all calls previous to the one made to the target function (cowboy stuff, etc.)
     % This works under the assumption that *no sensible call* would ever go through 'call_function/1' again.
-    PurgedStacktrace = backwater_util:purge_stacktrace_below({?MODULE,call_function,3}, Stacktrace),
+    PurgedStacktrace = backwater_util:purge_stacktrace_below(
+        {?MODULE, call_function, 3}, Stacktrace
+    ),
     {ok, {exception, {Class, Exception, PurgedStacktrace}}}.
 
 -spec opt_return_exception_stack_traces(state()) -> boolean().
@@ -698,29 +742,33 @@ opt_return_exception_stack_traces(State) ->
 %% ------------------------------------------------------------------
 
 -spec send_response(state()) -> state().
-send_response(#{ signed_request_msg := SignedRequestMsg } = State1) ->
+send_response(#{signed_request_msg := SignedRequestMsg} = State1) ->
     % signed response
-    #{ req := Req1, response := Response } = State1,
-    #{ status_code := ResponseStatusCode, headers := ResponseHeaders1, body := ResponseBody } = Response,
+    #{req := Req1, response := Response} = State1,
+    #{status_code := ResponseStatusCode, headers := ResponseHeaders1, body := ResponseBody} =
+        Response,
 
-    #{ secret := Secret } = State1,
+    #{secret := Secret} = State1,
     ResponseHeaders2 =
-        ResponseHeaders1#{ <<"content-length">> => integer_to_binary( byte_size(ResponseBody) ) },
+        ResponseHeaders1#{<<"content-length">> => integer_to_binary(byte_size(ResponseBody))},
     SignaturesConfig = backwater_signatures:config(Secret),
     ResponseMsg =
         backwater_signatures:new_response_msg(ResponseStatusCode, {ci_headers, ResponseHeaders2}),
     SignedResponseMsg =
-        backwater_signatures:sign_response(SignaturesConfig, ResponseMsg, ResponseBody, SignedRequestMsg),
+        backwater_signatures:sign_response(
+            SignaturesConfig, ResponseMsg, ResponseBody, SignedRequestMsg
+        ),
     ResponseHeaders3 = backwater_signatures:get_real_msg_headers(SignedResponseMsg),
 
     Req2 = cowboy_req:reply(ResponseStatusCode, ResponseHeaders3, ResponseBody, Req1),
-    State1#{ req := Req2 };
+    State1#{req := Req2};
 send_response(State1) ->
     % unsigned response
-    #{ req := Req1, response := Response } = State1,
-    #{ status_code := ResponseStatusCode, headers := ResponseHeaders, body := ResponseBody } = Response,
+    #{req := Req1, response := Response} = State1,
+    #{status_code := ResponseStatusCode, headers := ResponseHeaders, body := ResponseBody} =
+        Response,
     Req2 = cowboy_req:reply(ResponseStatusCode, ResponseHeaders, ResponseBody, Req1),
-    State1#{ req := Req2 }.
+    State1#{req := Req2}.
 
 %% ------------------------------------------------------------------
 %% Internal Function Definitions - Set Response
@@ -735,15 +783,17 @@ set_error_response(StatusCode, BaseHeaders, Message, State1) ->
     % force text/plain response
     State2 = maps:without([result_content_encoding, result_content_type], State1),
     Headers = maps:merge(
-                BaseHeaders,
-                #{ <<"content-type">> => <<"text/plain">>,
-                   % Explicitly closing the connection upon an error
-                   % helps avoid stuff like big lingering request bodies
-                   % that are never read and result in weird connection
-                   % and receive timeouts on hackney when it tries to reuse
-                   % the connection (ultimately due to a clogged buffer somewhere.)
-                   <<"connection">> => <<"close">>
-                 }),
+        BaseHeaders,
+        #{
+            <<"content-type">> => <<"text/plain">>,
+            % Explicitly closing the connection upon an error
+            % helps avoid stuff like big lingering request bodies
+            % that are never read and result in weird connection
+            % and receive timeouts on hackney when it tries to reuse
+            % the connection (ultimately due to a clogged buffer somewhere.)
+            <<"connection">> => <<"close">>
+        }
+    ),
     Body = encode_error_message_body(Message),
     Response = encode_response(StatusCode, Headers, Body, State2),
     maps:put(response, Response, State2).
@@ -758,10 +808,10 @@ encode_error_message_body(Message) ->
     iolist_to_binary(IoData).
 
 -spec set_success_response(term(), state()) -> state().
-set_success_response(Value, #{ result_content_type := ResultContentType } = State) ->
+set_success_response(Value, #{result_content_type := ResultContentType} = State) ->
     StatusCode = 200,
     {Type, SubType, _Params} = ResultContentType,
-    ContentTypeHeaders = #{ <<"content-type">> => [Type, "/", SubType] },
+    ContentTypeHeaders = #{<<"content-type">> => [Type, "/", SubType]},
     Headers = maps:merge(nocache_headers(), ContentTypeHeaders),
     Body =
         case {Type, SubType} of
@@ -772,7 +822,7 @@ set_success_response(Value, #{ result_content_type := ResultContentType } = Stat
     maps:put(response, Response, State).
 
 -spec encode_response(http_status(), http_headers(), binary(), state()) -> response().
-encode_response(StatusCode, Headers, Body, #{ result_content_encoding := <<"gzip">> } = State) ->
+encode_response(StatusCode, Headers, Body, #{result_content_encoding := <<"gzip">>} = State) ->
     CompressionThreshold = opt_compression_threshold(State),
     case byte_size(Body) >= CompressionThreshold of
         true ->
@@ -786,18 +836,22 @@ encode_response(StatusCode, Headers, Body, _State) ->
 -spec encode_gzip_response(http_status(), http_headers(), binary()) -> response().
 encode_gzip_response(StatusCode, Headers1, Body1) ->
     Body2 = backwater_encoding_gzip:encode(Body1),
-    Headers2 = Headers1#{ <<"content-encoding">> => <<"gzip">> },
-    #{ status_code => StatusCode, headers => Headers2, body => Body2 }.
+    Headers2 = Headers1#{<<"content-encoding">> => <<"gzip">>},
+    #{status_code => StatusCode, headers => Headers2, body => Body2}.
 
 -spec encode_identity_response(http_status(), http_headers(), binary()) -> response().
 encode_identity_response(StatusCode, Headers, Body) ->
-    #{ status_code => StatusCode, headers => Headers, body => Body }.
+    #{status_code => StatusCode, headers => Headers, body => Body}.
 
 -spec nocache_headers() -> http_headers().
 nocache_headers() ->
-    #{ ?OPAQUE_BINARY(<<"cache-control">>) => ?OPAQUE_BINARY(<<"private, no-cache, no-store, must-revalidate">>),
-       ?OPAQUE_BINARY(<<"pragma">>) => ?OPAQUE_BINARY(<<"no-cache">>),
-       ?OPAQUE_BINARY(<<"expires">>) => ?OPAQUE_BINARY(<<"0">>) }.
+    #{
+        ?OPAQUE_BINARY(<<"cache-control">>) => ?OPAQUE_BINARY(
+            <<"private, no-cache, no-store, must-revalidate">>
+        ),
+        ?OPAQUE_BINARY(<<"pragma">>) => ?OPAQUE_BINARY(<<"no-cache">>),
+        ?OPAQUE_BINARY(<<"expires">>) => ?OPAQUE_BINARY(<<"0">>)
+    }.
 
 -spec opt_compression_threshold(state()) -> non_neg_integer().
 opt_compression_threshold(State) ->
@@ -822,5 +876,5 @@ validate_option({_Key, _Value}) ->
     false.
 
 config_opt(Key, State, Default) ->
-    #{ options := Options } = State,
+    #{options := Options} = State,
     maps:get(Key, Options, Default).

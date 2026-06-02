@@ -32,7 +32,8 @@
 
 -export([module_name/1]).
 -export([interpret_list/1]).
--export([metadata_export_list/0]).      -ignore_xref([metadata_export_list/0]).
+-export([metadata_export_list/0]).
+-ignore_xref([metadata_export_list/0]).
 
 -dialyzer({nowarn_function, metadata_export_list/0}).
 
@@ -49,27 +50,29 @@
 -type content_type() :: {nonempty_binary(), nonempty_binary()}.
 -export_type([content_type/0]).
 
--type exports() :: #{ fun_arity_pair() => fun_properties() }.
+-type exports() :: #{fun_arity_pair() => fun_properties()}.
 -export_type([exports/0]).
 
 -type t() :: module() | {module(), [opt()]}.
 -export_type([t/0]).
 
--type opt() :: {exports, all | [{atom(),arity()}]}.
+-type opt() :: {exports, all | [{atom(), arity()}]}.
 -export_type([opt/0]).
 
 -type fun_arity_pair() :: {binary(), arity()}.
 -export_type([fun_arity_pair/0]).
 
 -type fun_properties() ::
-        #{ known_content_types := [content_type(), ...],
-           function_ref := fun() }.
+    #{
+        known_content_types := [content_type(), ...],
+        function_ref := fun()
+    }.
 -export_type([fun_properties/0]).
 
 -type lookup_result() :: {true, {BinModule :: nonempty_binary(), module_info()}} | false.
 -export_type([lookup_result/0]).
 
--type module_info() :: #{ exports := exports() }.
+-type module_info() :: #{exports := exports()}.
 -export_type([module_info/0]).
 
 -type raw_module_info() :: [{atom(), term()}].
@@ -84,18 +87,25 @@ module_name({Module, _Opts}) ->
 module_name(Module) ->
     Module.
 
--spec interpret_list([t()]) -> #{ BinModule :: nonempty_binary() => module_info() }.
+-spec interpret_list([t()]) -> #{BinModule :: nonempty_binary() => module_info()}.
 interpret_list(ExposedModules) ->
     KvList = lists:filtermap(fun find_and_parse_module_info/1, ExposedModules),
     maps:from_list(KvList).
 
 -spec metadata_export_list() -> [{atom(), arity()}].
 metadata_export_list() ->
-    [{backwater_export,0}, % faux backwater export attribute in Elixir modules (legacy)
-     {behaviour_info,1},   % callbacks
-     {module_info,0},      % Erlang module info
-     {module_info,1},      % Erlang module info
-     {'__info__',1}].      % Elixir module info
+    % faux backwater export attribute in Elixir modules (legacy)
+    [
+        {backwater_export, 0},
+        % callbacks
+        {behaviour_info, 1},
+        % Erlang module info
+        {module_info, 0},
+        % Erlang module info
+        {module_info, 1},
+        % Elixir module info
+        {'__info__', 1}
+    ].
 
 %% ------------------------------------------------------------------
 %% Internal Function Definitions
@@ -109,13 +119,14 @@ find_and_parse_module_info(ExposedModule) ->
             BackwaterExports = determine_module_exports(ExposedModule, RawModuleInfo),
             FilteredBackwaterExports =
                 maps:filter(
-                  fun ({BinFunction, Arity}, _Info) ->
-                          Function = binary_to_existing_atom(BinFunction, utf8),
-                          not lists:member({Function, Arity}, metadata_export_list())
-                  end,
-                  BackwaterExports),
+                    fun({BinFunction, Arity}, _Info) ->
+                        Function = binary_to_existing_atom(BinFunction, utf8),
+                        not lists:member({Function, Arity}, metadata_export_list())
+                    end,
+                    BackwaterExports
+                ),
             BinModule = atom_to_binary(Module, utf8),
-            {true, {BinModule, #{ exports => FilteredBackwaterExports }}};
+            {true, {BinModule, #{exports => FilteredBackwaterExports}}};
         error ->
             false
     end.
@@ -145,17 +156,23 @@ determine_module_exports(ExposedModule, RawModuleInfo) ->
             maps:from_list([backwater_export_entry_pair(Module, Pair) || Pair <- AtomKeyedExports]);
         List when is_list(List) ->
             maps:from_list(
-              [backwater_export_entry_pair(Module, Pair) || Pair <- AtomKeyedExports,
-               lists:member(Pair, List)])
+                [
+                    backwater_export_entry_pair(Module, Pair)
+                 || Pair <- AtomKeyedExports,
+                    lists:member(Pair, List)
+                ]
+            )
     end.
 
--spec backwater_export_entry_pair(module(), {atom(), arity()})
-        -> {fun_arity_pair(), fun_properties()}.
-backwater_export_entry_pair(Module, {AtomF,A}) ->
+-spec backwater_export_entry_pair(module(), {atom(), arity()}) ->
+    {fun_arity_pair(), fun_properties()}.
+backwater_export_entry_pair(Module, {AtomF, A}) ->
     % XXX if we ever want to support custom marshalling (e.g. JSON),
     % this would be a good point to start
     Properties =
-        #{ known_content_types => [{<<"application">>, <<"x-erlang-etf">>}],
-           function_ref => fun Module:AtomF/A },
+        #{
+            known_content_types => [{<<"application">>, <<"x-erlang-etf">>}],
+            function_ref => fun Module:AtomF/A
+        },
     F = atom_to_binary(AtomF, utf8),
-    {{F,A}, Properties}.
+    {{F, A}, Properties}.

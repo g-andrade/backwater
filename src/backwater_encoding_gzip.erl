@@ -63,19 +63,25 @@ decode(Data, MaxUncompressedSize) ->
 %% Internal Function Definitions
 %% ------------------------------------------------------------------
 
-decode_recur(Z, {Stage,Chunk}, OutputAcc, OutputSize, MaxUncompressedSize)
-  when Stage =:= continue;
-       Stage =:= finished ->
+decode_recur(Z, {Stage, Chunk}, OutputAcc, OutputSize, MaxUncompressedSize) when
+    Stage =:= continue;
+    Stage =:= finished
+->
     UpdatedOutputAcc = [Chunk | OutputAcc],
     UpdatedOutputSize = OutputSize + iolist_size(Chunk),
     case UpdatedOutputSize > MaxUncompressedSize of
         true ->
             {error, too_big};
         _ when Stage =:= continue ->
-            decode_recur(Z, zlib:safeInflate(Z, ""), UpdatedOutputAcc,
-                         UpdatedOutputSize, MaxUncompressedSize);
+            decode_recur(
+                Z,
+                zlib:safeInflate(Z, ""),
+                UpdatedOutputAcc,
+                UpdatedOutputSize,
+                MaxUncompressedSize
+            );
         _ ->
             zlib:inflateEnd(Z),
-            Output = iolist_to_binary( lists:reverse(UpdatedOutputAcc) ),
+            Output = iolist_to_binary(lists:reverse(UpdatedOutputAcc)),
             {ok, Output}
     end.

@@ -49,42 +49,50 @@ See the [README](readme.html) for an overview, configuration and examples.
 %% ------------------------------------------------------------------
 
 -export(
-   [call/4,
-    call/5
-   ]).
+    [
+        call/4,
+        call/5
+    ]
+).
 
 -ignore_xref(
-   [call/4,
-    call/5
-   ]).
+    [
+        call/4,
+        call/5
+    ]
+).
 
 %% ------------------------------------------------------------------
 %% API Function Exports (server)
 %% ------------------------------------------------------------------
 
 -export(
-   [start_clear_server/2,
-    start_clear_server/4,
-    start_tls_server/3,
-    start_tls_server/4,
-    stop_server/0,
-    stop_server/1,
-    base_cowboy_route_parts/0 % internal
-   ]).
+    [
+        start_clear_server/2,
+        start_clear_server/4,
+        start_tls_server/3,
+        start_tls_server/4,
+        stop_server/0,
+        stop_server/1,
+        % internal
+        base_cowboy_route_parts/0
+    ]
+).
 
 -ignore_xref(
-   [start_clear_server/2,
-    start_clear_server/4,
-    start_tls_server/3,
-    start_tls_server/4,
-    stop_server/0,
-    stop_server/1
-   ]).
+    [
+        start_clear_server/2,
+        start_clear_server/4,
+        start_tls_server/3,
+        start_tls_server/4,
+        stop_server/0,
+        stop_server/1
+    ]
+).
 
 -dialyzer(
-   {nowarn_function,
-    [base_cowboy_route_parts/0
-    ]}).
+    {nowarn_function, [base_cowboy_route_parts/0]}
+).
 
 %% ------------------------------------------------------------------
 %% Common Test Helper Exports
@@ -98,19 +106,20 @@ See the [README](readme.html) for an overview, configuration and examples.
 %% Macro Definitions (caller)
 %% ------------------------------------------------------------------
 
--define(HTTP_REQUEST_ENCODING_OPTION_NAMES,
-        [compression_threshold]).
+-define(HTTP_REQUEST_ENCODING_OPTION_NAMES, [compression_threshold]).
 
--define(HTTP_RESPONSE_DECODING_OPTION_NAMES,
-        [decode_unsafe_terms,
-         max_encoded_result_size,
-         rethrow_remote_exceptions]).
+-define(HTTP_RESPONSE_DECODING_OPTION_NAMES, [
+    decode_unsafe_terms,
+    max_encoded_result_size,
+    rethrow_remote_exceptions
+]).
 
 %% ------------------------------------------------------------------
 %% Macro Definitions (server)
 %% ------------------------------------------------------------------
 
--define(HTTP_API_API_BASE_ENDPOINT, "/backwater"). % we could make this configurable
+% we could make this configurable
+-define(HTTP_API_API_BASE_ENDPOINT, "/backwater").
 -define(HTTP_API_API_VERSION, "1").
 
 %% ------------------------------------------------------------------
@@ -118,14 +127,15 @@ See the [README](readme.html) for an overview, configuration and examples.
 %% ------------------------------------------------------------------
 
 -type call_opts() ::
-    #{ hackney_opts => [hackney_option()],
-       compression_threshold => non_neg_integer(),
-       connect_timeout => timeout(),
-       decode_unsafe_terms => boolean(),
-       max_encoded_result_size => non_neg_integer(),
-       recv_timeout => timeout(),
-       rethrow_remote_exceptions => boolean()
-     }.
+    #{
+        hackney_opts => [hackney_option()],
+        compression_threshold => non_neg_integer(),
+        connect_timeout => timeout(),
+        decode_unsafe_terms => boolean(),
+        max_encoded_result_size => non_neg_integer(),
+        recv_timeout => timeout(),
+        rethrow_remote_exceptions => boolean()
+    }.
 -export_type([call_opts/0]).
 
 -type hackney_error() :: {hackney, term()}.
@@ -139,12 +149,16 @@ See the [README](readme.html) for an overview, configuration and examples.
 
 % not exported from erlang.erl
 -type stack_item() ::
-    {Module :: module(),
-     Function :: atom(),
-     Arity :: arity() | (Args :: [term()]),
-     Location ::
-     [{file, Filename :: string()} |
-      {line, Line :: pos_integer()}]}.
+    {
+        Module :: module(),
+        Function :: atom(),
+        Arity :: arity() | (Args :: [term()]),
+        Location ::
+            [
+                {file, Filename :: string()}
+                | {line, Line :: pos_integer()}
+            ]
+    }.
 -export_type([stack_item/0]).
 
 %% ------------------------------------------------------------------
@@ -160,8 +174,9 @@ See the [README](readme.html) for an overview, configuration and examples.
 -type http_opts() :: cowboy_http:opts().
 -export_type([http_opts/0]).
 
--type route_path() :: {nonempty_string(), [],
-                       backwater_cowboy_handler, backwater_cowboy_handler:state()}.
+-type route_path() :: {
+    nonempty_string(), [], backwater_cowboy_handler, backwater_cowboy_handler:state()
+}.
 
 -type route_rule() :: {'_' | nonempty_string(), [route_path(), ...]}.
 
@@ -181,12 +196,12 @@ Returns:
 See also `call/5`.
 """.
 -endif.
--spec call(Endpoint, Module, Function, Args) -> Result | no_return()
-        when Endpoint :: backwater_request:endpoint(),
-             Module :: module(),
-             Function :: atom(),
-             Args :: [term()],
-             Result :: call_result().
+-spec call(Endpoint, Module, Function, Args) -> Result | no_return() when
+    Endpoint :: backwater_request:endpoint(),
+    Module :: module(),
+    Function :: atom(),
+    Args :: [term()],
+    Result :: call_result().
 call(Endpoint, Module, Function, Args) ->
     call(Endpoint, Module, Function, Args, #{}).
 
@@ -202,13 +217,13 @@ Returns:
 See also `call/4`.
 """.
 -endif.
--spec call(Endpoint, Module, Function, Args, Options) -> Result | no_return()
-        when Endpoint :: backwater_request:endpoint(),
-             Module :: module(),
-             Function :: atom(),
-             Args :: [term()],
-             Options :: call_opts(),
-             Result :: call_result().
+-spec call(Endpoint, Module, Function, Args, Options) -> Result | no_return() when
+    Endpoint :: backwater_request:endpoint(),
+    Module :: module(),
+    Function :: atom(),
+    Args :: [term()],
+    Options :: call_opts(),
+    Result :: call_result().
 call(Endpoint, Module, Function, Args, Options) ->
     encode_request(Endpoint, Module, Function, Args, Options).
 
@@ -228,10 +243,11 @@ Returns:
 See also `start_clear_server/4`.
 """.
 -endif.
--spec start_clear_server(Secret, ExposedModules)
-    -> {ok, pid()} | {error, term()}
-            when Secret :: binary(),
-                 ExposedModules :: [backwater_module_exposure:t()].
+-spec start_clear_server(Secret, ExposedModules) ->
+    {ok, pid()} | {error, term()}
+when
+    Secret :: binary(),
+    ExposedModules :: [backwater_module_exposure:t()].
 start_clear_server(Secret, ExposedModules) ->
     start_clear_server(default, Secret, ExposedModules, #{}).
 
@@ -248,12 +264,13 @@ Returns:
 See also `start_clear_server/2`.
 """.
 -endif.
--spec start_clear_server(Ref, Secret, ExposedModules, Opts)
-    -> {ok, pid()} | {error, term()}
-            when Ref :: term(),
-                 Secret :: binary(),
-                 ExposedModules :: [backwater_module_exposure:t()],
-                 Opts :: backwater_cowboy_handler:opts(clear_opts() | ranch:opts(), http_opts()).
+-spec start_clear_server(Ref, Secret, ExposedModules, Opts) ->
+    {ok, pid()} | {error, term()}
+when
+    Ref :: term(),
+    Secret :: binary(),
+    ExposedModules :: [backwater_module_exposure:t()],
+    Opts :: backwater_cowboy_handler:opts(clear_opts() | ranch:opts(), http_opts()).
 start_clear_server(Ref, Secret, ExposedModules, Opts) ->
     start_cowboy(start_clear, Ref, Secret, ExposedModules, Opts).
 
@@ -269,13 +286,14 @@ Returns:
 See also `start_tls_server/4`.
 """.
 -endif.
--spec start_tls_server(Secret, ExposedModules, TLSOpts)
-    -> {ok, pid()} | {error, term()}
-            when Secret :: binary(),
-                 ExposedModules :: [backwater_module_exposure:t()],
-                 TLSOpts :: tls_opts() | ranch:opts().
+-spec start_tls_server(Secret, ExposedModules, TLSOpts) ->
+    {ok, pid()} | {error, term()}
+when
+    Secret :: binary(),
+    ExposedModules :: [backwater_module_exposure:t()],
+    TLSOpts :: tls_opts() | ranch:opts().
 start_tls_server(Secret, ExposedModules, TLSOpts) ->
-    Opts = #{ transport => TLSOpts },
+    Opts = #{transport => TLSOpts},
     start_tls_server(default, Secret, ExposedModules, Opts).
 
 -ifdef(E48).
@@ -291,12 +309,13 @@ Returns:
 See also `start_tls_server/3`.
 """.
 -endif.
--spec start_tls_server(Ref, Secret, ExposedModules, Opts)
-    -> {ok, pid()} | {error, term()}
-            when Ref :: term(),
-                 Secret :: binary(),
-                 ExposedModules :: [backwater_module_exposure:t()],
-                 Opts :: backwater_cowboy_handler:opts(tls_opts() | ranch:opts(), http_opts()).
+-spec start_tls_server(Ref, Secret, ExposedModules, Opts) ->
+    {ok, pid()} | {error, term()}
+when
+    Ref :: term(),
+    Secret :: binary(),
+    ExposedModules :: [backwater_module_exposure:t()],
+    Opts :: backwater_cowboy_handler:opts(tls_opts() | ranch:opts(), http_opts()).
 start_tls_server(Ref, Secret, ExposedModules, Opts) ->
     start_cowboy(start_tls, Ref, Secret, ExposedModules, Opts).
 
@@ -310,8 +329,8 @@ stop_server() ->
 -ifdef(E48).
 -doc "Stops the cowboy listener under a specific name.".
 -endif.
--spec stop_server(Ref) -> ok | {error, not_found}
-            when Ref :: term().
+-spec stop_server(Ref) -> ok | {error, not_found} when
+    Ref :: term().
 stop_server(Ref) ->
     cowboy:stop_listener(ref(Ref)).
 
@@ -326,24 +345,29 @@ base_cowboy_route_parts() ->
 %% Internal Function Definitions (caller)
 %% ------------------------------------------------------------------
 
--spec encode_request(backwater_request:endpoint(), module(), atom(), [term()], call_opts())
-        -> backwater_response:t(Error) when Error :: {hackney, term()}.
+-spec encode_request(backwater_request:endpoint(), module(), atom(), [term()], call_opts()) ->
+    backwater_response:t(Error)
+when
+    Error :: {hackney, term()}.
 encode_request(Endpoint, Module, Function, Args, Options) ->
     RequestOptions = maps:with(?HTTP_REQUEST_ENCODING_OPTION_NAMES, Options),
     {Request, State} =
         backwater_request:encode(Endpoint, Module, Function, Args, RequestOptions),
     call_hackney(Request, State, Options).
 
--spec call_hackney(backwater_request:t(), backwater_request:state(), call_opts())
-        -> backwater_response:t(Error) when Error :: {hackney, term()}.
+-spec call_hackney(backwater_request:t(), backwater_request:state(), call_opts()) ->
+    backwater_response:t(Error)
+when
+    Error :: {hackney, term()}.
 call_hackney(Request, RequestState, Options) ->
-    #{ http_params := HttpParams, full_url := FullUrl } = Request,
-    #{ method := Method, headers := Headers, body := Body } = HttpParams,
+    #{http_params := HttpParams, full_url := FullUrl} = Request,
+    #{method := Method, headers := Headers, body := Body} = HttpParams,
     DefaultHackneyOpts = default_hackney_opts(Options),
     ExplicitHackneyOpts = maps:get(hackney_opts, Options, []),
     MandatoryHackneyOpts = [with_body],
     HackneyOpts = backwater_util:proplists_sort_and_merge(
-                    [DefaultHackneyOpts, ExplicitHackneyOpts, MandatoryHackneyOpts]),
+        [DefaultHackneyOpts, ExplicitHackneyOpts, MandatoryHackneyOpts]
+    ),
     Result = hackney:request(Method, FullUrl, Headers, Body, HackneyOpts),
     handle_hackney_result(Result, RequestState, Options).
 
@@ -358,10 +382,11 @@ default_hackney_opts(Options) ->
     RecvTimeout = maps:get(recv_timeout, Options, ?DEFAULT_OPT_RECV_TIMEOUT),
     MaxEncodedResultSize =
         maps:get(max_encoded_result_size, Options, ?DEFAULT_OPT_MAX_ENCODED_RESULT_SIZE),
-    [{pool, backwater_client},
-     {connect_timeout, ConnectTimeout},
-     {recv_timeout, RecvTimeout},
-     {max_body, MaxEncodedResultSize}
+    [
+        {pool, backwater_client},
+        {connect_timeout, ConnectTimeout},
+        {recv_timeout, RecvTimeout},
+        {max_body, MaxEncodedResultSize}
     ].
 
 %% ------------------------------------------------------------------
@@ -385,67 +410,79 @@ cowboy_route_path(InitialHandlerState) ->
 
 -spec cowboy_route_rule(backwater_cowboy_handler:state()) -> route_rule().
 cowboy_route_rule(InitialHandlerState) ->
-    Host = '_', % We could make this configurable.
+    % We could make this configurable.
+    Host = '_',
     {Host, [cowboy_route_path(InitialHandlerState)]}.
 
--spec ensure_num_acceptors_in_transport_opts(boolean(), clear_opts() | tls_opts() | ranch:opts())
-        -> #{socket_opts := [atom() | tuple()], _ => _}.
+-spec ensure_num_acceptors_in_transport_opts(boolean(), clear_opts() | tls_opts() | ranch:opts()) ->
+    #{socket_opts := [atom() | tuple()], _ => _}.
 ensure_num_acceptors_in_transport_opts(true, TransportOpts) ->
     case lists:keytake(num_acceptors, 1, TransportOpts) of
-         {value, {_, NumAcceptors}, SocketOpts} ->
-            #{ socket_opts => SocketOpts, num_acceptors => NumAcceptors };
+        {value, {_, NumAcceptors}, SocketOpts} ->
+            #{socket_opts => SocketOpts, num_acceptors => NumAcceptors};
         false ->
-            #{ socket_opts => TransportOpts, num_acceptors => ?DEFAULT_SERVER_NB_ACCEPTORS }
+            #{socket_opts => TransportOpts, num_acceptors => ?DEFAULT_SERVER_NB_ACCEPTORS}
     end;
-ensure_num_acceptors_in_transport_opts(false, TransportOpts)
-  when is_map(TransportOpts) ->
+ensure_num_acceptors_in_transport_opts(false, TransportOpts) when
+    is_map(TransportOpts)
+->
     case maps:find(num_acceptors, TransportOpts) of
         {ok, NumAcceptors} when ?is_non_neg_integer(NumAcceptors) ->
             TransportOpts;
         error ->
-            TransportOpts#{ num_acceptors => ?DEFAULT_SERVER_NB_ACCEPTORS }
+            TransportOpts#{num_acceptors => ?DEFAULT_SERVER_NB_ACCEPTORS}
     end.
 
 -spec inject_backwater_dispatch_in_map_http_opts(
-        cowboy_router:dispatch_rules(), cowboy_http:opts()) -> cowboy_http:opts().
+    cowboy_router:dispatch_rules(), cowboy_http:opts()
+) -> cowboy_http:opts().
 inject_backwater_dispatch_in_map_http_opts(BackwaterDispatch, ProtoOpts) ->
     maps:update_with(
-      env,
-      fun (EnvOpts) ->
-              EnvOpts#{ dispatch => BackwaterDispatch }
-      end,
-      #{ dispatch => BackwaterDispatch },
-      ProtoOpts).
+        env,
+        fun(EnvOpts) ->
+            EnvOpts#{dispatch => BackwaterDispatch}
+        end,
+        #{dispatch => BackwaterDispatch},
+        ProtoOpts
+    ).
 
 -spec ensure_max_keepalive_in_map_http_opts(cowboy_http:opts()) -> cowboy_http:opts().
 ensure_max_keepalive_in_map_http_opts(ProtoOpts) ->
     maps:merge(
-      #{ max_keepalive => ?DEFAULT_SERVER_MAX_KEEPALIVE },
-      ProtoOpts).
+        #{max_keepalive => ?DEFAULT_SERVER_MAX_KEEPALIVE},
+        ProtoOpts
+    ).
 
 -spec ref(term()) -> {backwater, term()}.
 ref(Ref) ->
     {backwater, Ref}.
 
--spec start_cowboy(start_clear | start_tls, term(), binary(), [backwater_module_exposure:t()],
-                   (backwater_cowboy_handler:opts(ranch:opts(), http_opts()) |
-                    backwater_cowboy_handler:opts(clear_opts(), http_opts()) |
-                    backwater_cowboy_handler:opts(tls_opts(), http_opts())))
-        -> {ok, pid()} | {error, term()}.
+-spec start_cowboy(
+    start_clear | start_tls,
+    term(),
+    binary(),
+    [backwater_module_exposure:t()],
+    (backwater_cowboy_handler:opts(ranch:opts(), http_opts())
+    | backwater_cowboy_handler:opts(clear_opts(), http_opts())
+    | backwater_cowboy_handler:opts(tls_opts(), http_opts()))
+) ->
+    {ok, pid()} | {error, term()}.
 start_cowboy(StartFunction, Ref, Secret, ExposedModules, Opts) ->
     TransportOpts0 = maps:get(transport, Opts, #{}),
     UseLegacyTransportOpts = is_list(TransportOpts0),
     DefaultTransportOpts = default_transport_options(UseLegacyTransportOpts, StartFunction),
     TransportOpts1 =
         case UseLegacyTransportOpts of
-            true -> backwater_util:proplists_sort_and_merge(DefaultTransportOpts, TransportOpts0);
+            true ->
+                backwater_util:proplists_sort_and_merge(DefaultTransportOpts, TransportOpts0);
             false ->
                 DefaultSocketOpts = maps:get(socket_opts, DefaultTransportOpts, []),
                 OverriddenSocketOpts = maps:get(socket_opts, TransportOpts0, []),
                 MergedSocketOpts = backwater_util:proplists_sort_and_merge(
-                                     DefaultSocketOpts, OverriddenSocketOpts),
+                    DefaultSocketOpts, OverriddenSocketOpts
+                ),
                 BaseMerged = maps:merge(DefaultTransportOpts, TransportOpts0),
-                BaseMerged#{ socket_opts => MergedSocketOpts }
+                BaseMerged#{socket_opts => MergedSocketOpts}
         end,
 
     HttpOpts0 = maps:get(http, Opts, #{}),
@@ -453,7 +490,9 @@ start_cowboy(StartFunction, Ref, Secret, ExposedModules, Opts) ->
         {ok, InitialHandlerState} ->
             RouteRule = cowboy_route_rule(InitialHandlerState),
             BackwaterDispatch = cowboy_router:compile([RouteRule]),
-            TransportOpts2 = ensure_num_acceptors_in_transport_opts(UseLegacyTransportOpts, TransportOpts1),
+            TransportOpts2 = ensure_num_acceptors_in_transport_opts(
+                UseLegacyTransportOpts, TransportOpts1
+            ),
             HttpOpts1 = inject_backwater_dispatch_in_map_http_opts(BackwaterDispatch, HttpOpts0),
             HttpOpts2 = ensure_max_keepalive_in_map_http_opts(HttpOpts1),
             cowboy:StartFunction(ref(Ref), TransportOpts2, HttpOpts2);
