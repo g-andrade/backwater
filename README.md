@@ -1,11 +1,8 @@
 # backwater
 
-**This library is not under continuous maintenance; if you'd like to perform
-maintenance yourself, feel free to open an issue requesting access.**
-
 [![](https://img.shields.io/hexpm/v/backwater.svg?style=flat)](https://hex.pm/packages/backwater)
 [![](https://github.com/g-andrade/backwater/actions/workflows/ci.yml/badge.svg)](https://github.com/g-andrade/backwater/actions/workflows/ci.yml)
-[![Erlang Versions](https://img.shields.io/badge/Supported%20Erlang%2FOTP-22%20to%2026-blue)](https://www.erlang.org)
+[![Erlang Versions](https://img.shields.io/badge/Supported%20Erlang%2FOTP-24%20to%2029-blue)](https://www.erlang.org)
 
 ### Backwater - Intercluster RPC for Erlang and Elixir
 
@@ -48,7 +45,7 @@ backwater:call({"127.0.0.1", Secret}, string, to_upper, ["hello"]).
 
 ##### Requirements
 
-  - Erlang/OTP 22 or higher
+  - Erlang/OTP 24 or higher
   - rebar3
 
 ##### Documentation
@@ -141,7 +138,7 @@ For now, the best way to achieve this is to build requests using the
 
 MIT License
 
-Copyright (c) 2017-2022 Guilherme Andrade
+Copyright (c) 2017-2026 Guilherme Andrade
 
 Permission is hereby granted, free of charge, to any person obtaining a
 copy of this software and associated documentation files (the

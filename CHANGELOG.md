@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- support for OTP 27, 28 and 29
+- EEP-48 documentation, rendered with ExDoc
+
+### Changed
+
+- minimum supported OTP version is now 24 (down from a declared 22)
+- development tooling modernized: strict Makefile, erlfmt, rebar3_hank,
+  rebar3_lint (elvis) and dialyzer, gated per OTP version
+- CI moved to a GitHub Actions matrix over OTP 24 to 29, testing against both
+  ranch 1.x and ranch 2.x
+
+### Removed
+
+- the legacy Elixir test suite (Erlang-side coverage subsumes it)
+- support for OTP versions below 24
+
 ## [3.6.0] - 2023-10-01
 
 ### Added
