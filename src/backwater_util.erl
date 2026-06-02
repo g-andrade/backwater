@@ -150,7 +150,7 @@ validate_config_map(_Config, _MandatoryKeys, _PairValidationFun) ->
 %% Internal Function Definitions
 %% ------------------------------------------------------------------
 
--spec lists_allmap_recur(Fun :: fun((term()) -> {boolean(), term()} | boolean()), [term()], [term()]) ->
+-spec lists_allmap_recur(fun((term()) -> {boolean(), term()} | boolean()), [term()], [term()]) ->
     {true, [term()]} | {false, term()}.
 lists_allmap_recur(_Fun, [], Acc) ->
     {true, lists:reverse(Acc)};

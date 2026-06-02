@@ -626,10 +626,8 @@ decode_args_content_encoding(Data, #{args_content_encoding := <<"gzip">>} = Stat
 -spec decode_args_content_type(binary(), state()) -> {continue | stop, state()}.
 decode_args_content_type(Data, State) ->
     #{args_content_type := ArgsContentType} = State,
-    case ArgsContentType of
-        {<<"application">>, <<"x-erlang-etf">>, _Params} ->
-            decode_etf_args(Data, State)
-    end.
+    {<<"application">>, <<"x-erlang-etf">>, _Params} = ArgsContentType,
+    decode_etf_args(Data, State).
 
 -spec decode_etf_args(binary(), state()) -> {continue | stop, state()}.
 decode_etf_args(Data, State) ->
@@ -727,7 +725,8 @@ handle_undef_call_exception(FunctionRef, Stacktrace, State) ->
     {ok, call_exception()}.
 return_call_exception(Class, Exception, Stacktrace) ->
     % Hide all calls previous to the one made to the target function (cowboy stuff, etc.)
-    % This works under the assumption that *no sensible call* would ever go through 'call_function/1' again.
+    % This works under the assumption that *no sensible call* would ever go through
+    % 'call_function/1' again.
     PurgedStacktrace = backwater_util:purge_stacktrace_below(
         {?MODULE, call_function, 3}, Stacktrace
     ),
@@ -813,11 +812,8 @@ set_success_response(Value, #{result_content_type := ResultContentType} = State)
     {Type, SubType, _Params} = ResultContentType,
     ContentTypeHeaders = #{<<"content-type">> => [Type, "/", SubType]},
     Headers = maps:merge(nocache_headers(), ContentTypeHeaders),
-    Body =
-        case {Type, SubType} of
-            {<<"application">>, <<"x-erlang-etf">>} ->
-                backwater_media_etf:encode(Value)
-        end,
+    {<<"application">>, <<"x-erlang-etf">>} = {Type, SubType},
+    Body = backwater_media_etf:encode(Value),
     Response = encode_response(StatusCode, Headers, Body, State),
     maps:put(response, Response, State).
 

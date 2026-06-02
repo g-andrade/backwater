@@ -242,10 +242,9 @@ base_url({Host, Port}) when is_list(Host), is_integer(Port) ->
             list_to_binary("http://" ++ Host ++ ":" ++ PortStr ++ "/")
     end;
 base_url({IpAddress, Port}) when is_tuple(IpAddress), is_integer(Port) ->
-    case inet:ntoa(IpAddress) of
-        Host when is_list(Host) ->
-            base_url({Host, Port})
-    end;
+    Host = inet:ntoa(IpAddress),
+    true = is_list(Host),
+    base_url({Host, Port});
 base_url(IpAddress) when is_tuple(IpAddress) ->
     base_url({IpAddress, ?DEFAULT_CLEAR_PORT}).
 

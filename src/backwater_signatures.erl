@@ -667,7 +667,7 @@ valid_response_test() ->
     ResponseMsg = new_response_msg(200, #{}),
     SignedResponseMsg = sign_response(Config, ResponseMsg, <<"response body">>, SignedRequestMsg),
     ?assertMatch(
-        {ok, #{} = _SignedResponseMsg},
+        {ok, #{}},
         validate_response_signature(SignedRequestMsg, SignedResponseMsg)
     ).
 

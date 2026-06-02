@@ -382,7 +382,7 @@ big_url_arity_grouptest(Config) ->
                 #{update_url_with => replace_url_part_fun(<<"256">>, -1)}
         },
     ?assertMatch(
-        {error, {remote, {bad_request, _Headers, _body}}},
+        {error, {remote, {bad_request, _Headers, _Body}}},
         backwater:'_call'(Endpoint, erlang, '-', [Arg], Options, Override)
     ).
 
