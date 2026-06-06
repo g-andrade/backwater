@@ -667,7 +667,9 @@ exception_throwing_result_grouptest(Config, ReturnExceptionStacktraces) ->
     Options = BaseOptions#{rethrow_remote_exceptions => true},
     Arg1 = rand:uniform(1000),
     Arg2 = 0,
-    CaughtResult = (catch backwater:call(Endpoint, erlang, '/', [Arg1, Arg2], Options)),
+    CaughtResult = simulate_catch(fun backwater:call/5, [
+        Endpoint, erlang, '/', [Arg1, Arg2], Options
+    ]),
     case ReturnExceptionStacktraces of
         true ->
             ?assertMatch(
@@ -679,6 +681,20 @@ exception_throwing_result_grouptest(Config, ReturnExceptionStacktraces) ->
                 {'EXIT', {badarith, []}},
                 CaughtResult
             )
+    end.
+
+simulate_catch(Fun, Args) ->
+    try
+        apply(Fun, Args)
+    catch
+        error:Reason:Stacktrace ->
+            {'EXIT', {Reason, Stacktrace}};
+        %
+        exit:Reason ->
+            {'EXIT', Reason};
+        %
+        throw:Reason ->
+            Reason
     end.
 
 unsafe_argument_grouptest(Config) ->
