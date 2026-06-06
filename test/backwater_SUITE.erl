@@ -32,7 +32,7 @@ all() ->
 
 groups() ->
     GroupNames = group_names(),
-    [{GroupName, [parallel], all_group_tests()} || GroupName <- GroupNames].
+    [{GroupName, common_group_opts(), all_group_tests()} || GroupName <- GroupNames].
 
 init_per_group(Name, Config) ->
     {ok, _} = application:ensure_all_started(backwater),
@@ -751,20 +751,32 @@ group_names() ->
         ReturnExceptionStacktraces <- [true, false]
     ].
 
+common_group_opts() ->
+    case get_hackney_version() of
+        ("4." ++ _) = HackneyVer ->
+            logger:warning("No parallel tests on hackney \"~ts\"", [HackneyVer]),
+            [];
+        %
+        _ ->
+            [parallel]
+    end.
+
 tested_protocols() ->
+    case get_hackney_version() of
+        "1." ++ _ ->
+            [http, https];
+        %
+        HackneyVer ->
+            logger:warning("Skipping HTTPS tests on hackney \"~ts\"", [HackneyVer]),
+            [http]
+    end.
+
+get_hackney_version() ->
     {ok, _} = application:ensure_all_started(hackney),
 
     WhichApps = application:which_applications(),
     {hackney, _, HackneyVer} = lists:keyfind(hackney, 1, WhichApps),
-
-    case HackneyVer of
-        "1." ++ _ ->
-            [http, https];
-        %
-        _ ->
-            logger:warning("Skipping HTTPS tests on hackney \"~ts\"", [HackneyVer]),
-            [http]
-    end.
+    HackneyVer.
 
 encode_group_name(Protocol, DecodeUnsafeTerms, ReturnExceptionStacktraces) ->
     Parts =
