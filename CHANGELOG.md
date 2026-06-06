@@ -24,7 +24,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Removed
 
 - the legacy Elixir test suite (Erlang-side coverage subsumes it)
-- support for OTP versions below 24
+- support for OTP versions below 26
 
 ## [3.6.0] - 2023-10-01
 
