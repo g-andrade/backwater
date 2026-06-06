@@ -71,6 +71,15 @@ jobs:
       - name: Run Tests (ranch 1.x)
         run: rebar3 as ranch1 do ct, eunit
 
+      - name: Run Tests (hackney 1.x)
+        run: rebar3 as hackney1 do ct, eunit
+
+      - name: Run Tests (hackney 2.x)
+        run: rebar3 as hackney2 do ct, eunit
+
+      - name: Run Tests (hackney 3.x)
+        run: rebar3 as hackney3 do ct, eunit
+
       - name: Run Slow Checks
         run: make check-slow
 

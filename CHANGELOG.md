@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - support for OTP 27, 28 and 29
 - EEP-48 documentation, rendered with ExDoc
+- compatibility with hackney 2.x, 3.x and 4.x
 
 ### Changed
 
@@ -18,7 +19,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - development tooling modernized: strict Makefile, erlfmt, rebar3_hank,
   rebar3_lint (elvis) and dialyzer, gated per OTP version
 - CI moved to a GitHub Actions matrix over OTP 24 to 29, testing against both
-  ranch 1.x and ranch 2.x
+  ranch 1.x and ranch 2.x, and hackney 1.x up to 4.x
 
 ### Removed
 

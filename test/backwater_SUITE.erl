@@ -730,10 +730,25 @@ all_group_tests() ->
 group_names() ->
     [
         encode_group_name(Protocol, DecodeUnsafeTerms, ReturnExceptionStacktraces)
-     || Protocol <- [http, https],
+     || Protocol <- tested_protocols(),
         DecodeUnsafeTerms <- [true, false],
         ReturnExceptionStacktraces <- [true, false]
     ].
+
+tested_protocols() ->
+    {ok, _} = application:ensure_all_started(hackney),
+
+    WhichApps = application:which_applications(),
+    {hackney, _, HackneyVer} = lists:keyfind(hackney, 1, WhichApps),
+
+    case HackneyVer of
+        "1." ++ _ ->
+            [http, https];
+        %
+        _ ->
+            logger:warning("Skipping HTTPS tests on hackney \"~ts\"", [HackneyVer]),
+            [http]
+    end.
 
 encode_group_name(Protocol, DecodeUnsafeTerms, ReturnExceptionStacktraces) ->
     Parts =
@@ -795,11 +810,11 @@ get_starting_params_(https) ->
         ],
     HackneyOpts =
         [
-            insecure,
-            {ssl_options, [
-                {server_name_indication, disable},
-                {verify, verify_none}
-            ]}
+            insecure
+            %{ssl_options, [
+            %    {server_name_indication, disable},
+            %    {verify, verify_none}
+            %]}
         ],
     {Endpoint, start_tls_server, TransportOpts, HackneyOpts}.
 
