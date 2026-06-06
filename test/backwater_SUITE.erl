@@ -32,7 +32,8 @@ all() ->
 
 groups() ->
     GroupNames = group_names(),
-    [{GroupName, common_group_opts(), all_group_tests()} || GroupName <- GroupNames].
+    % No `parallel', issues with hackney 2.x and 4.x connection pools
+    [{GroupName, [], all_group_tests()} || GroupName <- GroupNames].
 
 init_per_group(Name, Config) ->
     {ok, _} = application:ensure_all_started(backwater),
@@ -750,16 +751,6 @@ group_names() ->
         DecodeUnsafeTerms <- [true, false],
         ReturnExceptionStacktraces <- [true, false]
     ].
-
-common_group_opts() ->
-    case get_hackney_version() of
-        ("4." ++ _) = HackneyVer ->
-            logger:warning("No parallel tests on hackney \"~ts\"", [HackneyVer]),
-            [];
-        %
-        _ ->
-            [parallel]
-    end.
 
 tested_protocols() ->
     case get_hackney_version() of
