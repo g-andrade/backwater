@@ -45,7 +45,7 @@ jobs:
       - name: Set dynamic env (1)
         run: |
           echo "prev_github_run_number=$((${{github.run_number}} - 1))" >> "$GITHUB_ENV"
-          echo "build_cache_prefix=_build-cache1-for-os-${{runner.os}}-otp-${{matrix.otp_vsn}}-rebar3-${{steps.setup-beam.outputs.rebar3-version}}" >> "$GITHUB_ENV"
+          echo "build_cache_prefix=_build-cache2-for-os-${{runner.os}}-otp-${{matrix.otp_vsn}}-rebar3-${{steps.setup-beam.outputs.rebar3-version}}" >> "$GITHUB_ENV"
 
       - name: Set dynamic env (2)
         run: |
